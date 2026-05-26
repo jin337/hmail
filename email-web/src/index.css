@@ -1,0 +1,39 @@
+@import 'tailwindcss';
+/* 表单内*号换行问题解决方案 */
+strong {
+  display: inline-block;
+}
+.mail-menu .arco-menu-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.email-list thead .arco-table-th {
+  background-color: #fff;
+}
+.email-list .arco-table-header {
+  overflow-y: auto!important;
+}
+
+.email-list .arco-table-th-item {
+  padding: 14px 16px 14px 7px;
+}
+.email-list .arco-table-td {
+  padding-left: 0;
+  vertical-align: baseline;
+}
+.select-row .arco-table-td {
+  background-color: var(--color-fill-2);
+}
+.mail-detail pre {
+  background-color: var(--w-e-textarea-slight-bg-color);
+  border: 1px solid var(--w-e-textarea-slight-border-color);
+  border-radius: 4px 4px;
+  display: block;
+  font-size: 14px;
+  padding: 10px;
+  text-indent: 0;
+}
+.mail-detail p {
+  margin: 15px 0;
+}

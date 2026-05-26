@@ -1,0 +1,21 @@
+{
+  "plugins": ["prettier-plugin-tailwindcss"],
+  "printWidth": 130,
+  "tabWidth": 2,
+  "useTabs": false,
+  "semi": false,
+  "singleQuote": true,
+  "quoteProps": "as-needed",
+  "jsxSingleQuote": true,
+  "trailingComma": "es5",
+  "bracketSpacing": true,
+  "jsxBracketSameLine": true,
+  "bracketSameLine": true,
+  "arrowParens": "always",
+  "proseWrap": "preserve",
+  "htmlWhitespaceSensitivity": "css",
+  "endOfLine": "auto",
+  "embeddedLanguageFormatting": "auto",
+  "vueIndentScriptAndStyle": true,
+  "singleAttributePerLine": false
+}
