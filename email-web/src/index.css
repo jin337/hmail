@@ -25,6 +25,10 @@ strong {
 .select-row .arco-table-td {
   background-color: var(--color-fill-2);
 }
+
+.mail-detail{
+  min-height: 100px;
+}
 .mail-detail pre {
   background-color: var(--w-e-textarea-slight-bg-color);
   border: 1px solid var(--w-e-textarea-slight-border-color);

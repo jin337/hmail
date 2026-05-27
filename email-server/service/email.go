@@ -414,9 +414,8 @@ func BuildRawEmail(email, pwd, folder string, uid uint32, partIDs string, from, 
 	if err != nil {
 		return nil, err
 	}
-	// 正文编码（简单QP，保证中文不乱码）
-	encodedBody := mime.QEncoding.Encode("utf-8", body)
-	_, _ = part.Write([]byte(encodedBody))
+	// 正文编码
+	_, _ = part.Write([]byte(body))
 
 	// 旧附件（根据 partIDs 保留）
 	if uid > 0 && partIDs != "" && folder != "" {

@@ -20,9 +20,9 @@ export default function WriteMail({ detail, onClose }) {
   useEffect(() => {
     if (detail?.uid) {
       form.setFieldsValue({ ...detail, to: detail?.to_email, cc: detail?.cc_email })
-      if (detail?.cc) {
-        setAddCC(true)
-      }
+
+      setAddCC(!!detail?.cc_email.length)
+
       const list = (detail?.detail?.attachments || []).map((e) => ({
         ...e,
         name: e.file_name,
@@ -124,7 +124,7 @@ export default function WriteMail({ detail, onClose }) {
             <div className='z-100 overflow-hidden rounded border border-gray-300'>
               <Toolbar
                 editor={editor}
-                defaultConfig={{ excludeKeys: ['group-video', 'group-image', 'insertTable'] }}
+                defaultConfig={{ excludeKeys: ['group-video', 'group-image', 'insertTable', 'codeBlock'] }}
                 mode='default'
                 className='border-b border-gray-300'
               />
@@ -137,8 +137,14 @@ export default function WriteMail({ detail, onClose }) {
               />
             </div>
           </Form.Item>
-          <Form.Item label='附件' field='files'>
-            <Upload autoUpload={false} action='/' multiple fileList={fileList} onChange={setFileList}>
+          <Form.Item field='files'>
+            <Upload
+              autoUpload={false}
+              action='/'
+              multiple
+              showUploadList={{ startIcon: null }}
+              fileList={fileList}
+              onChange={setFileList}>
               <Button icon={<IconUpload />}>上传附件</Button>
             </Upload>
           </Form.Item>

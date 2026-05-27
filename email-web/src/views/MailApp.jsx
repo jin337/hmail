@@ -16,12 +16,12 @@ import IconSent from 'src/assets/sent.svg'
 import {
   Avatar,
   Button,
+  Card,
   Divider,
   Dropdown,
   Form,
   Input,
   Layout,
-  List,
   Menu,
   Message,
   Modal,
@@ -37,6 +37,7 @@ import {
   IconEdit,
   IconEmail,
   IconFile,
+  IconImage,
   IconRedo,
   IconReply,
   IconSend,
@@ -276,11 +277,35 @@ const MailApp = () => {
   }
 
   // 邮件原内容
-  const FormContent = `<p><br></p><p><br></p><p>原始邮件——————</p><pre><code>发件人：${currentMail?.from_name} &lt;${currentMail?.from}&gt;
-日期：${dayjs(currentMail?.date).format('YYYY年MM月DD日 HH:mm:ss')}
-收件人：${currentMail?.to_reply}
-${currentMail?.cc && `抄送：${currentMail?.cc_reply}`}
-主题：${currentMail?.subject}</code></pre>${currentMail?.detail?.content || ''}`
+  const FormContent = `<p style="line-height: 1;"><br></p>
+  <p style="line-height: 1;"><br></p>
+  <p style="line-height: 1;"><span style="font-size: 13px;">原始邮件</span>——————</p>
+  <blockquote>
+  <span style="color: rgb(140, 140, 140); font-size: 13px;">发件人：</span>
+  <span style="font-size: 13px;">${currentMail?.from_name} &lt;${currentMail?.from}&gt; </span>
+  <span style="color: rgb(140, 140, 140); font-size: 13px;"><br>发件时间：</span>
+  <span style="font-size: 13px;">${dayjs(currentMail?.date).format('YYYY年MM月DD日 HH:mm:ss')}</span>
+  <span style="color: rgb(140, 140, 140); font-size: 13px;"><br>收件人：</span>
+  <span style="font-size: 13px;">${currentMail?.to_reply}</span>
+  <span style="color: rgb(140, 140, 140); font-size: 13px;"><br>主题：</span>
+  <span style="font-size: 13px;">${currentMail?.subject}</span>
+  </blockquote>${currentMail?.detail?.content || ''}`
+
+  const FormContentCc = `<p style="line-height: 1;"><br></p>
+  <p style="line-height: 1;"><br></p>
+  <p style="line-height: 1;"><span style="font-size: 13px;">原始邮件</span>——————</p>
+  <blockquote>
+  <span style="color: rgb(140, 140, 140); font-size: 13px;">发件人：</span>
+  <span style="font-size: 13px;">${currentMail?.from_name} &lt;${currentMail?.from}&gt;</span>
+  <span style="color: rgb(140, 140, 140); font-size: 13px;"><br>发件时间：</span>
+  <span style="font-size: 13px;">${dayjs(currentMail?.date).format('YYYY年MM月DD日 HH:mm:ss')}</span>
+  <span style="color: rgb(140, 140, 140); font-size: 13px;"><br>收件人：</span>
+  <span style="font-size: 13px;">${currentMail?.to_reply}</span>
+  <span style="color: rgb(140, 140, 140); font-size: 13px;"><br>抄送：</span>
+  <span style="font-size: 13px;">${currentMail?.cc_reply}</span>
+  <span style="color: rgb(140, 140, 140); font-size: 13px;"><br>主题：</span>
+  <span style="font-size: 13px;">${currentMail?.subject}</span>
+  </blockquote>${currentMail?.detail?.content || ''}`
   // 回复邮件
   const handleReply = () => {
     if (!currentMail) return
@@ -290,11 +315,13 @@ ${currentMail?.cc && `抄送：${currentMail?.cc_reply}`}
       subject: `回复: ${currentMail.subject}`,
       to_email: currentMail.to.split(', '),
       cc_email: currentMail.cc ? currentMail.cc.split(', ') : [],
+      detail: {
+        content: currentMail?.cc ? FormContentCc : FormContent,
+      },
     }
     if (currentFolder.key === 'inbox') {
       newMail.to_email = [currentMail.from]
     }
-    newMail.detail.content = FormContent
 
     onWriteMail('reply', newMail)
   }
@@ -305,11 +332,14 @@ ${currentMail?.cc && `抄送：${currentMail?.cc_reply}`}
     const newMail = {
       ...currentMail,
       subject: `转发: ${currentMail.subject}`,
+      to_email: [],
+      cc_email: [],
+      detail: {
+        content: currentMail?.cc ? FormContentCc : FormContent,
+      },
     }
 
-    newMail.detail.content = FormContent
-
-    onWriteMail('forward', { ...newMail, to_email: [] })
+    onWriteMail('forward', newMail)
   }
 
   // 标记已读
@@ -489,7 +519,7 @@ ${currentMail?.cc && `抄送：${currentMail?.cc_reply}`}
         ) : (
           <>
             {/* 中列：邮件列表 */}
-            <div className='max-w-100 flex-1 border-r border-gray-200'>
+            <div className='max-w-90 min-w-90 flex-1 border-r border-gray-200'>
               <Table
                 loading={loading}
                 scroll={{ y: 'calc(100vh - 108px)' }}
@@ -546,7 +576,7 @@ ${currentMail?.cc && `抄送：${currentMail?.cc_reply}`}
                               record?.from_name
                             )}
 
-                            {record.has_attach ? <IconAttachment className='ml-1 text-gray-400!' /> : ''}
+                            {record.has_attach ? <IconAttachment className='text-gray-400!' /> : ''}
                           </div>
                           <span>{dayjs(record?.send_time).fromNow()}</span>
                         </div>
@@ -561,7 +591,7 @@ ${currentMail?.cc && `抄送：${currentMail?.cc_reply}`}
             </div>
 
             {/* 右列：邮件详情 + 顶部操作按钮栏 */}
-            <Content>
+            <Content className='min-w-130 flex-1'>
               {currentMail ? (
                 <>
                   {/* 邮件操作工具栏 */}
@@ -596,7 +626,7 @@ ${currentMail?.cc && `抄送：${currentMail?.cc_reply}`}
                     {/* 邮件头部信息 */}
                     <div className='mb-4 text-lg font-bold'>{currentMail.subject}</div>
                     <div className='mb-4 flex items-start gap-3'>
-                      <Avatar style={{ backgroundColor: '#FFEDD8', color: '#FF8800' }}>
+                      <Avatar className={'min-w-10!'} style={{ backgroundColor: '#FFEDD8', color: '#FF8800' }}>
                         {currentMail?.from_name?.slice(0, 1).toUpperCase()}
                       </Avatar>
                       <div className='flex-1 text-sm'>
@@ -638,36 +668,45 @@ ${currentMail?.cc && `抄送：${currentMail?.cc_reply}`}
                     <Divider />
 
                     {/* 邮件正文 */}
-                    {currentMail.detail?.attachments?.length > 0 && (
-                      <>
-                        <div style={{ marginBottom: 16 }}>
-                          <div style={{ fontWeight: 500, marginBottom: 8 }}>附件：</div>
-                          <List
-                            size='small'
-                            dataSource={currentMail.detail.attachments}
-                            render={(item, index) => (
-                              <List.Item
-                                key={index}
-                                extra={
-                                  <Button type='text' size='small' onClick={() => handleDownloadAttachment(item)}>
-                                    下载
-                                  </Button>
-                                }>
-                                <List.Item.Meta title={item.file_name} />
-                              </List.Item>
-                            )}
-                          />
-                        </div>
-                        <Divider />
-                      </>
-                    )}
                     <div
                       className='mail-detail'
-                      style={{ lineHeight: 1.8 }}
                       dangerouslySetInnerHTML={{
                         __html: currentMail.detail?.content || '<div class="text-gray-500">暂无邮件内容</div>',
                       }}
                     />
+                    {currentMail.detail?.attachments?.length > 0 && (
+                      <Card
+                        className='mt-10'
+                        title={
+                          <>
+                            <IconAttachment className='mr-1' />
+                            {currentMail?.detail?.attachments?.length}个 附件
+                          </>
+                        }>
+                        <div className='flex flex-col gap-2'>
+                          {currentMail.detail.attachments.map((item, index) => (
+                            <div key={index} className='flex items-center justify-between gap-2 bg-gray-100 p-2'>
+                              <div className='flex-1'>
+                                <Avatar
+                                  size={28}
+                                  shape='square'
+                                  className={`mr-2 ${item?.content_type?.includes('image') ? 'bg-[#0BB5B5]!' : 'bg-[#5252CC]!'}`}>
+                                  {item?.content_type?.includes('image') ? (
+                                    <IconImage className={'text-xl'} />
+                                  ) : (
+                                    <IconFile className={'text-xl'} />
+                                  )}
+                                </Avatar>
+                                {item.file_name}
+                              </div>
+                              <Button type='text' size='small' onClick={() => handleDownloadAttachment(item)}>
+                                下载
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      </Card>
+                    )}
                   </Spin>
                 </>
               ) : (

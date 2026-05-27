@@ -250,11 +250,12 @@ func SaveDraft(c *gin.Context) {
 
 	// 解析 UID
 	var uid uint32
-	if _, parseErr := fmt.Sscanf(uidStr, "%d", &uid); parseErr != nil {
-		c.JSON(200, gin.H{"code": 400, "msg": "无效的 UID 格式"})
-		return
+	if uidStr != "" {
+		if _, parseErr := fmt.Sscanf(uidStr, "%d", &uid); parseErr != nil {
+			c.JSON(200, gin.H{"code": 400, "msg": "无效的 UID 格式"})
+			return
+		}
 	}
-
 	// 构建邮件
 	toList := strings.Split(to, ",")
 	ccList := strings.Split(cc, ",")
@@ -303,9 +304,11 @@ func SendEmail(c *gin.Context) {
 
 	// 解析 UID
 	var uid uint32
-	if _, parseErr := fmt.Sscanf(uidStr, "%d", &uid); parseErr != nil {
-		c.JSON(200, gin.H{"code": 400, "msg": "无效的 UID 格式"})
-		return
+	if uidStr != "" {
+		if _, parseErr := fmt.Sscanf(uidStr, "%d", &uid); parseErr != nil {
+			c.JSON(200, gin.H{"code": 400, "msg": "无效的 UID 格式"})
+			return
+		}
 	}
 
 	// 构建邮件内容
