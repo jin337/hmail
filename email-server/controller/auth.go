@@ -18,14 +18,14 @@ func Login(c *gin.Context) {
 
 	// 验证参数
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(400, gin.H{"code": 400, "msg": "参数错误"})
+		c.JSON(200, gin.H{"code": 400, "msg": "参数错误"})
 		return
 	}
 
 	// 验证用户
 	imapClient, err := utils.DialIMAPClient(req.Email, req.Password)
 	if err != nil {
-		c.JSON(500, gin.H{"code": 500, "msg": err.Error()})
+		c.JSON(200, gin.H{"code": 500, "msg": err.Error()})
 		return
 	}
 
@@ -43,7 +43,7 @@ func Login(c *gin.Context) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	tokenStr, err := token.SignedString([]byte(config.JwtSecretKey))
 	if err != nil {
-		c.JSON(500, gin.H{"code": 500, "msg": "生成Token失败"})
+		c.JSON(200, gin.H{"code": 500, "msg": "生成Token失败"})
 		return
 	}
 
@@ -62,17 +62,17 @@ func ChangePassword(c *gin.Context) {
 
 	var req model.PasswordReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(400, gin.H{"code": 400, "msg": "参数错误"})
+		c.JSON(200, gin.H{"code": 400, "msg": "参数错误"})
 		return
 	}
 	if req.OldPwd == "" || req.NewPwd == "" {
-		c.JSON(400, gin.H{"code": 400, "msg": "旧密码或新密码参数不能为空"})
+		c.JSON(200, gin.H{"code": 400, "msg": "旧密码或新密码参数不能为空"})
 		return
 	}
 
-	err := service.UpdatePassword(email.(string), req.OldPwd, req.NewPwd)
+	err := service.UpdatePassword(config.AdminPwd, email.(string), req.OldPwd, req.NewPwd)
 	if err != nil {
-		c.JSON(500, gin.H{"code": 500, "msg": "修改密码失败: " + err.Error()})
+		c.JSON(200, gin.H{"code": 500, "msg": err.Error()})
 		return
 	}
 	c.JSON(200, gin.H{

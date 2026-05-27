@@ -16,7 +16,8 @@ import (
 	"email-server/model"
 	"email-server/utils"
 
-	"github.com/davecgh/go-spew/spew"
+	_ "github.com/go-sql-driver/mysql"
+
 	"github.com/emersion/go-imap"
 	"github.com/jhillyerd/enmime"
 )
@@ -377,7 +378,7 @@ func DeleteMail(email, pwd string, folder string, uids []uint32) error {
 }
 
 // BuildRawEmail 构建原始邮件内容
-func BuildRawEmail(from, to []string, cc []string, subject, body string, files []*multipart.FileHeader) ([]byte, error) {
+func BuildRawEmail(email, pwd, folder string, uid uint32, partIDs string, from, to []string, cc []string, subject, body string, files []*multipart.FileHeader) ([]byte, error) {
 	buf := &bytes.Buffer{}
 	writer := multipart.NewWriter(buf)
 	defer writer.Close()
@@ -417,7 +418,79 @@ func BuildRawEmail(from, to []string, cc []string, subject, body string, files [
 	encodedBody := mime.QEncoding.Encode("utf-8", body)
 	_, _ = part.Write([]byte(encodedBody))
 
-	// 写入附件
+	// 旧附件（根据 partIDs 保留）
+	if uid > 0 && partIDs != "" && folder != "" {
+		// 解析需要保留的 partIDs
+		keepIDs := make(map[string]bool)
+		for _, idStr := range strings.Split(partIDs, ",") {
+			idStr = strings.TrimSpace(idStr)
+			if idStr != "" {
+				keepIDs[idStr] = true
+			}
+		}
+
+		// 获取旧邮件详情
+		imapClient, err := utils.DialIMAPClient(email, pwd)
+		if err == nil {
+			defer imapClient.Logout()
+
+			_, err = imapClient.Select(folder, false)
+			if err == nil {
+				uidSet := new(imap.SeqSet)
+				uidSet.AddNum(uid)
+
+				bodyMail := make(chan *imap.Message, 1)
+				done := make(chan error, 1)
+				go func() {
+					done <- imapClient.UidFetch(uidSet, []imap.FetchItem{
+						imap.FetchRFC822,
+						imap.FetchUid,
+					}, bodyMail)
+				}()
+
+				msg, ok := <-bodyMail
+				if ok {
+					section := &imap.BodySectionName{}
+					r := msg.GetBody(section)
+					if r != nil {
+						env, err := enmime.ReadEnvelope(r)
+						if err == nil {
+							// 写入需要保留的旧附件
+							for _, att := range env.Attachments {
+								if keepIDs[att.PartID] {
+									fileName := mime.QEncoding.Encode("utf-8", att.FileName)
+
+									attachHeader := textproto.MIMEHeader{}
+									attachHeader.Set("Content-Type", att.ContentType)
+									attachHeader.Set("Content-Transfer-Encoding", "base64")
+									attachHeader.Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, fileName))
+
+									part, err := writer.CreatePart(attachHeader)
+									if err == nil {
+										// Base64 编码
+										encodedContent := base64.StdEncoding.EncodeToString(att.Content)
+										var bufLines bytes.Buffer
+										for i := 0; i < len(encodedContent); i += 76 {
+											end := i + 76
+											if end > len(encodedContent) {
+												end = len(encodedContent)
+											}
+											bufLines.WriteString(encodedContent[i:end])
+											bufLines.WriteString("\r\n")
+										}
+										_, _ = part.Write(bufLines.Bytes())
+									}
+								}
+							}
+						}
+					}
+				}
+				<-done
+			}
+		}
+	}
+
+	// 写入新附件
 	for _, file := range files {
 		fileName := mime.QEncoding.Encode("utf-8", file.Filename)
 
@@ -503,13 +576,15 @@ func SaveMailToFolder(email, pwd, folder string, raw []byte) error {
 }
 
 // UpdateDraft 更新草稿邮件
-func UpdateDraft(email, pwd, folder string, uid uint32, raw []byte) error {
-	// 第一步：删除旧草稿
+func UpdateDraft(email, pwd, folder string, raw []byte, uid uint32) error {
+	// 获取旧草稿内附件
+
+	// 删除旧草稿
 	if err := DeleteMail(email, pwd, folder, []uint32{uid}); err != nil {
 		return fmt.Errorf("删除旧草稿失败: %w", err)
 	}
 
-	// 第二步：保存新草稿
+	// 保存新草稿
 	if err := SaveMailToFolder(email, pwd, folder, raw); err != nil {
 		return fmt.Errorf("保存新草稿失败: %w", err)
 	}
@@ -568,7 +643,18 @@ func SmtpSendEmail(email, pwd string, to []string, cc []string, raw []byte) erro
 }
 
 // UpdatePassword 修改密码
-func UpdatePassword(email, oldPwd, newPwd string) error {
-	spew.Dump(email, oldPwd, newPwd)
+func UpdatePassword(adminPwd, email, oldPwd, newPwd string) error {
+	// // 建立IMAP连接
+	imapClient, err := utils.DialIMAPClient(email, oldPwd)
+	if err != nil {
+		return fmt.Errorf("旧密码验证失败: %w", err)
+	}
+	imapClient.Logout()
+
+	err = utils.ChangePassword(adminPwd, email, newPwd)
+	if err != nil {
+		return fmt.Errorf("修改密码失败: %w", err)
+	}
+
 	return nil
 }

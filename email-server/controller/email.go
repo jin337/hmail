@@ -18,13 +18,13 @@ func MailList(c *gin.Context) {
 
 	var req model.MailListReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(400, gin.H{"code": 400, "msg": "参数错误"})
+		c.JSON(200, gin.H{"code": 400, "msg": "参数错误"})
 		return
 	}
 
 	// 验证必传
 	if req.Folder == "" {
-		c.JSON(400, gin.H{"code": 400, "msg": "folder 参数不能为空"})
+		c.JSON(200, gin.H{"code": 400, "msg": "folder 参数不能为空"})
 		return
 	}
 
@@ -44,7 +44,7 @@ func MailList(c *gin.Context) {
 		}
 	}
 	if !isValidFolder {
-		c.JSON(400, gin.H{"code": 400, "msg": "folder 参数无效"})
+		c.JSON(200, gin.H{"code": 400, "msg": "folder 参数无效"})
 		return
 	}
 
@@ -58,7 +58,7 @@ func MailList(c *gin.Context) {
 
 	list, total, err := service.MailList(email.(string), pwd.(string), req.Folder, req.Page, req.Size, req.Keyword)
 	if err != nil {
-		c.JSON(500, gin.H{"code": 500, "msg": "获取邮件列表失败: " + err.Error()})
+		c.JSON(200, gin.H{"code": 500, "msg": "获取邮件列表失败: " + err.Error()})
 		return
 	}
 	c.JSON(200, gin.H{
@@ -80,19 +80,19 @@ func MailDetail(c *gin.Context) {
 
 	var req model.MailDetailReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(400, gin.H{"code": 400, "msg": "参数错误"})
+		c.JSON(200, gin.H{"code": 400, "msg": "参数错误"})
 		return
 	}
 
 	// 验证必传
 	if req.Uid <= 0 || req.Folder == "" {
-		c.JSON(400, gin.H{"code": 400, "msg": "uid 或 folder 参数不能为空"})
+		c.JSON(200, gin.H{"code": 400, "msg": "uid 或 folder 参数不能为空"})
 		return
 	}
 
 	mailItem, err := service.MailDetail(email.(string), pwd.(string), req.Folder, req.Uid)
 	if err != nil {
-		c.JSON(500, gin.H{"code": 500, "msg": "获取邮件详情失败: " + err.Error()})
+		c.JSON(200, gin.H{"code": 500, "msg": "获取邮件详情失败: " + err.Error()})
 		return
 	}
 	c.JSON(200, gin.H{
@@ -109,19 +109,19 @@ func MarkRead(c *gin.Context) {
 
 	var req model.UpdateMailStatusReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(400, gin.H{"code": 400, "msg": "参数错误"})
+		c.JSON(200, gin.H{"code": 400, "msg": "参数错误"})
 		return
 	}
 
 	// 验证必传
 	if req.Uid <= 0 || req.Folder == "" {
-		c.JSON(400, gin.H{"code": 400, "msg": "uid 或 folder 参数不能为空"})
+		c.JSON(200, gin.H{"code": 400, "msg": "uid 或 folder 参数不能为空"})
 		return
 	}
 
 	err := service.UpdateMailStatus(email.(string), pwd.(string), req.Folder, req.Uid, req.Status)
 	if err != nil {
-		c.JSON(500, gin.H{"code": 500, "msg": "更新邮件状态失败: " + err.Error()})
+		c.JSON(200, gin.H{"code": 500, "msg": "更新邮件状态失败: " + err.Error()})
 		return
 	}
 	c.JSON(200, gin.H{
@@ -137,13 +137,13 @@ func DownloadAttachment(c *gin.Context) {
 
 	var req model.DownloadAttachReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(400, gin.H{"code": 400, "msg": "参数错误"})
+		c.JSON(200, gin.H{"code": 400, "msg": "参数错误"})
 		return
 	}
 
 	// 验证必传
 	if req.Uid <= 0 || req.Folder == "" || req.PartID == "" {
-		c.JSON(400, gin.H{"code": 400, "msg": "uid 或 folder 或 part_id 参数不能为空"})
+		c.JSON(200, gin.H{"code": 400, "msg": "uid 或 folder 或 part_id 参数不能为空"})
 		return
 	}
 
@@ -153,7 +153,7 @@ func DownloadAttachment(c *gin.Context) {
 		errorMsg := fmt.Sprintf("下载失败: %s", err.Error())
 		c.Header("Content-Disposition", "attachment; filename=error.txt")
 		c.Header("Content-Type", "text/plain; charset=utf-8")
-		c.Data(500, "text/plain; charset=utf-8", []byte(errorMsg))
+		c.Data(200, "text/plain; charset=utf-8", []byte(errorMsg))
 		return
 	}
 	// URL 编码文件名以支持中文和特殊字符
@@ -171,29 +171,29 @@ func MoveMail(c *gin.Context) {
 
 	var req model.MoveMailReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(400, gin.H{"code": 400, "msg": "参数错误"})
+		c.JSON(200, gin.H{"code": 400, "msg": "参数错误"})
 		return
 	}
 
 	// 验证必传
 	if len(req.Uids) == 0 || req.FromFolder == "" || req.ToFolder == "" {
-		c.JSON(400, gin.H{"code": 400, "msg": "uid 或 folder 或 new_folder 参数不能为空"})
+		c.JSON(200, gin.H{"code": 400, "msg": "uid 或 folder 或 new_folder 参数不能为空"})
 		return
 	}
 
 	// 参数验证
 	if len(req.Uids) == 0 {
-		c.JSON(400, gin.H{"code": 400, "msg": "邮件UID列表不能为空"})
+		c.JSON(200, gin.H{"code": 400, "msg": "邮件UID列表不能为空"})
 		return
 	}
 	if req.FromFolder == req.ToFolder {
-		c.JSON(400, gin.H{"code": 400, "msg": "源文件夹和目标文件夹不能相同"})
+		c.JSON(200, gin.H{"code": 400, "msg": "源文件夹和目标文件夹不能相同"})
 		return
 	}
 
 	err := service.MoveMail(email.(string), pwd.(string), req.FromFolder, req.ToFolder, req.Uids)
 	if err != nil {
-		c.JSON(500, gin.H{"code": 500, "msg": "移动邮件失败: " + err.Error()})
+		c.JSON(200, gin.H{"code": 500, "msg": "移动邮件失败: " + err.Error()})
 		return
 	}
 	c.JSON(200, gin.H{
@@ -209,19 +209,19 @@ func DeleteMail(c *gin.Context) {
 
 	var req model.DelMailReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(400, gin.H{"code": 400, "msg": "参数错误"})
+		c.JSON(200, gin.H{"code": 400, "msg": "参数错误"})
 		return
 	}
 
 	// 验证必传
 	if len(req.Uids) == 0 || req.Folder == "" {
-		c.JSON(400, gin.H{"code": 400, "msg": "uid 列表或 folder 参数不能为空"})
+		c.JSON(200, gin.H{"code": 400, "msg": "uid 列表或 folder 参数不能为空"})
 		return
 	}
 
 	err := service.DeleteMail(email.(string), pwd.(string), req.Folder, req.Uids)
 	if err != nil {
-		c.JSON(500, gin.H{"code": 500, "msg": "删除邮件失败: " + err.Error()})
+		c.JSON(200, gin.H{"code": 500, "msg": "删除邮件失败: " + err.Error()})
 		return
 	}
 	c.JSON(200, gin.H{
@@ -239,33 +239,36 @@ func SaveDraft(c *gin.Context) {
 	cc := c.PostForm("cc")
 	subject := c.PostForm("subject")
 	content := c.PostForm("content")
+
 	uidStr := c.PostForm("uid")
+	partIds := c.PostForm("part_ids")
 
 	files := c.Request.MultipartForm.File["files"]
 	if len(files) == 0 {
 		files = nil
 	}
 
-	// 构建邮件
-	toList := strings.Split(to, ",")
-	ccList := strings.Split(cc, ",")
-	raw, err := service.BuildRawEmail([]string{email.(string)}, toList, ccList, subject, content, files)
-	if err != nil {
-		c.JSON(500, gin.H{"code": 500, "msg": "构建邮件失败", "err": err.Error()})
+	// 解析 UID
+	var uid uint32
+	if _, parseErr := fmt.Sscanf(uidStr, "%d", &uid); parseErr != nil {
+		c.JSON(200, gin.H{"code": 400, "msg": "无效的 UID 格式"})
 		return
 	}
 
-	// 如果有 uid，说明是更新草稿
+	// 构建邮件
+	toList := strings.Split(to, ",")
+	ccList := strings.Split(cc, ",")
+	raw, err := service.BuildRawEmail(email.(string), pwd.(string), config.FolderDrafts, uid, partIds, []string{email.(string)}, toList, ccList, subject, content, files)
+	if err != nil {
+		c.JSON(200, gin.H{"code": 500, "msg": "构建邮件失败", "err": err.Error()})
+		return
+	}
+
+	// 更新草稿
 	if uidStr != "" {
-		// 解析 UID
-		var uid uint32
-		if _, parseErr := fmt.Sscanf(uidStr, "%d", &uid); parseErr != nil {
-			c.JSON(400, gin.H{"code": 400, "msg": "无效的 UID 格式"})
-			return
-		}
-		err := service.UpdateDraft(email.(string), pwd.(string), config.FolderDrafts, uid, raw)
+		err := service.UpdateDraft(email.(string), pwd.(string), config.FolderDrafts, raw, uid)
 		if err != nil {
-			c.JSON(500, gin.H{"code": 500, "msg": "更新草稿失败", "err": err.Error()})
+			c.JSON(200, gin.H{"code": 500, "msg": "更新草稿失败", "err": err.Error()})
 			return
 		}
 		c.JSON(200, gin.H{"code": 200, "msg": "草稿更新成功", "uid": uid})
@@ -273,7 +276,7 @@ func SaveDraft(c *gin.Context) {
 		// 新建草稿
 		err := service.SaveMailToFolder(email.(string), pwd.(string), config.FolderDrafts, raw)
 		if err != nil {
-			c.JSON(500, gin.H{"code": 500, "msg": "保存草稿失败", "err": err.Error()})
+			c.JSON(200, gin.H{"code": 500, "msg": "保存草稿失败", "err": err.Error()})
 			return
 		}
 		c.JSON(200, gin.H{"code": 200, "msg": "草稿保存成功"})
@@ -289,45 +292,49 @@ func SendEmail(c *gin.Context) {
 	cc := c.PostForm("cc")
 	subject := c.PostForm("subject")
 	content := c.PostForm("content")
+
 	uidStr := c.PostForm("uid")
+	partIds := c.PostForm("part_ids")
 
 	files := c.Request.MultipartForm.File["files"]
 	if len(files) == 0 {
 		files = nil
 	}
 
+	// 解析 UID
+	var uid uint32
+	if _, parseErr := fmt.Sscanf(uidStr, "%d", &uid); parseErr != nil {
+		c.JSON(200, gin.H{"code": 400, "msg": "无效的 UID 格式"})
+		return
+	}
+
 	// 构建邮件内容
 	toList := strings.Split(to, ",")
 	ccList := strings.Split(cc, ",")
-	raw, err := service.BuildRawEmail([]string{email.(string)}, toList, ccList, subject, content, files)
+	raw, err := service.BuildRawEmail(email.(string), pwd.(string), config.FolderDrafts, uid, partIds, []string{email.(string)}, toList, ccList, subject, content, files)
 	if err != nil {
-		c.JSON(500, gin.H{"code": 500, "msg": "构建邮件失败", "err": err.Error()})
+		c.JSON(200, gin.H{"code": 500, "msg": "构建邮件失败", "err": err.Error()})
 		return
 	}
+
 	// 发送邮件
 	if err := service.SmtpSendEmail(email.(string), pwd.(string), toList, ccList, raw); err != nil {
-		c.JSON(500, gin.H{"code": 500, "msg": "发送失败", "err": err.Error()})
+		c.JSON(200, gin.H{"code": 500, "msg": "发送失败", "err": err.Error()})
 		return
 	}
 
 	// 存入已发送
 	err = service.SaveMailToFolder(email.(string), pwd.(string), config.FolderSent, raw)
 	if err != nil {
-		c.JSON(500, gin.H{"code": 500, "msg": "发送成功，存入已发送失败", "err": err.Error()})
+		c.JSON(200, gin.H{"code": 500, "msg": "发送成功，存入已发送失败", "err": err.Error()})
 		return
 	}
 
-	// 解析 UID
+	// 删除草稿
 	if uidStr != "" {
-		var uid uint32
-		if _, parseErr := fmt.Sscanf(uidStr, "%d", &uid); parseErr != nil {
-			c.JSON(400, gin.H{"code": 400, "msg": "无效的 UID 格式"})
-			return
-		}
-
 		err = service.DeleteMail(email.(string), pwd.(string), config.FolderDrafts, []uint32{uid})
 		if err != nil {
-			c.JSON(500, gin.H{"code": 500, "msg": "删除草稿失败: " + err.Error()})
+			c.JSON(200, gin.H{"code": 500, "msg": "删除草稿失败: " + err.Error()})
 			return
 		}
 	}

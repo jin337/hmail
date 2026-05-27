@@ -3,11 +3,10 @@ import { IconClose, IconFile, IconPlus, IconSend, IconUpload } from '@arco-desig
 
 import { useEffect, useState } from 'react'
 
-import request from 'src/api/request'
-
 // 引入 wangEditor
 import { Editor, Toolbar } from '@wangeditor/editor-for-react'
 
+import request from 'src/api/request'
 export default function WriteMail({ detail, onClose }) {
   const [form] = Form.useForm()
   const [loading, setLoading] = useState(false)
@@ -27,7 +26,7 @@ export default function WriteMail({ detail, onClose }) {
       const list = (detail?.detail?.attachments || []).map((e) => ({
         ...e,
         name: e.file_name,
-        uid: e.uid,
+        uid: e.part_id,
         originFile: null,
       }))
       setFileList(list)
@@ -60,14 +59,21 @@ export default function WriteMail({ detail, onClose }) {
       formData.append('uid', detail.uid)
     }
 
+    const partIds = []
     fileList.forEach((file) => {
-      file.originFile && formData.append('files', file.originFile)
+      if (file?.part_id) {
+        partIds.push(file.part_id)
+      } else {
+        formData.append('files', file?.originFile)
+      }
     })
+    if (partIds.length > 0) {
+      formData.append('part_ids', partIds.join(','))
+    }
 
     setLoading(true)
     let url = '/api/mail/send'
     if (type === 'Drafts') {
-      detail?.uid && formData.append('uid', detail?.uid)
       url = '/api/mail/save-draft'
     }
     const { code, msg } = await request.post(url, formData, { headers: { 'Content-Type': 'multipart/form-data' } })
@@ -103,7 +109,7 @@ export default function WriteMail({ detail, onClose }) {
         </Space>
       </Layout.Header>
       <Layout.Content>
-        <Form className='p-6 pb-0 overflow-y-auto h-[calc(100vh-112px)]' form={form} layout='vertical'>
+        <Form className='h-[calc(100vh-112px)] overflow-y-auto p-6 pb-0' form={form} layout='vertical'>
           <Form.Item field='to' rules={[{ required: true, message: '请输入收件人' }]}>
             <InputTag prefix='收件人' placeholder='test@xxx.com' />
           </Form.Item>

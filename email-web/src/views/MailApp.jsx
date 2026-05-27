@@ -61,6 +61,7 @@ const MailApp = () => {
   const [folderList, setFolderList] = useState(menuList)
   const [currentFolder, setCurrentFolder] = useState({})
   const [mailList, setMailList] = useState([])
+  const [total, setTotal] = useState(0)
   const [currentMail, setCurrentMail] = useState(null)
   const [writeMail, setWriteMail] = useState(null)
   const [currentLoading, setCurrentLoading] = useState(false)
@@ -116,6 +117,7 @@ const MailApp = () => {
   const loadMailList = async (key) => {
     setSelectedRowKeys([])
     setMailList([])
+    setTotal(0)
     setCurrentMail(null)
     setSearchWord('')
 
@@ -126,7 +128,7 @@ const MailApp = () => {
       return
     }
     setLoading(true)
-    const params = { folder: item.folder, page: 1, size: 20, keyword: '' }
+    const params = { folder: item.folder, page: 1, size: 1000, keyword: '' }
     let { code, data, msg } = await request.post('/api/mail/list', params)
     if (code === 200) {
       const list = (data?.list || []).map((e) => {
@@ -151,6 +153,7 @@ const MailApp = () => {
         }
       })
       setMailList(list)
+      setTotal(data?.total || 0)
     } else {
       Message.error(msg)
     }
@@ -523,7 +526,7 @@ ${currentMail?.cc && `抄送：${currentMail?.cc_reply}`}
                               删除
                             </Button>
                           )}
-                          <span>共 {mailList?.length || 0} 封</span>
+                          <span>共 {total} 封</span>
                         </Space>
                       </div>
                     ),

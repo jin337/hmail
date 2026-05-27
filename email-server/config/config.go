@@ -8,6 +8,7 @@ var (
 	// HmailHost = "221.226.24.62" // 局域网hMailServer地址
 	SmtpPort = 25
 	ImapPort = 143
+	AdminPwd = "a123456"
 )
 
 // JWT配置
