@@ -60,6 +60,8 @@ const MailApp = () => {
   const navigate = useNavigate()
   const [formPwd] = Form.useForm()
 
+  const [userList, setUserList] = useState({})
+
   const [folderList, setFolderList] = useState(menuList)
   const [currentFolder, setCurrentFolder] = useState({})
 
@@ -372,7 +374,7 @@ const MailApp = () => {
         old_password: values.oldpwd,
         new_password: values.newpwd,
       }
-      const { code, message } = await request.post('/api/mail/chgpwd', params)
+      const { code, message } = await request.post('/api/user/chgpwd', params)
       if (code === 200) {
         Message.success('密码修改成功，请重新登录')
         localStorage.removeItem('mail_remember')
@@ -390,6 +392,16 @@ const MailApp = () => {
     navigate('/login')
   }
 
+  // 获取用户列表
+  const getUserList = async () => {
+    const { code, data, msg } = await request.post('/api/user/list')
+    if (code === 200) {
+      setUserList(data)
+    } else {
+      Message.error(msg)
+    }
+  }
+
   // 初始加载邮件列表，如果没有登录信息则跳转到登录页
   useEffect(() => {
     if (!userToken) {
@@ -397,6 +409,7 @@ const MailApp = () => {
       return
     } else {
       loadMailList('inbox')
+      getUserList()
     }
   }, [userToken])
 
@@ -465,7 +478,13 @@ const MailApp = () => {
 
         {currentFolder?.key === 'compose' ? (
           <Spin className={'w-full'} block loading={currentLoading}>
-            <WriteMail key={writeMail?.uid || '0'} detail={writeMail} onChange={setNewWriteMail} onClose={onClickCompose} />
+            <WriteMail
+              key={writeMail?.uid || '0'}
+              detail={writeMail}
+              userList={userList?.list||[]}
+              onChange={setNewWriteMail}
+              onClose={onClickCompose}
+            />
           </Spin>
         ) : (
           <>

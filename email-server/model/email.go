@@ -11,10 +11,37 @@ type UserClaims struct {
 	jwt.RegisteredClaims
 }
 
+// 用户注册请求
+type UserReq struct {
+	Email           string `json:"email" binding:"required"`
+	Password        string `json:"password" binding:"required"`
+	PersonFirstName string `json:"person_first_name"`
+	PersonLastName  string `json:"person_last_name"`
+}
+
+// 用户删除请求
+type UserDeleteReq struct {
+	Email string `json:"email" binding:"required"`
+}
+
+// 用户信息
+type UserItem struct {
+	Email           string `json:"email" binding:"required"`
+	PersonFirstName string `json:"person_first_name"`
+	PersonLastName  string `json:"person_last_name"`
+}
+
 // 登录请求
 type LoginReq struct {
 	Email    string `json:"email" binding:"required"`
 	Password string `json:"password" binding:"required"`
+}
+
+// 用户信息
+type UserList struct {
+	ID       int64  `json:"id"`
+	Email    string `json:"email"`
+	FullName string `json:"full_name"`
 }
 
 // 邮件列表请求
@@ -87,6 +114,6 @@ type UpdateMailStatusReq struct {
 
 // 修改密码请求
 type PasswordReq struct {
-	OldPwd string `json:"old_password" binding:"required"`
-	NewPwd string `json:"new_password" binding:"required"`
+	OldPassword string `json:"old_password" binding:"required"`
+	NewPassword string `json:"new_password" binding:"required"`
 }

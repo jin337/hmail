@@ -4,6 +4,7 @@ import (
 	"email-server/config"
 	"email-server/model"
 	"email-server/service"
+	"email-server/utils"
 	"fmt"
 	"net/url"
 	"strings"
@@ -22,22 +23,15 @@ func MailList(c *gin.Context) {
 		return
 	}
 
-	// 验证必传
-	if req.Folder == "" {
-		c.JSON(200, gin.H{"code": 400, "msg": "folder 参数不能为空"})
+	// 验证必传参数
+	if err := utils.ValidateRequiredParams([]string{"folder"}, req); err != nil {
+		c.JSON(200, gin.H{"code": 400, "msg": err.Error()})
 		return
 	}
 
 	// 验证文件夹
-	validFolders := []string{
-		config.FolderInbox,
-		config.FolderSent,
-		config.FolderDrafts,
-		config.FolderDeleted,
-		config.FolderJunk,
-	}
 	isValidFolder := false
-	for _, f := range validFolders {
+	for _, f := range config.DefaultFolders {
 		if f == req.Folder {
 			isValidFolder = true
 			break
@@ -84,9 +78,9 @@ func MailDetail(c *gin.Context) {
 		return
 	}
 
-	// 验证必传
-	if req.Uid <= 0 || req.Folder == "" {
-		c.JSON(200, gin.H{"code": 400, "msg": "uid 或 folder 参数不能为空"})
+	// 验证必传参数
+	if err := utils.ValidateRequiredParams([]string{"uid", "folder"}, req); err != nil {
+		c.JSON(200, gin.H{"code": 400, "msg": err.Error()})
 		return
 	}
 
@@ -113,9 +107,9 @@ func MarkRead(c *gin.Context) {
 		return
 	}
 
-	// 验证必传
-	if req.Uid <= 0 || req.Folder == "" {
-		c.JSON(200, gin.H{"code": 400, "msg": "uid 或 folder 参数不能为空"})
+	// 验证必传参数
+	if err := utils.ValidateRequiredParams([]string{"uid", "folder", "status"}, req); err != nil {
+		c.JSON(200, gin.H{"code": 400, "msg": err.Error()})
 		return
 	}
 
@@ -141,9 +135,9 @@ func DownloadAttachment(c *gin.Context) {
 		return
 	}
 
-	// 验证必传
-	if req.Uid <= 0 || req.Folder == "" || req.PartID == "" {
-		c.JSON(200, gin.H{"code": 400, "msg": "uid 或 folder 或 part_id 参数不能为空"})
+	// 验证必传参数
+	if err := utils.ValidateRequiredParams([]string{"uid", "folder", "part_id"}, req); err != nil {
+		c.JSON(200, gin.H{"code": 400, "msg": err.Error()})
 		return
 	}
 
@@ -175,17 +169,13 @@ func MoveMail(c *gin.Context) {
 		return
 	}
 
-	// 验证必传
-	if len(req.Uids) == 0 || req.FromFolder == "" || req.ToFolder == "" {
-		c.JSON(200, gin.H{"code": 400, "msg": "uid 或 folder 或 new_folder 参数不能为空"})
+	// 验证必传参数
+	if err := utils.ValidateRequiredParams([]string{"uids", "from_folder", "to_folder"}, req); err != nil {
+		c.JSON(200, gin.H{"code": 400, "msg": err.Error()})
 		return
 	}
 
 	// 参数验证
-	if len(req.Uids) == 0 {
-		c.JSON(200, gin.H{"code": 400, "msg": "邮件UID列表不能为空"})
-		return
-	}
 	if req.FromFolder == req.ToFolder {
 		c.JSON(200, gin.H{"code": 400, "msg": "源文件夹和目标文件夹不能相同"})
 		return
@@ -213,9 +203,9 @@ func DeleteMail(c *gin.Context) {
 		return
 	}
 
-	// 验证必传
-	if len(req.Uids) == 0 || req.Folder == "" {
-		c.JSON(200, gin.H{"code": 400, "msg": "uid 列表或 folder 参数不能为空"})
+	// 验证必传参数
+	if err := utils.ValidateRequiredParams([]string{"uids", "folder"}, req); err != nil {
+		c.JSON(200, gin.H{"code": 400, "msg": err.Error()})
 		return
 	}
 

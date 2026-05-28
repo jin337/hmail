@@ -1,4 +1,4 @@
-import { Button, Form, Input, InputTag, Layout, Message, Space, Upload } from '@arco-design/web-react'
+import { Button, Card, Form, Input, InputTag, Layout, Message, Space, Typography, Upload } from '@arco-design/web-react'
 import { IconClose, IconFile, IconPlus, IconSend, IconUpload } from '@arco-design/web-react/icon'
 
 import { useEffect, useState } from 'react'
@@ -7,7 +7,7 @@ import { useEffect, useState } from 'react'
 import { Editor, Toolbar } from '@wangeditor/editor-for-react'
 
 import request from 'src/api/request'
-export default function WriteMail({ detail, onClose, onChange }) {
+export default function WriteMail({ detail, userList = [], onClose, onChange }) {
   const [form] = Form.useForm()
   const [loading, setLoading] = useState(false)
 
@@ -137,55 +137,64 @@ export default function WriteMail({ detail, onClose, onChange }) {
         </Space>
       </Layout.Header>
       <Layout.Content>
-        <Form className='h-[calc(100vh-112px)] overflow-y-auto p-6 pb-0' form={form} layout='vertical' onChange={onChangeMail}>
-          <Form.Item field='to' rules={[{ required: true, message: '请输入收件人' }, { validator: validateEmails }]}>
-            <InputTag prefix='收件人' placeholder='test@xxx.com' />
-          </Form.Item>
-          <Form.Item field='cc' hidden={!addCC} rules={[{ validator: validateEmails }]}>
-            <InputTag prefix='抄送' placeholder='test@xxx.com' />
-          </Form.Item>
-          <Form.Item field='subject' rules={[{ required: true, message: '请输入主题' }]}>
-            <Input prefix='主题' placeholder='邮件主题' />
-          </Form.Item>
-          {/* 富文本编辑器 */}
-          <Form.Item>
-            <div className='z-100 overflow-hidden rounded border border-gray-300'>
-              <Toolbar
-                editor={editor}
-                defaultConfig={{
-                  excludeKeys: ['group-video', 'group-image', 'insertTable', 'codeBlock', 'group-more-style'],
-                  insertKeys: {
-                    index: 30,
-                    keys: ['clearStyle'],
-                  },
-                }}
-                mode='default'
-                className='border-b border-gray-300'
-              />
-              <Editor
-                className='h-80 overflow-y-auto'
-                defaultConfig={{ placeholder: '请输入邮件正文...' }}
-                onCreated={setEditor}
-                onChange={(editor) => {
-                  setHtml(editor.getHtml())
-                  onChangeMail(null, detail)
-                }}
-                mode='default'
-              />
-            </div>
-          </Form.Item>
-          <Form.Item field='files'>
-            <Upload
-              autoUpload={false}
-              action='/'
-              multiple
-              showUploadList={{ startIcon: null }}
-              fileList={fileList}
-              onChange={setFileList}>
-              <Button icon={<IconUpload />}>上传附件</Button>
-            </Upload>
-          </Form.Item>
-        </Form>
+        <div className='flex h-[calc(100vh-112px)] items-start'>
+          <Form className='h-full flex-1 overflow-y-auto p-6 pb-0' form={form} layout='vertical' onChange={onChangeMail}>
+            <Form.Item field='to' rules={[{ required: true, message: '请输入收件人' }, { validator: validateEmails }]}>
+              <InputTag prefix='收件人' placeholder='test@xxx.com' saveOnBlur />
+            </Form.Item>
+            <Form.Item field='cc' hidden={!addCC} rules={[{ validator: validateEmails }]}>
+              <InputTag prefix='抄送' placeholder='test@xxx.com' saveOnBlur />
+            </Form.Item>
+            <Form.Item field='subject' rules={[{ required: true, message: '请输入主题' }]}>
+              <Input prefix='主题' placeholder='邮件主题' />
+            </Form.Item>
+            {/* 富文本编辑器 */}
+            <Form.Item>
+              <div className='z-100 overflow-hidden rounded border border-gray-300'>
+                <Toolbar
+                  editor={editor}
+                  defaultConfig={{
+                    excludeKeys: ['group-video', 'group-image', 'insertTable', 'codeBlock', 'group-more-style'],
+                    insertKeys: {
+                      index: 30,
+                      keys: ['clearStyle'],
+                    },
+                  }}
+                  mode='default'
+                  className='border-b border-gray-300'
+                />
+                <Editor
+                  className='h-80 overflow-y-auto'
+                  defaultConfig={{ placeholder: '请输入邮件正文...' }}
+                  onCreated={setEditor}
+                  onChange={(editor) => {
+                    setHtml(editor.getHtml())
+                    onChangeMail(null, detail)
+                  }}
+                  mode='default'
+                />
+              </div>
+            </Form.Item>
+            <Form.Item field='files'>
+              <Upload
+                autoUpload={false}
+                action='/'
+                multiple
+                showUploadList={{ startIcon: null }}
+                fileList={fileList}
+                onChange={setFileList}>
+                <Button icon={<IconUpload />}>上传附件</Button>
+              </Upload>
+            </Form.Item>
+          </Form>
+          <Card title='联系人' className='h-full w-50'>
+            {userList?.map((item) => (
+              <Typography.Paragraph copyable key={item?.id}>
+                {item.email}
+              </Typography.Paragraph>
+            ))}
+          </Card>
+        </div>
       </Layout.Content>
     </Layout>
   )

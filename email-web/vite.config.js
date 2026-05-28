@@ -26,10 +26,6 @@ export default defineConfig({
       include: '**/*.svg',
     }),
     tailwindcss(),
-    // imageTools({
-    //   quality: 70,
-    //   enableWebp: true,
-    // }),
     autoImport({
       imports: [
         { 'src/service/api': [['default', 'Http']] },

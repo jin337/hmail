@@ -16,8 +16,6 @@ import (
 	"email-server/model"
 	"email-server/utils"
 
-	_ "github.com/go-sql-driver/mysql"
-
 	"github.com/emersion/go-imap"
 	"github.com/jhillyerd/enmime"
 )
@@ -31,9 +29,10 @@ func MailList(email, pwd, folder string, page, size int, keyword string) ([]*mod
 	}
 	defer imapClient.Logout()
 
-	// 验证文件夹
-	if err := utils.ValidFolder(imapClient, folder); err != nil {
-		return nil, 0, err
+	// 选择文件夹
+	_, err = imapClient.Select(folder, false)
+	if err != nil {
+		return nil, 0, fmt.Errorf("选择文件夹 %s 失败: %w", folder, err)
 	}
 
 	// 搜索邮件
@@ -316,11 +315,6 @@ func MoveMail(email, pwd string, fromFolder string, toFolder string, uids []uint
 	}
 	defer imapClient.Logout()
 
-	// 验证目标文件夹是否存在
-	if err := utils.ValidFolder(imapClient, toFolder); err != nil {
-		return fmt.Errorf("验证目标文件夹 %s 失败: %w", toFolder, err)
-	}
-
 	// 选择源文件夹
 	_, err = imapClient.Select(fromFolder, false)
 	if err != nil {
@@ -553,9 +547,10 @@ func SaveMailToFolder(email, pwd, folder string, raw []byte) error {
 	}
 	defer imapClient.Logout()
 
-	// 验证并确保文件夹存在
-	if err := utils.ValidFolder(imapClient, folder); err != nil {
-		return fmt.Errorf("验证文件夹 %s 失败: %w", folder, err)
+	// 选择文件夹
+	_, err = imapClient.Select(folder, false)
+	if err != nil {
+		return fmt.Errorf("选择文件夹 %s 失败: %w", folder, err)
 	}
 
 	// 根据文件夹类型设置邮件标志
@@ -636,23 +631,6 @@ func SmtpSendEmail(email, pwd string, to []string, cc []string, raw []byte) erro
 	err = s.Close()
 	if err != nil {
 		return fmt.Errorf("关闭邮件数据失败: %w", err)
-	}
-
-	return nil
-}
-
-// UpdatePassword 修改密码
-func UpdatePassword(adminPwd, email, oldPwd, newPwd string) error {
-	// // 建立IMAP连接
-	imapClient, err := utils.DialIMAPClient(email, oldPwd)
-	if err != nil {
-		return fmt.Errorf("旧密码验证失败: %w", err)
-	}
-	imapClient.Logout()
-
-	err = utils.ChangePassword(adminPwd, email, newPwd)
-	if err != nil {
-		return fmt.Errorf("修改密码失败: %w", err)
 	}
 
 	return nil

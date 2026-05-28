@@ -3,27 +3,60 @@ package router
 import (
 	"email-server/controller"
 	"email-server/middleware"
+	"os"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/gin-gonic/gin"
 )
 
 func SetupRouter(r *gin.Engine) {
-	public := r.Group("/api/mail")
+	// 判断环境变量
+	apiPrefix := "/"
+	envValue := os.Getenv("GIN_MODE")
+	spew.Dump(envValue)
+
+	if envValue == "debug" {
+		gin.SetMode(gin.DebugMode)
+		apiPrefix = "/api"
+	} else {
+		gin.SetMode(gin.ReleaseMode)
+	}
+
+	// 创建路由组
+	public := r.Group(apiPrefix)
+
 	{
 		public.POST("/login", controller.Login)
 
-		// 需要 JWT 认证
-		use := public.Use(middleware.JWTAuth())
+		// 用户相关
+		user := public.Group("/user")
 		{
-			use.POST("/list", controller.MailList)
-			use.POST("/detail", controller.MailDetail)
-			use.POST("/status", controller.MarkRead)
-			use.POST("/download", controller.DownloadAttachment)
-			use.POST("/move", controller.MoveMail)
-			use.POST("/delete", controller.DeleteMail)
-			use.POST("/save-draft", controller.SaveDraft)
-			use.POST("/send", controller.SendEmail)
-			use.POST("/chgpwd", controller.ChangePassword)
+			// 需要 JWT 认证
+			useAuth := user.Use(middleware.JWTAuth())
+			{
+				useAuth.POST("/chgpwd", controller.ChangePassword)
+				useAuth.POST("/list", controller.UserList)
+				useAuth.POST("/create", controller.CreateUser)
+				useAuth.POST("/delete", controller.DeleteUser)
+				useAuth.POST("/update", controller.UpdateUser)
+			}
+		}
+
+		// 邮件相关
+		mail := public.Group("/mail")
+		{
+			// 需要 JWT 认证
+			mailAuth := mail.Use(middleware.JWTAuth())
+			{
+				mailAuth.POST("/list", controller.MailList)
+				mailAuth.POST("/detail", controller.MailDetail)
+				mailAuth.POST("/status", controller.MarkRead)
+				mailAuth.POST("/download", controller.DownloadAttachment)
+				mailAuth.POST("/move", controller.MoveMail)
+				mailAuth.POST("/delete", controller.DeleteMail)
+				mailAuth.POST("/save-draft", controller.SaveDraft)
+				mailAuth.POST("/send", controller.SendEmail)
+			}
 		}
 	}
 }

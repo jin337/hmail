@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"errors"
 	"strings"
 
 	"email-server/config"
@@ -23,7 +24,20 @@ func JWTAuth() gin.HandlerFunc {
 		token, err := jwt.ParseWithClaims(tokenStr, &model.UserClaims{}, func(token *jwt.Token) (any, error) {
 			return []byte(config.JwtSecretKey), nil
 		})
-		if err != nil || !token.Valid {
+		if err != nil {
+			// 检查是否是过期错误
+			if errors.Is(err, jwt.ErrTokenExpired) {
+				c.JSON(401, gin.H{"code": 401, "msg": "Token已过期，请重新登录"})
+			} else if errors.Is(err, jwt.ErrTokenNotValidYet) {
+				c.JSON(401, gin.H{"code": 401, "msg": "Token尚未生效"})
+			} else {
+				c.JSON(401, gin.H{"code": 401, "msg": "Token无效: " + err.Error()})
+			}
+			c.Abort()
+			return
+		}
+
+		if !token.Valid {
 			c.JSON(401, gin.H{"code": 401, "msg": "Token无效或已过期"})
 			c.Abort()
 			return

@@ -18,7 +18,7 @@ export default function Login() {
       password: values.password,
       email: values.email + suffix,
     }
-    const { code, data, msg } = await request.post('/api/mail/login', params)
+    const { code, data, msg } = await request.post('/api/login', params)
     if (code === 200) {
       if (values.remember) {
         localStorage.setItem('mail_remember', JSON.stringify(values))

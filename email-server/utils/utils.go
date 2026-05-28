@@ -5,13 +5,11 @@ import (
 	"fmt"
 	"net"
 	"net/smtp"
+	"reflect"
 	"regexp"
-	"runtime"
 	"strings"
 
 	"github.com/emersion/go-imap/client"
-	"github.com/go-ole/go-ole"
-	"github.com/go-ole/go-ole/oleutil"
 )
 
 // DialIMAPClient 连接IMAP服务器
@@ -55,20 +53,6 @@ func DialSMTPClient(email, password string) (*smtp.Client, error) {
 	return smtpClient, nil
 }
 
-// ValidFolder 验证文件夹存在，不存在则创建
-func ValidFolder(client *client.Client, folder string) error {
-	// 尝试选择文件夹（只读模式）
-	_, err := client.Select(folder, true)
-	if err == nil {
-		return nil
-	}
-	// 文件夹不存在则创建
-	if err := client.Create(folder); err != nil {
-		return fmt.Errorf("创建文件夹失败: %v", err)
-	}
-	return nil
-}
-
 // containsFlag 检查标志是否在标志列表中
 func ContainsFlag(flags []string, flag string) bool {
 	for _, f := range flags {
@@ -94,151 +78,36 @@ func CleanText(text string) string {
 	return text
 }
 
-// ChangePassword 修改用户密码
-func ChangePassword(adminPassword, emailAddress, newPassword string) error {
-	runtime.LockOSThread()
-	defer runtime.UnlockOSThread()
+// ValidateRequiredParams 校验必填参数
+func ValidateRequiredParams(fields []string, obj interface{}) error {
+	// 使用反射获取对象的字段值
+	v := reflect.ValueOf(obj)
 
-	// 初始化 COM 库
-	err := ole.CoInitialize(0)
-	if err != nil {
-		return fmt.Errorf("初始化 COM 失败: %v", err)
-	}
-	defer ole.CoUninitialize()
-
-	// 创建 hMailServer.Application 对象
-	unknown, err := oleutil.CreateObject("hMailServer.Application")
-	if err != nil {
-		return fmt.Errorf("创建对象失败: %v", err)
-	}
-	defer unknown.Release()
-
-	// 获取 IDispatch 接口
-	app, err := unknown.QueryInterface(ole.IID_IDispatch)
-	if err != nil {
-		return fmt.Errorf("获取接口失败: %v", err)
-	}
-	defer app.Release()
-
-	// 使用管理员账号鉴权
-	_, err = oleutil.CallMethod(app, "Authenticate", "Administrator", adminPassword)
-	if err != nil {
-		return fmt.Errorf("管理员鉴权失败: %v", err)
+	// 如果是指针，获取其指向的值
+	if v.Kind() == reflect.Ptr {
+		v = v.Elem()
 	}
 
-	// 获取 Domains 集合
-	domainsObj, err := oleutil.GetProperty(app, "Domains")
-	if err != nil {
-		return fmt.Errorf("获取 Domains 属性失败: %v", err)
-	}
-	domains := domainsObj.ToIDispatch()
-	defer domains.Release()
-
-	// 自动从邮箱地址中提取域名
-	domainName := ""
-	if idx := strings.LastIndex(emailAddress, "@"); idx != -1 {
-		domainName = emailAddress[idx+1:]
-	} else {
-		return fmt.Errorf("邮箱地址格式不正确，未找到 '@' 符号")
+	// 只支持结构体
+	if v.Kind() != reflect.Struct {
+		return fmt.Errorf("参数结构错误: 只支持Object类型")
 	}
 
-	// 遍历 Domains 集合查找匹配的域名
-	var domain *ole.IDispatch
-	countResult, err := oleutil.GetProperty(domains, "Count")
-	if err != nil {
-		return fmt.Errorf("获取域名数量失败: %v", err)
-	}
-	count := int(countResult.Val)
+	for _, field := range fields {
+		// 查找对应字段（首字母大写）
+		fieldName := strings.ToUpper(field[:1]) + field[1:]
+		fieldVal := v.FieldByName(fieldName)
 
-	found := false
-
-	// hMailServer Domains 集合
-	for i := 0; i < count; i++ {
-		itemResult, err := oleutil.GetProperty(domains, "Item", int32(i))
-		if err != nil {
-			continue
+		if !fieldVal.IsValid() {
+			return fmt.Errorf("字段 %s 不存在", field)
 		}
 
-		currentDomain := itemResult.ToIDispatch()
-
-		// 获取域名名称
-		nameResult, err := oleutil.GetProperty(currentDomain, "Name")
-		if err == nil {
-			currentName := nameResult.ToString()
-			if strings.EqualFold(currentName, domainName) {
-				domain = currentDomain
-				found = true
-				break
+		// 检查字段值是否为空
+		if fieldVal.Kind() == reflect.String {
+			if strings.TrimSpace(fieldVal.String()) == "" {
+				return fmt.Errorf("%s 参数不能为空", field)
 			}
 		}
-		currentDomain.Release()
 	}
-
-	if !found {
-		return fmt.Errorf("未找到域名 [%s]，请检查是否配置该域名", domainName)
-	}
-	defer domain.Release()
-
-	// 获取该域名下的 Accounts 集合
-	accountsObj, err := oleutil.GetProperty(domain, "Accounts")
-	if err != nil {
-		return fmt.Errorf("获取 Accounts 属性失败: %v", err)
-	}
-	accounts := accountsObj.ToIDispatch()
-	defer accounts.Release()
-
-	// 通过完整邮箱地址查找对应的 Account 对象
-	var account *ole.IDispatch
-	accountItem, err := oleutil.GetProperty(accounts, "ItemByAddress", emailAddress)
-	if err != nil {
-
-		// 如果 ItemByAddress 失败，则遍历所有账号
-		accountsCountResult, err := oleutil.GetProperty(accounts, "Count")
-		if err != nil {
-			return fmt.Errorf("获取账号数量失败: %v", err)
-		}
-		accountsCount := int(accountsCountResult.Val)
-
-		accountFound := false
-		for j := 0; j < accountsCount; j++ {
-			// 使用 GetProperty 访问 Item 属性
-			acctItem, err := oleutil.GetProperty(accounts, "Item", int32(j))
-			if err != nil {
-				continue
-			}
-			currentAccount := acctItem.ToIDispatch()
-
-			// 获取账号地址
-			addressResult, err := oleutil.GetProperty(currentAccount, "Address")
-			if err == nil {
-				currentAddress := addressResult.ToString()
-				if strings.EqualFold(currentAddress, emailAddress) {
-					account = currentAccount
-					accountFound = true
-					break
-				}
-			}
-			currentAccount.Release()
-		}
-
-		if !accountFound {
-			return fmt.Errorf("在域名 [%s] 下未找到邮箱账号 [%s]，请检查该账号是否存在", domainName, emailAddress)
-		}
-	} else {
-		account = accountItem.ToIDispatch()
-	}
-	defer account.Release()
-
-	// 设置新密码并保存
-	_, err = oleutil.PutProperty(account, "Password", newPassword)
-	if err != nil {
-		return fmt.Errorf("设置新密码属性失败: %v", err)
-	}
-
-	_, err = oleutil.CallMethod(account, "Save")
-	if err != nil {
-		return fmt.Errorf("保存账号修改失败: %v", err)
-	}
-
 	return nil
 }

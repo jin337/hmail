@@ -4,11 +4,11 @@ var Port = 8058
 
 // 邮件服务器配置
 var (
+	// 221.226.24.62
 	HmailHost = "127.0.0.1"
-	// HmailHost = "221.226.24.62" // 局域网hMailServer地址
-	SmtpPort = 25
-	ImapPort = 143
-	AdminPwd = "a123456"
+	SmtpPort  = 25
+	ImapPort  = 143
+	AdminPwd  = "a123456"
 )
 
 // JWT配置
@@ -26,3 +26,12 @@ const (
 	FolderDeleted = "Deleted"
 	FolderJunk    = "Junk"
 )
+
+// 默认文件夹 - 登录时验证
+var DefaultFolders = []string{
+	FolderInbox,
+	FolderSent,
+	FolderDrafts,
+	FolderDeleted,
+	FolderJunk,
+}
