@@ -6,11 +6,47 @@ import (
 	"net"
 	"net/smtp"
 	"reflect"
-	"regexp"
+	"runtime"
 	"strings"
 
 	"github.com/emersion/go-imap/client"
+	"github.com/go-ole/go-ole"
+	"github.com/go-ole/go-ole/oleutil"
 )
+
+// ValidateRequiredParams 校验必填参数
+func ValidateRequiredParams(fields []string, obj interface{}) error {
+	// 使用反射获取对象的字段值
+	v := reflect.ValueOf(obj)
+
+	// 如果是指针，获取其指向的值
+	if v.Kind() == reflect.Ptr {
+		v = v.Elem()
+	}
+
+	// 只支持结构体
+	if v.Kind() != reflect.Struct {
+		return fmt.Errorf("参数结构错误: 只支持Object类型")
+	}
+
+	for _, field := range fields {
+		// 查找对应字段（首字母大写）
+		fieldName := strings.ToUpper(field[:1]) + field[1:]
+		fieldVal := v.FieldByName(fieldName)
+
+		if !fieldVal.IsValid() {
+			return fmt.Errorf("字段 %s 不存在", field)
+		}
+
+		// 检查字段值是否为空
+		if fieldVal.Kind() == reflect.String {
+			if strings.TrimSpace(fieldVal.String()) == "" {
+				return fmt.Errorf("%s 参数不能为空", field)
+			}
+		}
+	}
+	return nil
+}
 
 // DialIMAPClient 连接IMAP服务器
 func DialIMAPClient(email, password string) (*client.Client, error) {
@@ -53,61 +89,159 @@ func DialSMTPClient(email, password string) (*smtp.Client, error) {
 	return smtpClient, nil
 }
 
-// containsFlag 检查标志是否在标志列表中
-func ContainsFlag(flags []string, flag string) bool {
-	for _, f := range flags {
-		if f == flag {
-			return true
-		}
+// InitHmailApp 初始化 hMailServer Application 并进行管理员鉴权
+func InitHmailApp(adminPassword string) (*ole.IDispatch, error) {
+	runtime.LockOSThread()
+
+	// 初始化 COM 库
+	err := ole.CoInitialize(0)
+	if err != nil {
+		runtime.UnlockOSThread()
+		return nil, fmt.Errorf("初始化 COM 失败: %v", err)
 	}
-	return false
+
+	// 创建 hMailServer.Application 对象
+	unknown, err := oleutil.CreateObject("hMailServer.Application")
+	if err != nil {
+		ole.CoUninitialize()
+		runtime.UnlockOSThread()
+		return nil, fmt.Errorf("创建对象失败: %v", err)
+	}
+
+	// 获取 IDispatch 接口
+	app, err := unknown.QueryInterface(ole.IID_IDispatch)
+	if err != nil {
+		unknown.Release()
+		ole.CoUninitialize()
+		runtime.UnlockOSThread()
+		return nil, fmt.Errorf("获取接口失败: %v", err)
+	}
+
+	// 使用管理员账号鉴权
+	_, err = oleutil.CallMethod(app, "Authenticate", "Administrator", adminPassword)
+	if err != nil {
+		app.Release()
+		unknown.Release()
+		ole.CoUninitialize()
+		runtime.UnlockOSThread()
+		return nil, fmt.Errorf("管理员鉴权失败: %v", err)
+	}
+
+	// 注意：unknown 已经通过 QueryInterface 转移到 app，不需要单独 Release
+	return app, nil
 }
 
-// CleanText 清理文本中的特殊字符
-func CleanText(text string) string {
-	// 去除首尾空白
-	text = strings.TrimSpace(text)
+// GetHmailAccount 获取 hMailServer 中的账号对象
+func GetHmailAccount(adminPassword, email string) (*ole.IDispatch, error) {
+	app, err := InitHmailApp(adminPassword)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		app.Release()
+		ole.CoUninitialize()
+		runtime.UnlockOSThread()
+	}()
 
-	// 将多个连续空白字符（包括换行符、制表符等）替换为单个空格
-	reg := regexp.MustCompile(`\s+`)
-	text = reg.ReplaceAllString(text, "")
-
-	// 去除 * 号
-	text = strings.ReplaceAll(text, "*", "")
-
-	return text
-}
-
-// ValidateRequiredParams 校验必填参数
-func ValidateRequiredParams(fields []string, obj interface{}) error {
-	// 使用反射获取对象的字段值
-	v := reflect.ValueOf(obj)
-
-	// 如果是指针，获取其指向的值
-	if v.Kind() == reflect.Ptr {
-		v = v.Elem()
+	// 自动从邮箱地址中提取域名
+	domainName := ""
+	if idx := strings.LastIndex(email, "@"); idx != -1 {
+		domainName = email[idx+1:]
+	} else {
+		return nil, fmt.Errorf("邮箱地址格式不正确，未找到 '@' 符号")
 	}
 
-	// 只支持结构体
-	if v.Kind() != reflect.Struct {
-		return fmt.Errorf("参数结构错误: 只支持Object类型")
+	// 获取 Domains 集合
+	domainsObj, err := oleutil.GetProperty(app, "Domains")
+	if err != nil {
+		return nil, fmt.Errorf("获取 Domains 属性失败: %v", err)
 	}
+	domains := domainsObj.ToIDispatch()
+	defer domains.Release()
 
-	for _, field := range fields {
-		// 查找对应字段（首字母大写）
-		fieldName := strings.ToUpper(field[:1]) + field[1:]
-		fieldVal := v.FieldByName(fieldName)
+	// 遍历 Domains 集合查找匹配的域名
+	var domain *ole.IDispatch
+	countResult, err := oleutil.GetProperty(domains, "Count")
+	if err != nil {
+		return nil, fmt.Errorf("获取域名数量失败: %v", err)
+	}
+	count := int(countResult.Val)
 
-		if !fieldVal.IsValid() {
-			return fmt.Errorf("字段 %s 不存在", field)
+	found := false
+
+	for i := 0; i < count; i++ {
+		itemResult, err := oleutil.GetProperty(domains, "Item", int32(i))
+		if err != nil {
+			continue
 		}
 
-		// 检查字段值是否为空
-		if fieldVal.Kind() == reflect.String {
-			if strings.TrimSpace(fieldVal.String()) == "" {
-				return fmt.Errorf("%s 参数不能为空", field)
+		currentDomain := itemResult.ToIDispatch()
+
+		// 获取域名名称
+		nameResult, err := oleutil.GetProperty(currentDomain, "Name")
+		if err == nil {
+			currentName := nameResult.ToString()
+			if strings.EqualFold(currentName, domainName) {
+				domain = currentDomain
+				found = true
+				break
 			}
 		}
+		currentDomain.Release()
 	}
-	return nil
+
+	if !found {
+		return nil, fmt.Errorf("未找到域名 [%s]，请检查是否配置该域名", domainName)
+	}
+	defer domain.Release()
+
+	// 获取该域名下的 Accounts 集合
+	accountsObj, err := oleutil.GetProperty(domain, "Accounts")
+	if err != nil {
+		return nil, fmt.Errorf("获取 Accounts 属性失败: %v", err)
+	}
+	accounts := accountsObj.ToIDispatch()
+	defer accounts.Release()
+
+	// 通过完整邮箱地址查找对应的 Account 对象
+	var account *ole.IDispatch
+	accountItem, err := oleutil.GetProperty(accounts, "ItemByAddress", email)
+	if err != nil {
+		// 如果 ItemByAddress 失败，则遍历所有账号
+		accountsCountResult, err := oleutil.GetProperty(accounts, "Count")
+		if err != nil {
+			return nil, fmt.Errorf("获取账号数量失败: %v", err)
+		}
+		accountsCount := int(accountsCountResult.Val)
+
+		accountFound := false
+		for j := 0; j < accountsCount; j++ {
+			acctItem, err := oleutil.GetProperty(accounts, "Item", int32(j))
+			if err != nil {
+				continue
+			}
+			currentAccount := acctItem.ToIDispatch()
+
+			// 获取账号地址
+			addressResult, err := oleutil.GetProperty(currentAccount, "Address")
+			if err == nil {
+				currentAddress := addressResult.ToString()
+				if strings.EqualFold(currentAddress, email) {
+					account = currentAccount
+					accountFound = true
+					break
+				}
+			}
+			currentAccount.Release()
+		}
+
+		if !accountFound {
+			return nil, fmt.Errorf("在域名 [%s] 下未找到邮箱账号 [%s]，请检查该账号是否存在", domainName, email)
+		}
+	} else {
+		account = accountItem.ToIDispatch()
+	}
+
+	// 成功获取 account，移除 defer 清理，由调用者负责
+	return account, nil
 }

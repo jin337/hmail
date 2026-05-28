@@ -133,7 +133,7 @@ func DeleteUser(c *gin.Context) {
 
 // UpdateUser 更新用户
 func UpdateUser(c *gin.Context) {
-	var req model.UserItem
+	var req model.UserReq
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(200, gin.H{"code": 400, "msg": "参数错误"})
 		return

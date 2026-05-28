@@ -9,6 +9,7 @@ import (
 	"mime/multipart"
 	"net/textproto"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -105,8 +106,20 @@ func MailList(email, pwd, folder string, page, size int, keyword string) ([]*mod
 		// 只有收件箱INBOX才判断已读状态，其他文件夹默认为已读
 		isRead := true
 		if folder == "INBOX" {
-			isRead = utils.ContainsFlag(msg.Flags, "\\Seen")
+			for _, f := range msg.Flags {
+				if f != "\\Seen" {
+					isRead = false
+				}
+			}
 		}
+
+		// 去除首尾空白
+		showText := strings.TrimSpace(env.Text)
+		// 将多个连续空白字符（包括换行符、制表符等）替换为单个空格
+		reg := regexp.MustCompile(`\s+`)
+		showText = reg.ReplaceAllString(showText, "")
+		// 去除 * 号
+		showText = strings.ReplaceAll(showText, "*", "")
 
 		item := &model.MailItem{
 			Uid:       msg.Uid,
@@ -115,7 +128,7 @@ func MailList(email, pwd, folder string, page, size int, keyword string) ([]*mod
 			To:        env.GetHeader("To"),
 			Cc:        env.GetHeader("Cc"),
 			SendTime:  env.GetHeader("Date"),
-			Text:      utils.CleanText(env.Text),
+			Text:      showText,
 			HasAttach: len(env.Attachments) > 0,
 			IsRead:    isRead,
 			Folder:    folder,
@@ -144,6 +157,7 @@ func MailDetail(email, pwd string, folder string, uid uint32) (*model.MailDetail
 	}
 	defer imapClient.Logout()
 
+	// 选择文件夹
 	_, err = imapClient.Select(folder, false)
 	if err != nil {
 		return nil, fmt.Errorf("选择文件夹 %s 失败: %w", folder, err)
@@ -211,6 +225,7 @@ func UpdateMailStatus(email, pwd string, folder string, uid uint32, status strin
 	}
 	defer imapClient.Logout()
 
+	// 选择文件夹
 	_, err = imapClient.Select(folder, false)
 	if err != nil {
 		return fmt.Errorf("选择文件夹 %s 失败: %w", folder, err)
@@ -257,6 +272,7 @@ func DownloadAttachment(email, pwd string, folder string, uid uint32, partID str
 	}
 	defer imapClient.Logout()
 
+	// 选择文件夹
 	_, err = imapClient.Select(folder, false)
 	if err != nil {
 		return "", nil, fmt.Errorf("选择文件夹 %s 失败: %w", folder, err)
@@ -315,10 +331,10 @@ func MoveMail(email, pwd string, fromFolder string, toFolder string, uids []uint
 	}
 	defer imapClient.Logout()
 
-	// 选择源文件夹
+	// 选择文件夹
 	_, err = imapClient.Select(fromFolder, false)
 	if err != nil {
-		return fmt.Errorf("选择源文件夹 %s 失败: %w", fromFolder, err)
+		return fmt.Errorf("选择文件夹 %s 失败: %w", fromFolder, err)
 	}
 
 	// 构建UID集合
@@ -345,6 +361,7 @@ func DeleteMail(email, pwd string, folder string, uids []uint32) error {
 	}
 	defer imapClient.Logout()
 
+	// 选择文件夹
 	_, err = imapClient.Select(folder, false)
 	if err != nil {
 		return fmt.Errorf("选择文件夹 %s 失败: %w", folder, err)
@@ -538,54 +555,6 @@ func BuildRawEmail(email, pwd, folder string, uid uint32, partIDs string, from, 
 	return buf.Bytes(), nil
 }
 
-// SaveMailToFolder 保存邮件到指定文件夹
-func SaveMailToFolder(email, pwd, folder string, raw []byte) error {
-	// 建立IMAP连接
-	imapClient, err := utils.DialIMAPClient(email, pwd)
-	if err != nil {
-		return fmt.Errorf("连接IMAP服务器失败: %w", err)
-	}
-	defer imapClient.Logout()
-
-	// 选择文件夹
-	_, err = imapClient.Select(folder, false)
-	if err != nil {
-		return fmt.Errorf("选择文件夹 %s 失败: %w", folder, err)
-	}
-
-	// 根据文件夹类型设置邮件标志
-	flag := []string{imap.SeenFlag}
-	if folder == "Drafts" {
-		flag = []string{imap.DraftFlag}
-	}
-
-	// 追加邮件到文件夹
-	rawMail := bytes.NewReader(raw)
-	err = imapClient.Append(folder, flag, time.Now(), rawMail)
-	if err != nil {
-		return fmt.Errorf("保存邮件到文件夹 %s 失败: %w", folder, err)
-	}
-
-	return nil
-}
-
-// UpdateDraft 更新草稿邮件
-func UpdateDraft(email, pwd, folder string, raw []byte, uid uint32) error {
-	// 获取旧草稿内附件
-
-	// 删除旧草稿
-	if err := DeleteMail(email, pwd, folder, []uint32{uid}); err != nil {
-		return fmt.Errorf("删除旧草稿失败: %w", err)
-	}
-
-	// 保存新草稿
-	if err := SaveMailToFolder(email, pwd, folder, raw); err != nil {
-		return fmt.Errorf("保存新草稿失败: %w", err)
-	}
-
-	return nil
-}
-
 // SmtpSendEmail 发送邮件
 func SmtpSendEmail(email, pwd string, to []string, cc []string, raw []byte) error {
 	smtpClient, err := utils.DialSMTPClient(email, pwd)
@@ -631,6 +600,52 @@ func SmtpSendEmail(email, pwd string, to []string, cc []string, raw []byte) erro
 	err = s.Close()
 	if err != nil {
 		return fmt.Errorf("关闭邮件数据失败: %w", err)
+	}
+
+	return nil
+}
+
+// SaveMailToFolder 保存邮件到指定文件夹
+func SaveMailToFolder(email, pwd, folder string, raw []byte) error {
+	// 建立IMAP连接
+	imapClient, err := utils.DialIMAPClient(email, pwd)
+	if err != nil {
+		return fmt.Errorf("连接IMAP服务器失败: %w", err)
+	}
+	defer imapClient.Logout()
+
+	// 选择文件夹
+	_, err = imapClient.Select(folder, false)
+	if err != nil {
+		return fmt.Errorf("选择文件夹 %s 失败: %w", folder, err)
+	}
+
+	// 根据文件夹类型设置邮件标志
+	flag := []string{imap.SeenFlag}
+	if folder == "Drafts" {
+		flag = []string{imap.DraftFlag}
+	}
+
+	// 追加邮件到文件夹
+	rawMail := bytes.NewReader(raw)
+	err = imapClient.Append(folder, flag, time.Now(), rawMail)
+	if err != nil {
+		return fmt.Errorf("保存邮件到文件夹 %s 失败: %w", folder, err)
+	}
+
+	return nil
+}
+
+// UpdateDraft 更新草稿邮件
+func UpdateDraft(email, pwd, folder string, raw []byte, uid uint32) error {
+	// 删除旧草稿
+	if err := DeleteMail(email, pwd, folder, []uint32{uid}); err != nil {
+		return fmt.Errorf("删除旧草稿失败: %w", err)
+	}
+
+	// 保存新草稿
+	if err := SaveMailToFolder(email, pwd, folder, raw); err != nil {
+		return fmt.Errorf("保存新草稿失败: %w", err)
 	}
 
 	return nil
