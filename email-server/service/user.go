@@ -4,12 +4,15 @@ import (
 	"fmt"
 	"runtime"
 	"strings"
+	"time"
 
+	"email-server/config"
 	"email-server/model"
 	"email-server/utils"
 
 	"github.com/go-ole/go-ole"
 	"github.com/go-ole/go-ole/oleutil"
+	"github.com/golang-jwt/jwt/v5"
 )
 
 // Login 登录
@@ -152,24 +155,42 @@ func Login(adminPassword, email, password string) (*model.UserItem, error) {
 	defer account.Release()
 
 	// 获取用户信息
-	firstNameResult, err := oleutil.GetProperty(account, "PersonFirstName")
-	if err != nil {
-		return nil, fmt.Errorf("获取名字失败: %v", err)
-	}
-	firstName := firstNameResult.ToString()
+	idVar, _ := oleutil.GetProperty(account, "Id")
+	addressVar, _ := oleutil.GetProperty(account, "Address")
+	PersonFirstNameVar, _ := oleutil.GetProperty(account, "PersonFirstName")
+	PersonLastNameVar, _ := oleutil.GetProperty(account, "PersonLastName")
+	adminVar, _ := oleutil.GetProperty(account, "AdministrationLevel")
 
-	lastNameResult, err := oleutil.GetProperty(account, "PersonLastName")
-	if err != nil {
-		return nil, fmt.Errorf("获取姓氏失败: %v", err)
+	id := idVar.Val
+	address := addressVar.ToString()
+	name := PersonFirstNameVar.ToString() + PersonLastNameVar.ToString()
+	isadmin := adminVar.Val
+
+	// 生成token
+	claims := model.UserClaims{
+		Email:    email,
+		Password: password,
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour * config.JwtExpireHour)),
+		},
 	}
-	lastName := lastNameResult.ToString()
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	tokenStr, err := token.SignedString([]byte(config.JwtSecretKey))
+	if err != nil {
+		return nil, fmt.Errorf("生成Token失败: %v", err)
+	}
+
+	user := &model.UserItem{
+		ID:       id,
+		Email:    address,
+		FullName: name,
+		IsAdmin:  isadmin,
+		Token:    tokenStr,
+	}
 
 	// 返回用户信息
-	return &model.UserItem{
-		Email:           email,
-		PersonFirstName: firstName,
-		PersonLastName:  lastName,
-	}, nil
+	return user, nil
 }
 
 // UpdatePassword 修改密码
@@ -329,7 +350,7 @@ func UpdatePassword(adminPassword, email, oldPwd, newPassword string) error {
 }
 
 // UserList 获取用户列表
-func UserList(adminPassword string) ([]*model.UserList, int, error) {
+func UserList(adminPassword string) ([]*model.UserItem, int, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 
@@ -375,7 +396,7 @@ func UserList(adminPassword string) ([]*model.UserList, int, error) {
 	}
 	domainCount := int(countResult.Val)
 
-	var userList []*model.UserList
+	var userList []*model.UserItem
 	total := 0
 
 	// 遍历所有域名
@@ -411,43 +432,27 @@ func UserList(adminPassword string) ([]*model.UserList, int, error) {
 			}
 			account := acctItem.ToIDispatch()
 
-			// 获取账号信息
-			addressResult, err := oleutil.GetProperty(account, "Address")
-			if err != nil {
-				account.Release()
-				continue
-			}
-			email := addressResult.ToString()
+			// 提取账号信息
+			idVar, _ := oleutil.GetProperty(account, "Id")
+			addressVar, _ := oleutil.GetProperty(account, "Address")
+			PersonFirstNameVar, _ := oleutil.GetProperty(account, "PersonFirstName")
+			PersonLastNameVar, _ := oleutil.GetProperty(account, "PersonLastName")
+			adminVar, _ := oleutil.GetProperty(account, "AdministrationLevel")
 
-			// 获取账号id
-			idResult, err := oleutil.GetProperty(account, "Id")
-			if err != nil {
-				account.Release()
-				continue
-			}
-			id := idResult.Val
+			id := idVar.Val
+			address := addressVar.ToString()
+			name := PersonFirstNameVar.ToString() + PersonLastNameVar.ToString()
+			isadmin := adminVar.Val
 
-			// 获取账号名称
-			firstnameResult, err := oleutil.GetProperty(account, "PersonFirstName")
-			if err != nil {
-				account.Release()
-				continue
+			user := &model.UserItem{
+				ID:       id,
+				Email:    address,
+				FullName: name,
+				IsAdmin:  isadmin,
 			}
-			name := firstnameResult.ToString()
-
-			lastnameResult, err := oleutil.GetProperty(account, "PersonLastName")
-			if err != nil {
-				account.Release()
-				continue
-			}
-			name += lastnameResult.ToString()
 
 			// 添加到用户列表
-			userList = append(userList, &model.UserList{
-				ID:       id,
-				Email:    email,
-				FullName: name,
-			})
+			userList = append(userList, user)
 			total++
 
 			account.Release()
@@ -461,7 +466,7 @@ func UserList(adminPassword string) ([]*model.UserList, int, error) {
 }
 
 // CreateUser 创建用户
-func CreateUser(Folders []string, adminPassword, email, password, firstName, lastName string) error {
+func CreateUser(Folders []string, adminPassword, email, password, firstName, lastName string, isAdmin int64) error {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 
@@ -595,6 +600,11 @@ func CreateUser(Folders []string, adminPassword, email, password, firstName, las
 	_, err = oleutil.PutProperty(newAccount, "Active", true)
 	if err != nil {
 		return fmt.Errorf("设置激活状态失败: %v", err)
+	}
+
+	_, err = oleutil.PutProperty(newAccount, "AdministrationLevel", isAdmin)
+	if err != nil {
+		return fmt.Errorf("设置管理员级别失败: %v", err)
 	}
 
 	// 保存账号
@@ -775,7 +785,7 @@ func DeleteUser(adminPassword, email string) error {
 }
 
 // UpdateUser 更新用户
-func UpdateUser(adminPassword, email, firstName, lastName string) error {
+func UpdateUser(adminPassword, email, firstName, lastName string, isAdmin int64) error {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 
@@ -918,6 +928,13 @@ func UpdateUser(adminPassword, email, firstName, lastName string) error {
 		_, err = oleutil.PutProperty(account, "PersonLastName", lastName)
 		if err != nil {
 			return fmt.Errorf("设置姓氏失败: %v", err)
+		}
+	}
+
+	if isAdmin != -1 {
+		_, err = oleutil.PutProperty(account, "AdministrationLevel", isAdmin)
+		if err != nil {
+			return fmt.Errorf("设置管理员级别失败: %v", err)
 		}
 	}
 

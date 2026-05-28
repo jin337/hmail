@@ -1,15 +1,12 @@
 package controller
 
 import (
-	"time"
-
 	"email-server/config"
 	"email-server/model"
 	"email-server/service"
 	"email-server/utils"
 
 	"github.com/gin-gonic/gin"
-	"github.com/golang-jwt/jwt/v5"
 )
 
 // Login 登录
@@ -34,30 +31,11 @@ func Login(c *gin.Context) {
 		return
 	}
 
-	// 生成token
-	claims := model.UserClaims{
-		Email:    req.Email,
-		Password: req.Password,
-		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour * config.JwtExpireHour)),
-		},
-	}
-
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	tokenStr, err := token.SignedString([]byte(config.JwtSecretKey))
-	if err != nil {
-		c.JSON(200, gin.H{"code": 500, "msg": "生成Token失败"})
-		return
-	}
-
 	c.JSON(200, gin.H{
 		"code": 200,
 		"msg":  "登录成功",
-		"data": gin.H{
-			"email":     user.Email,
-			"full_name": user.PersonFirstName + user.PersonLastName,
-			"token":     tokenStr,
-		}})
+		"data": user,
+	})
 }
 
 // ChangePassword 修改密码
@@ -117,7 +95,7 @@ func CreateUser(c *gin.Context) {
 		return
 	}
 
-	err := service.CreateUser(config.DefaultFolders, config.AdminPwd, req.Email, req.Password, req.PersonFirstName, req.PersonLastName)
+	err := service.CreateUser(config.DefaultFolders, config.AdminPwd, req.Email, req.Password, req.PersonFirstName, req.PersonLastName, req.IsAdmin)
 	if err != nil {
 		c.JSON(200, gin.H{"code": 500, "msg": err.Error()})
 		return
@@ -167,7 +145,7 @@ func UpdateUser(c *gin.Context) {
 		return
 	}
 
-	err := service.UpdateUser(config.AdminPwd, req.Email, req.PersonFirstName, req.PersonLastName)
+	err := service.UpdateUser(config.AdminPwd, req.Email, req.PersonFirstName, req.PersonLastName, req.IsAdmin)
 	if err != nil {
 		c.JSON(200, gin.H{"code": 500, "msg": err.Error()})
 		return

@@ -11,45 +11,13 @@ type UserClaims struct {
 	jwt.RegisteredClaims
 }
 
-// 用户注册请求
-type UserReq struct {
-	Email           string `json:"email" binding:"required"`
-	Password        string `json:"password" binding:"required"`
-	PersonFirstName string `json:"person_first_name"`
-	PersonLastName  string `json:"person_last_name"`
-}
-
-// 用户删除请求
-type UserDeleteReq struct {
-	Email string `json:"email" binding:"required"`
-}
-
 // 用户信息
 type UserItem struct {
-	Email           string `json:"email" binding:"required"`
-	PersonFirstName string `json:"person_first_name"`
-	PersonLastName  string `json:"person_last_name"`
-}
-
-// 登录请求
-type LoginReq struct {
-	Email    string `json:"email" binding:"required"`
-	Password string `json:"password" binding:"required"`
-}
-
-// 用户信息
-type UserList struct {
 	ID       int64  `json:"id"`
 	Email    string `json:"email"`
 	FullName string `json:"full_name"`
-}
-
-// 邮件列表请求
-type MailListReq struct {
-	Folder  string `json:"folder" binding:"required"`
-	Page    int    `json:"page"`
-	Size    int    `json:"size"`
-	Keyword string `json:"keyword"`
+	IsAdmin  int64  `json:"is_admin"`
+	Token    string `json:"token"`
 }
 
 // 邮件信息
@@ -64,6 +32,40 @@ type MailItem struct {
 	IsRead    bool   `json:"is_read"`
 	HasAttach bool   `json:"has_attach"`
 	Text      string `json:"text"`
+}
+
+// 登录请求
+type LoginReq struct {
+	Email    string `json:"email" binding:"required"`
+	Password string `json:"password" binding:"required"`
+}
+
+// 用户注册请求
+type UserReq struct {
+	Email           string `json:"email" binding:"required"`
+	Password        string `json:"password" binding:"required"`
+	PersonFirstName string `json:"person_first_name"`
+	PersonLastName  string `json:"person_last_name"`
+	IsAdmin         int64  `json:"is_admin" binding:"required"`
+}
+
+// 用户删除请求
+type UserDeleteReq struct {
+	Email string `json:"email" binding:"required"`
+}
+
+// 修改密码请求
+type PasswordReq struct {
+	OldPassword string `json:"old_password" binding:"required"`
+	NewPassword string `json:"new_password" binding:"required"`
+}
+
+// 邮件列表请求
+type MailListReq struct {
+	Folder  string `json:"folder" binding:"required"`
+	Page    int    `json:"page"`
+	Size    int    `json:"size"`
+	Keyword string `json:"keyword"`
 }
 
 // 邮件详情请求
@@ -110,10 +112,4 @@ type UpdateMailStatusReq struct {
 	Folder string `json:"folder" binding:"required"`
 	Uid    uint32 `json:"uid" binding:"required"`
 	Status string `json:"status" binding:"required"`
-}
-
-// 修改密码请求
-type PasswordReq struct {
-	OldPassword string `json:"old_password" binding:"required"`
-	NewPassword string `json:"new_password" binding:"required"`
 }
