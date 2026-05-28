@@ -1,2 +1,3 @@
 /email-web/node_modules
 /email-web/pnpm-lock.yaml
+/email-server/tmp

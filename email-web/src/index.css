@@ -3,6 +3,9 @@
 strong {
   display: inline-block;
 }
+.arco-spin-children {
+  width: 100%;
+}
 .mail-menu .arco-menu-item {
   display: flex;
   justify-content: space-between;
@@ -12,7 +15,7 @@ strong {
   background-color: #fff;
 }
 .email-list .arco-table-header {
-  overflow-y: auto!important;
+  overflow-y: auto !important;
 }
 
 .email-list .arco-table-th-item {
@@ -26,18 +29,6 @@ strong {
   background-color: var(--color-fill-2);
 }
 
-.mail-detail{
+.mail-detail {
   min-height: 100px;
-}
-.mail-detail pre {
-  background-color: var(--w-e-textarea-slight-bg-color);
-  border: 1px solid var(--w-e-textarea-slight-border-color);
-  border-radius: 4px 4px;
-  display: block;
-  font-size: 14px;
-  padding: 10px;
-  text-indent: 0;
-}
-.mail-detail p {
-  margin: 15px 0;
 }

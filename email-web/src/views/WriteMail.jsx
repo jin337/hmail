@@ -7,27 +7,27 @@ import { useEffect, useState } from 'react'
 import { Editor, Toolbar } from '@wangeditor/editor-for-react'
 
 import request from 'src/api/request'
-export default function WriteMail({ detail, onClose }) {
+export default function WriteMail({ detail, onClose, onChange }) {
   const [form] = Form.useForm()
   const [loading, setLoading] = useState(false)
+
+  const [addCC, setAddCC] = useState(false)
+
   const [fileList, setFileList] = useState([])
   const [editor, setEditor] = useState(null)
   const [html, setHtml] = useState('')
-
-  const [addCC, setAddCC] = useState(false)
 
   // 自动回填
   useEffect(() => {
     if (detail?.uid) {
       form.setFieldsValue({ ...detail, to: detail?.to_email, cc: detail?.cc_email })
 
-      setAddCC(!!detail?.cc_email.length)
+      setAddCC(detail?.cc_email?.length > 0)
 
       const list = (detail?.detail?.attachments || []).map((e) => ({
         ...e,
         name: e.file_name,
         uid: e.part_id,
-        originFile: null,
       }))
       setFileList(list)
 
@@ -44,6 +44,21 @@ export default function WriteMail({ detail, onClose }) {
     }
   }, [])
 
+  // 提取验证函数
+  const validateEmails = (value, callback) => {
+    const EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/
+    if (!value || value.length === 0) {
+      return callback()
+    }
+    const invalid = value.filter((v) => !EMAIL_REGEX.test(v))
+    if (invalid.length > 0) {
+      callback(`存在无效的邮箱地址: ${invalid.join(', ')}`)
+    } else {
+      callback()
+    }
+  }
+
+  // 发送邮件&草稿
   const handleSend = async (type) => {
     const values = form.getFieldsValue()
     if (!values.to || !values.subject) {
@@ -88,6 +103,19 @@ export default function WriteMail({ detail, onClose }) {
     setLoading(false)
   }
 
+  // 监控数据变化
+  const onChangeMail = (_, values) => {
+    const newValues = {
+      ...values,
+      detail: {
+        content: html,
+        attachments: values?.files || fileList,
+      },
+    }
+
+    onChange(newValues)
+  }
+
   return (
     <Layout className='h-full'>
       <Layout.Header className='flex h-14 items-center justify-between border-b border-gray-300 px-6'>
@@ -109,12 +137,12 @@ export default function WriteMail({ detail, onClose }) {
         </Space>
       </Layout.Header>
       <Layout.Content>
-        <Form className='h-[calc(100vh-112px)] overflow-y-auto p-6 pb-0' form={form} layout='vertical'>
-          <Form.Item field='to' rules={[{ required: true, message: '请输入收件人' }]}>
+        <Form className='h-[calc(100vh-112px)] overflow-y-auto p-6 pb-0' form={form} layout='vertical' onChange={onChangeMail}>
+          <Form.Item field='to' rules={[{ required: true, message: '请输入收件人' }, { validator: validateEmails }]}>
             <InputTag prefix='收件人' placeholder='test@xxx.com' />
           </Form.Item>
-          <Form.Item field='cc' hidden={!addCC}>
-            <InputTag prefix='抄送' />
+          <Form.Item field='cc' hidden={!addCC} rules={[{ validator: validateEmails }]}>
+            <InputTag prefix='抄送' placeholder='test@xxx.com' />
           </Form.Item>
           <Form.Item field='subject' rules={[{ required: true, message: '请输入主题' }]}>
             <Input prefix='主题' placeholder='邮件主题' />
@@ -124,7 +152,13 @@ export default function WriteMail({ detail, onClose }) {
             <div className='z-100 overflow-hidden rounded border border-gray-300'>
               <Toolbar
                 editor={editor}
-                defaultConfig={{ excludeKeys: ['group-video', 'group-image', 'insertTable', 'codeBlock'] }}
+                defaultConfig={{
+                  excludeKeys: ['group-video', 'group-image', 'insertTable', 'codeBlock', 'group-more-style'],
+                  insertKeys: {
+                    index: 30,
+                    keys: ['clearStyle'],
+                  },
+                }}
                 mode='default'
                 className='border-b border-gray-300'
               />
@@ -132,7 +166,10 @@ export default function WriteMail({ detail, onClose }) {
                 className='h-80 overflow-y-auto'
                 defaultConfig={{ placeholder: '请输入邮件正文...' }}
                 onCreated={setEditor}
-                onChange={(editor) => setHtml(editor.getHtml())}
+                onChange={(editor) => {
+                  setHtml(editor.getHtml())
+                  onChangeMail(null, detail)
+                }}
                 mode='default'
               />
             </div>

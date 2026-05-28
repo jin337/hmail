@@ -53,37 +53,36 @@ const menuList = [
   { key: 'inbox', folder: 'INBOX', title: '收件箱', icon: <IconEmail /> },
   { key: 'sent', folder: 'Sent', title: '已发送', icon: <IconSend /> },
   { key: 'drafts', folder: 'Drafts', title: '草稿箱', icon: <IconFile /> },
-  { key: 'trash', folder: 'Deleted', title: '垃圾箱', icon: <IconDelete /> },
+  { key: 'delete', folder: 'Deleted', title: '垃圾箱', icon: <IconDelete /> },
 ]
 
 const MailApp = () => {
-  const [formPwd] = Form.useForm()
   const navigate = useNavigate()
+  const [formPwd] = Form.useForm()
+
   const [folderList, setFolderList] = useState(menuList)
   const [currentFolder, setCurrentFolder] = useState({})
+
+  const [searchWord, setSearchWord] = useState('')
+  const [loading, setLoading] = useState(false)
   const [mailList, setMailList] = useState([])
   const [total, setTotal] = useState(0)
+
+  const [currentLoading, setCurrentLoading] = useState(false)
   const [currentMail, setCurrentMail] = useState(null)
   const [writeMail, setWriteMail] = useState(null)
-  const [currentLoading, setCurrentLoading] = useState(false)
-  const [loading, setLoading] = useState(false)
-  const [searchWord, setSearchWord] = useState('')
+  const [newWriteMail, setNewWriteMail] = useState(null)
 
   const [selectedRowKeys, setSelectedRowKeys] = useState([])
   const [visible, setVisible] = useState(false)
 
   // 本地登录信息
-  const userEmail = localStorage.getItem('mail_email')
-
-  // 写信也没是否打开
-  const isOpenWriteMail = () => {
-    if (folderList.some((item) => item.key === 'compose')) {
-      return Message.warning('写邮件页已打开，请先关闭')
-    }
-  }
+  const userToken = localStorage.getItem('mail_token')
+  const userInfo = JSON.parse(localStorage.getItem('mail_info') || '{}')
 
   // 关闭写邮件页，返回收件箱
   const onClickCompose = (key) => {
+    setNewWriteMail(null)
     setWriteMail(null)
     setFolderList((prev) => prev.filter((item) => item.key !== 'compose'))
     setTimeout(() => {
@@ -93,12 +92,11 @@ const MailApp = () => {
   }
   // 写邮件
   const onWriteMail = (key, mailData) => {
-    isOpenWriteMail()
-
+    // 草稿页已打开
     const isComposeExist = folderList.some((item) => item.key === 'compose')
     if (isComposeExist) {
       setCurrentFolder(folderList.find((item) => item.key === 'compose'))
-      return
+      return Message.warning('写邮件页已打开，请先关闭')
     }
 
     let composeItem = { key: 'compose', folder: 'DRAFTS', title: '草稿', icon: <IconFile /> }
@@ -114,7 +112,7 @@ const MailApp = () => {
     setSearchWord('')
   }
 
-  // 加载邮件列表
+  // 点击导航栏
   const loadMailList = async (key) => {
     setSelectedRowKeys([])
     setMailList([])
@@ -122,43 +120,18 @@ const MailApp = () => {
     setCurrentMail(null)
     setSearchWord('')
 
+    // 当前文件夹
     const item = folderList.find((item) => item.key === key)
     setCurrentFolder(item)
 
+    // 草稿页
     if (key === 'compose') {
+      setWriteMail(newWriteMail || writeMail)
       return
     }
-    setLoading(true)
-    const params = { folder: item.folder, page: 1, size: 1000, keyword: '' }
-    let { code, data, msg } = await request.post('/api/mail/list', params)
-    if (code === 200) {
-      const list = (data?.list || []).map((e) => {
-        const from_name = e.from.split('@')[0]
-        const to_info = e.to.split(', ').map((t) => t && { email: t, name: t.split('@')[0] })
-        const to_name = to_info.map((t) => t.name).join(', ')
-        const to_reply = to_info.map((t) => t.name + ' &lt;' + t.email + '&gt;').join(', ')
 
-        const cc_info = e.cc ? e.cc.split(', ').map((t) => t && { email: t, name: t.split('@')[0] }) : []
-        const cc_name = cc_info ? cc_info.map((t) => t.name).join(', ') : ''
-        const cc_reply = cc_info ? cc_info?.map((t) => t.name + ' &lt;' + t.email + '&gt;').join(', ') : ''
-
-        return {
-          ...e,
-          from_name,
-          to_info,
-          to_name,
-          to_reply,
-          cc_info,
-          cc_name,
-          cc_reply,
-        }
-      })
-      setMailList(list)
-      setTotal(data?.total || 0)
-    } else {
-      Message.error(msg)
-    }
-    setLoading(false)
+    // 加载邮件列表
+    getMailData(item.folder)
   }
 
   // 选中邮件查看详情
@@ -186,7 +159,7 @@ const MailApp = () => {
     if (code === 200) {
       setCurrentMail({ ...item, detail: data })
       if (currentFolder.key === 'drafts') {
-        const newItem = { ...item, detail: data, to_email: item?.to.split(', '), cc_email: item?.cc.split(', ') }
+        const newItem = { ...item, detail: data, to_email: item?.to.split(', '), cc_email: item?.cc ? item?.cc.split(', ') : [] }
         onWriteMail('rewrite', newItem)
       }
     } else {
@@ -205,12 +178,39 @@ const MailApp = () => {
     setCurrentMail(null)
     setSelectedRowKeys([])
 
+    getMailData(currentFolder.folder, val)
+  }
+
+  // 获取邮件数据
+  const getMailData = async (folder, keyword = '') => {
+    // 加载邮件列表
     setLoading(true)
-    const params = { folder: currentFolder.folder, page: 1, size: 20, keyword: val }
-    const { code, data, msg } = await request.post('/api/mail/list', params)
+    const params = { page: 1, size: 1000, folder, keyword }
+    let { code, data, msg } = await request.post('/api/mail/list', params)
     if (code === 200) {
-      setMailList(data?.list || [])
-      if (data.length === 0) Message.info('无搜索结果')
+      const list = (data?.list || []).map((e) => {
+        const from_name = e.from.split('@')[0]
+        const to_info = e.to.split(', ').map((t) => t && { email: t, name: t.split('@')[0] })
+        const to_name = to_info.map((t) => t.name).join(', ')
+        const to_reply = to_info.map((t) => t.name + ' &lt;' + t.email + '&gt;').join(', ')
+
+        const cc_info = e.cc ? e.cc.split(', ').map((t) => t && { email: t, name: t.split('@')[0] }) : []
+        const cc_name = cc_info ? cc_info.map((t) => t.name).join(', ') : ''
+        const cc_reply = cc_info ? cc_info?.map((t) => t.name + ' &lt;' + t.email + '&gt;').join(', ') : ''
+
+        return {
+          ...e,
+          from_name,
+          to_info,
+          to_name,
+          to_reply,
+          cc_info,
+          cc_name,
+          cc_reply,
+        }
+      })
+      setMailList(list)
+      setTotal(data?.total || 0)
     } else {
       Message.error(msg)
     }
@@ -313,8 +313,6 @@ const MailApp = () => {
     const newMail = {
       ...currentMail,
       subject: `回复: ${currentMail.subject}`,
-      to_email: currentMail.to.split(', '),
-      cc_email: currentMail.cc ? currentMail.cc.split(', ') : [],
       detail: {
         content: currentMail?.cc ? FormContentCc : FormContent,
       },
@@ -332,8 +330,8 @@ const MailApp = () => {
     const newMail = {
       ...currentMail,
       subject: `转发: ${currentMail.subject}`,
-      to_email: [],
-      cc_email: [],
+      to_email: null,
+      cc_email: null,
       detail: {
         content: currentMail?.cc ? FormContentCc : FormContent,
       },
@@ -377,6 +375,7 @@ const MailApp = () => {
       const { code, message } = await request.post('/api/mail/chgpwd', params)
       if (code === 200) {
         Message.success('密码修改成功，请重新登录')
+        localStorage.removeItem('mail_remember')
         handleLogout()
       } else {
         Message.error(message)
@@ -384,70 +383,22 @@ const MailApp = () => {
     })
     setVisible(false)
   }
-  // 自定义密码验证规则
-  const checkPasswordRules = (value, callback) => {
-    if (!value) {
-      return callback('请输入密码')
-    }
-
-    if (value.length < 6 || value.length > 20) {
-      return callback('密码长度必须在6到20个字符之间')
-    }
-
-    if (value.includes('^')) {
-      return callback('密码不能包含^字符')
-    }
-
-    return Promise.resolve()
-  }
-  const checkNewPassword = (value, callback) => {
-    if (!value) {
-      return callback('请输入新密码')
-    }
-
-    if (value.length < 6 || value.length > 20) {
-      return callback('密码长度必须在6到20个字符之间')
-    }
-
-    if (value.includes('^')) {
-      return callback('密码不能包含^字符')
-    }
-
-    const oldPassword = formPwd.getFieldValue('oldpwd')
-    if (oldPassword && value === oldPassword) {
-      return callback('新密码不能与旧密码相同')
-    }
-
-    return Promise.resolve()
-  }
-  const checkConfirmPassword = (value, callback) => {
-    if (!value) {
-      return callback('请确认新密码')
-    }
-
-    const newPassword = formPwd.getFieldValue('newpwd')
-    if (newPassword && value !== newPassword) {
-      return callback('两次输入的密码不一致')
-    }
-
-    return Promise.resolve()
-  }
   // 退出
   const handleLogout = () => {
     localStorage.removeItem('mail_token')
-    localStorage.removeItem('mail_email')
+    localStorage.removeItem('mail_info')
     navigate('/login')
   }
 
   // 初始加载邮件列表，如果没有登录信息则跳转到登录页
   useEffect(() => {
-    if (!userEmail) {
+    if (!userToken) {
       navigate('/login')
       return
     } else {
       loadMailList('inbox')
     }
-  }, [userEmail])
+  }, [userToken])
 
   return (
     <Layout className='h-screen w-full overflow-hidden'>
@@ -469,7 +420,7 @@ const MailApp = () => {
         </div>
         {/* 头像和退出登录按钮 */}
         <Space>
-          {userEmail}
+          {userInfo?.email}
           <Dropdown
             position='br'
             droplist={
@@ -514,7 +465,7 @@ const MailApp = () => {
 
         {currentFolder?.key === 'compose' ? (
           <Spin className={'w-full'} block loading={currentLoading}>
-            <WriteMail detail={writeMail} onClose={onClickCompose} />
+            <WriteMail key={writeMail?.uid || '0'} detail={writeMail} onChange={setNewWriteMail} onClose={onClickCompose} />
           </Spin>
         ) : (
           <>
@@ -553,7 +504,7 @@ const MailApp = () => {
                         <Space>
                           {selectedRowKeys.length > 0 && (
                             <Button size='mini' icon={<IconDelete />} onClick={() => handleDelMail(selectedRowKeys)}>
-                              删除
+                              {currentFolder.key === 'delete' ? '清空' : '删除'}
                             </Button>
                           )}
                           <span>共 {total} 封</span>
@@ -597,7 +548,7 @@ const MailApp = () => {
                   {/* 邮件操作工具栏 */}
                   <div className='flex items-center gap-2 border-b border-gray-200 p-4'>
                     <Button size='small' icon={<IconDelete />} onClick={() => handleDelMail([currentMail.uid])}>
-                      {currentFolder.key === 'trash' ? '彻底删除' : '删除'}
+                      {currentFolder.key === 'delete' ? '彻底删除' : '删除'}
                     </Button>
                     <Button size='small' icon={<IconReply />} onClick={handleReply}>
                       回复
@@ -635,10 +586,10 @@ const MailApp = () => {
                           <span className='text-gray-400'>&nbsp;&lt;{currentMail.from}&gt;</span>
                         </div>
                         <div className='flex items-center justify-between gap-2'>
-                          <div className='flex-1'>
+                          <div className='flex-1 whitespace-nowrap'>
                             <div className='mb-1 flex items-center'>
                               <div className='text-gray-400'>收件人</div>
-                              {currentMail?.to_info.map((e, index) => (
+                              {currentMail?.to_info?.map((e, index) => (
                                 <div key={index}>
                                   {index !== 0 && <span className='text-gray-400'>,</span>}
                                   <span className='mr-1 ml-3'>{e.name}</span>
@@ -649,7 +600,7 @@ const MailApp = () => {
                             {currentMail?.cc && (
                               <div className='flex items-center'>
                                 <div className='text-gray-400'>抄送</div>
-                                {currentMail?.cc_info.map((e, index) => (
+                                {currentMail?.cc_info?.map((e, index) => (
                                   <div key={index}>
                                     {index !== 0 && <span className='text-gray-400'>,</span>}
                                     <span className='mr-1 ml-3'>{e.name}</span>
@@ -669,7 +620,6 @@ const MailApp = () => {
 
                     {/* 邮件正文 */}
                     <div
-                      className='mail-detail'
                       dangerouslySetInnerHTML={{
                         __html: currentMail.detail?.content || '<div class="text-gray-500">暂无邮件内容</div>',
                       }}
@@ -730,13 +680,72 @@ const MailApp = () => {
           autoComplete='off'
           layout='vertical'
           validateMessages={{ required: (_, { label }) => `${label}是必填项` }}>
-          <Form.Item rules={[{ required: true }, { validator: checkPasswordRules }]} label='旧密码' field='oldpwd'>
+          <Form.Item
+            rules={[
+              { required: true, message: '请输入旧密码' },
+              {
+                validator: (value, callback) => {
+                  if (!value) {
+                    return callback()
+                  }
+                  if (value.length < 6 || value.length > 20) {
+                    return callback('密码长度必须在6到20个字符之间')
+                  }
+                  if (value.includes('^')) {
+                    return callback('密码不能包含^字符')
+                  }
+                  return Promise.resolve()
+                },
+              },
+            ]}
+            label='旧密码'
+            field='oldpwd'>
             <Input.Password placeholder='请输入...' />
           </Form.Item>
-          <Form.Item rules={[{ required: true }, { validator: checkNewPassword }]} label='新密码' field='newpwd'>
+          <Form.Item
+            rules={[
+              { required: true, message: '请输入新密码' },
+              {
+                validator: (value, callback) => {
+                  if (!value) {
+                    return callback()
+                  }
+                  if (value.length < 6 || value.length > 20) {
+                    return callback('密码长度必须在6到20个字符之间')
+                  }
+                  if (value.includes('^')) {
+                    return callback('密码不能包含^字符')
+                  }
+                  const oldPassword = formPwd.getFieldValue('oldpwd')
+                  if (oldPassword && value === oldPassword) {
+                    return callback('新密码不能与旧密码相同')
+                  }
+                  return Promise.resolve()
+                },
+              },
+            ]}
+            label='新密码'
+            field='newpwd'>
             <Input.Password placeholder='请输入...' />
           </Form.Item>
-          <Form.Item rules={[{ required: true }, { validator: checkConfirmPassword }]} label='确认新密码' field='confirmpwd'>
+          <Form.Item
+            rules={[
+              { required: true, message: '请确认新密码' },
+              {
+                validator: (value, callback) => {
+                  if (!value) {
+                    return callback()
+                  }
+                  const newPassword = formPwd.getFieldValue('newpwd')
+                  if (newPassword && value !== newPassword) {
+                    return callback('两次输入的密码不一致')
+                  }
+                  return Promise.resolve()
+                },
+              },
+            ]}
+            label='确认新密码'
+            field='confirmpwd'>
             <Input.Password placeholder='请输入...' />
           </Form.Item>
         </Form>

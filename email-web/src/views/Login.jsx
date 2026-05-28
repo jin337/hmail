@@ -27,7 +27,7 @@ export default function Login() {
       }
 
       localStorage.setItem('mail_token', data.token)
-      localStorage.setItem('mail_email', data.email)
+      localStorage.setItem('mail_info', JSON.stringify(data))
       Message.success('登录成功')
       navigate('/')
     } else {
