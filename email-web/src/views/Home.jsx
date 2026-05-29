@@ -64,6 +64,7 @@ const Home = () => {
         </div>
         {/* 头像和退出登录按钮 */}
         <Space>
+          {userInfo?.full_name}
           {userInfo?.email}
           <Dropdown
             position='br'

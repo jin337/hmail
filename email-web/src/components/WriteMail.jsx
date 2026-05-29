@@ -70,11 +70,10 @@ export default function WriteMail({ detail, userList = [], onClose, onChange, on
     const newValues = {
       ...values,
       detail: {
-        content: html,
-        attachments: values?.files || fileList,
+        content: html || detail?.detail?.content,
+        attachments: values?.files || fileList?.length > 0 ? fileList : detail?.detail?.attachments,
       },
     }
-
     onChange(newValues)
   }
 
@@ -149,10 +148,10 @@ export default function WriteMail({ detail, userList = [], onClose, onChange, on
               </Upload>
             </Form.Item>
           </Form>
-          <Card title='联系人' className='h-full w-50'>
+          <Card title='联系人' className='h-full w-60' bodyStyle={{ overflowY: 'auto', height: 'calc(100% - 46px)' }}>
             {userList?.map((item) => (
-              <Typography.Paragraph copyable key={item?.id}>
-                {item.email}
+              <Typography.Paragraph key={item?.id}>
+                {item?.full_name} <Typography.Text copyable>{item.email}</Typography.Text>
               </Typography.Paragraph>
             ))}
           </Card>

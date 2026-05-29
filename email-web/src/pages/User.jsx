@@ -14,6 +14,8 @@ const UserPage = () => {
   const [visible, setVisible] = useState(false)
   const [editUser, setEditUser] = useState(null)
 
+  const [pageHeight, setPageHeight] = useState(0)
+
   const columns = [
     {
       title: '姓名',
@@ -101,7 +103,7 @@ const UserPage = () => {
   const DeleteUser = async (record) => {
     Modal.confirm({
       title: '警告',
-      content: '请确认是否删除?',
+      content: `请确认是否删除 ${record.email}?`,
       className: 'simpleModal',
       onOk: async () => {
         const { code, msg } = await request.post('/api/user/delete', { email: record.email })
@@ -124,7 +126,16 @@ const UserPage = () => {
     }
   }
 
+  // 获取页面高度
+  const getPageHeight = () => {
+    const height = document.body.clientHeight - 160
+    setPageHeight(height)
+  }
+
   useEffect(() => {
+    window.addEventListener('resize', getPageHeight())
+    getPageHeight()
+
     getUserList()
   }, [])
 
@@ -136,7 +147,7 @@ const UserPage = () => {
           新增用户
         </Button>
       </div>
-      <Table rowKey={'id'} columns={columns} data={tableData?.list || []} pagination={false} />
+      <Table rowKey={'id'} columns={columns} data={tableData?.list || []} pagination={false} scroll={{ y: pageHeight }} />
 
       <Modal
         title={editUser?.id ? '编辑用户' : '新增用户'}

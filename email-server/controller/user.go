@@ -25,7 +25,7 @@ func Login(c *gin.Context) {
 	}
 
 	// 获取用户信息
-	user, err := service.Login(config.AdminPwd, req.Email, req.Password)
+	user, err := service.Login(config.AdminPwd, req.Email, req.Password, config.DefaultFolders)
 	if err != nil {
 		c.JSON(200, gin.H{"code": 500, "msg": err.Error()})
 		return

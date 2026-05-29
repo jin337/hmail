@@ -20,8 +20,8 @@ go install github.com/cosmtrek/air@latest
 var (
 	HmailHost = "127.0.0.1"
 	SmtpPort  = 25
-	ImapPort  = 143
-	AdminPwd  = "a123456"
+	ImapPort  = 993
+	AdminPwd  = "a123321"
 )
 ```
 
@@ -32,3 +32,9 @@ air
 ```
 
 默认运行端口：`8058`
+
+## 5. 打包项目
+
+```bash
+go build -o hst-mail.exe
+```

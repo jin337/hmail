@@ -16,7 +16,7 @@ import (
 )
 
 // Login 登录
-func Login(adminPassword, email, password string) (*model.UserItem, error) {
+func Login(adminPassword, email, password string, Folders []string) (*model.UserItem, error) {
 	// 首先通过 IMAP 验证邮箱和密码是否正确
 	imapClient, err := utils.DialIMAPClient(email, password)
 	if err != nil {
@@ -81,6 +81,21 @@ func Login(adminPassword, email, password string) (*model.UserItem, error) {
 	tokenStr, err := token.SignedString([]byte(config.JwtSecretKey))
 	if err != nil {
 		return nil, fmt.Errorf("生成Token失败: %v", err)
+	}
+
+	// 验证文件夹是否存在，不存在就创建
+	for _, folder := range Folders {
+		// 跳过 INBOX，因为它已经自动创建
+		if strings.ToUpper(folder) == "INBOX" {
+			continue
+		}
+
+		// 使用 IMAP CREATE 命令创建文件夹
+		createErr := imapClient.Create(folder)
+		if createErr != nil {
+			// 记录错误但不中断流程，因为文件夹可能已存在
+			fmt.Printf("警告: 创建文件夹 [%s] 失败: %v\n", folder, createErr)
+		}
 	}
 
 	user := &model.UserItem{
@@ -226,7 +241,7 @@ func CreateUser(Folders []string, adminPassword, email, password, firstName, las
 		return fmt.Errorf("保存账号失败: %v", err)
 	}
 
-	// 或者在此处建立 IMAP 连接并创建文件夹
+	// 建立 IMAP 连接并创建文件夹
 	if len(Folders) > 0 {
 		// 等待账户完全创建，确保可以成功建立 IMAP 连接
 		imapClient, imapErr := utils.DialIMAPClient(email, password)
