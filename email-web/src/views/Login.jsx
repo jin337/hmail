@@ -6,6 +6,7 @@ import request from 'src/api/request'
 
 import loginImg from '../assets/img_login.gif'
 const suffix = import.meta.env.VITE_SUFFIX
+const pageTitle = import.meta.env.VITE_PAGE_TITLE
 
 export default function Login() {
   const [loading, setLoading] = useState(false)
@@ -47,7 +48,7 @@ export default function Login() {
           {/* 左侧宣传文案 */}
           <div>
             <h1 className='mb-6 text-4xl font-bold'>
-              <span className='text-[#00a4ff]'>华盛邮件</span>
+              <span className='text-[#00a4ff]'>{pageTitle}</span>
               <span className='text-black'>，常联系！</span>
             </h1>
             <div className='space-y-3 text-base text-gray-800'>

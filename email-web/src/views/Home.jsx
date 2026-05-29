@@ -5,6 +5,7 @@ import { Button, Dropdown, Form, Input, Layout, Menu, Message, Modal, Space } fr
 import { IconSettings } from '@arco-design/web-react/icon'
 
 import request from 'src/api/request'
+const pageTitle = import.meta.env.VITE_PAGE_TITLE
 
 const Home = () => {
   const navigate = useNavigate()
@@ -60,7 +61,7 @@ const Home = () => {
         {/* Logo */}
         <div className='flex cursor-pointer items-center gap-3' onClick={() => navigate('/')}>
           <div className='flex h-8 w-8 items-center justify-center rounded bg-blue-500 text-lg font-bold text-white'>H</div>
-          <span className='text-lg font-bold text-gray-700'>华盛邮件</span>
+          <span className='text-lg font-bold text-gray-700'>{pageTitle}</span>
         </div>
         {/* 头像和退出登录按钮 */}
         <Space>

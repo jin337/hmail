@@ -446,7 +446,7 @@ const MailLayout = () => {
             </div>
             <Table
               loading={loading}
-              scroll={{ y: 'calc(100vh - 168px)' }}
+              scroll={{ y: 'calc(100vh - 157px)' }}
               className='email-list h-full'
               rowKey='uid'
               pagination={false}
