@@ -137,32 +137,33 @@ func GetHmailAccount(adminPassword, email string) (*ole.IDispatch, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer func() {
-		app.Release()
-		ole.CoUninitialize()
-		runtime.UnlockOSThread()
-	}()
+	// 注意：不能在这里 defer Release app，因为 account 对象依赖 app 的生命周期
+	// app 的生命周期由调用者管理
 
 	// 自动从邮箱地址中提取域名
 	domainName := ""
 	if idx := strings.LastIndex(email, "@"); idx != -1 {
 		domainName = email[idx+1:]
 	} else {
+		app.Release() // 错误时手动释放
 		return nil, fmt.Errorf("邮箱地址格式不正确，未找到 '@' 符号")
 	}
 
 	// 获取 Domains 集合
 	domainsObj, err := oleutil.GetProperty(app, "Domains")
 	if err != nil {
+		app.Release()
 		return nil, fmt.Errorf("获取 Domains 属性失败: %v", err)
 	}
 	domains := domainsObj.ToIDispatch()
-	defer domains.Release()
+	// 注意：不释放 domains，因为后续需要查找 domain
 
 	// 遍历 Domains 集合查找匹配的域名
 	var domain *ole.IDispatch
 	countResult, err := oleutil.GetProperty(domains, "Count")
 	if err != nil {
+		domains.Release()
+		app.Release()
 		return nil, fmt.Errorf("获取域名数量失败: %v", err)
 	}
 	count := int(countResult.Val)
@@ -191,17 +192,21 @@ func GetHmailAccount(adminPassword, email string) (*ole.IDispatch, error) {
 	}
 
 	if !found {
+		domains.Release()
+		app.Release()
 		return nil, fmt.Errorf("未找到域名 [%s]，请检查是否配置该域名", domainName)
 	}
-	defer domain.Release()
+	// 找到 domain 后，释放 domains 集合（domain 对象是独立的）
+	domains.Release()
 
 	// 获取该域名下的 Accounts 集合
 	accountsObj, err := oleutil.GetProperty(domain, "Accounts")
 	if err != nil {
+		domain.Release()
+		app.Release()
 		return nil, fmt.Errorf("获取 Accounts 属性失败: %v", err)
 	}
 	accounts := accountsObj.ToIDispatch()
-	defer accounts.Release()
 
 	// 通过完整邮箱地址查找对应的 Account 对象
 	var account *ole.IDispatch
@@ -210,6 +215,9 @@ func GetHmailAccount(adminPassword, email string) (*ole.IDispatch, error) {
 		// 如果 ItemByAddress 失败，则遍历所有账号
 		accountsCountResult, err := oleutil.GetProperty(accounts, "Count")
 		if err != nil {
+			accounts.Release()
+			domain.Release()
+			app.Release()
 			return nil, fmt.Errorf("获取账号数量失败: %v", err)
 		}
 		accountsCount := int(accountsCountResult.Val)
@@ -236,12 +244,19 @@ func GetHmailAccount(adminPassword, email string) (*ole.IDispatch, error) {
 		}
 
 		if !accountFound {
+			accounts.Release()
+			domain.Release()
+			app.Release()
 			return nil, fmt.Errorf("在域名 [%s] 下未找到邮箱账号 [%s]，请检查该账号是否存在", domainName, email)
 		}
 	} else {
 		account = accountItem.ToIDispatch()
 	}
 
-	// 成功获取 account，移除 defer 清理，由调用者负责
+	// 找到 account 后，释放 accounts 集合（account 对象是独立的）
+	accounts.Release()
+	// 注意：不释放 domain 和 app，因为 account 可能依赖它们的生命周期
+
+	// 成功获取 account，由调用者负责 Release
 	return account, nil
 }

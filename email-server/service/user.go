@@ -29,6 +29,8 @@ func Login(adminPassword, email, password string) (*model.UserItem, error) {
 	if err != nil {
 		return nil, err
 	}
+	// 注意：GetHmailAccount 已经将 app/domain/accounts 的生命周期管理内部化了
+	// 这里只需要释放 account 对象和 COM 资源
 	defer func() {
 		account.Release()
 		ole.CoUninitialize()
@@ -36,11 +38,30 @@ func Login(adminPassword, email, password string) (*model.UserItem, error) {
 	}()
 
 	// 获取用户信息
-	idVar, _ := oleutil.GetProperty(account, "Id")
-	addressVar, _ := oleutil.GetProperty(account, "Address")
-	PersonFirstNameVar, _ := oleutil.GetProperty(account, "PersonFirstName")
-	PersonLastNameVar, _ := oleutil.GetProperty(account, "PersonLastName")
-	adminVar, _ := oleutil.GetProperty(account, "AdministrationLevel")
+	idVar, err := oleutil.GetProperty(account, "Id")
+	if err != nil {
+		return nil, fmt.Errorf("获取用户ID失败: %v", err)
+	}
+
+	addressVar, err := oleutil.GetProperty(account, "Address")
+	if err != nil {
+		return nil, fmt.Errorf("获取邮箱地址失败: %v", err)
+	}
+
+	PersonFirstNameVar, err := oleutil.GetProperty(account, "PersonFirstName")
+	if err != nil {
+		return nil, fmt.Errorf("获取名字失败: %v", err)
+	}
+
+	PersonLastNameVar, err := oleutil.GetProperty(account, "PersonLastName")
+	if err != nil {
+		return nil, fmt.Errorf("获取姓氏失败: %v", err)
+	}
+
+	adminVar, err := oleutil.GetProperty(account, "Adminlevel")
+	if err != nil {
+		return nil, fmt.Errorf("获取管理员级别失败: %v", err)
+	}
 
 	id := idVar.Val
 	address := addressVar.ToString()
@@ -194,7 +215,7 @@ func CreateUser(Folders []string, adminPassword, email, password, firstName, las
 	}
 
 	// 设置管理员级别
-	_, err = oleutil.PutProperty(newAccount, "AdministrationLevel", isAdmin)
+	_, err = oleutil.PutProperty(newAccount, "Adminlevel", isAdmin)
 	if err != nil {
 		return fmt.Errorf("设置管理员级别失败: %v", err)
 	}
@@ -304,7 +325,7 @@ func UserList(adminPassword string) ([]*model.UserItem, int, error) {
 			addressVar, _ := oleutil.GetProperty(account, "Address")
 			PersonFirstNameVar, _ := oleutil.GetProperty(account, "PersonFirstName")
 			PersonLastNameVar, _ := oleutil.GetProperty(account, "PersonLastName")
-			adminVar, _ := oleutil.GetProperty(account, "AdministrationLevel")
+			adminVar, _ := oleutil.GetProperty(account, "Adminlevel")
 
 			id := idVar.Val
 			address := addressVar.ToString()
@@ -383,7 +404,7 @@ func UpdateUser(adminPassword, email, firstName, lastName string, isAdmin int64)
 	}
 
 	if isAdmin != -1 {
-		_, err = oleutil.PutProperty(account, "AdministrationLevel", isAdmin)
+		_, err = oleutil.PutProperty(account, "Adminlevel", isAdmin)
 		if err != nil {
 			return fmt.Errorf("设置管理员级别失败: %v", err)
 		}
