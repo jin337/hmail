@@ -7,7 +7,7 @@ import relativeTime from 'dayjs/plugin/relativeTime'
 dayjs.extend(relativeTime)
 dayjs.locale('zh-cn')
 
-import WriteMail from './WriteMail'
+import WriteMail from 'src/pages/WriteMail'
 
 import IconMailOpen from 'src/assets/mail-open.svg'
 import IconMail from 'src/assets/mail.svg'
@@ -438,6 +438,7 @@ const MailApp = () => {
             position='br'
             droplist={
               <Menu>
+                {userInfo?.is_admin === 1 && <Menu.Item key='0'>用户管理</Menu.Item>}
                 <Menu.Item key='1' onClick={handleRepasword}>
                   修改密码
                 </Menu.Item>
@@ -481,7 +482,7 @@ const MailApp = () => {
             <WriteMail
               key={writeMail?.uid || '0'}
               detail={writeMail}
-              userList={userList?.list||[]}
+              userList={userList?.list || []}
               onChange={setNewWriteMail}
               onClose={onClickCompose}
             />
@@ -695,6 +696,7 @@ const MailApp = () => {
         autoFocus={false}
         focusLock={true}>
         <Form
+          className='m-auto w-90!'
           form={formPwd}
           autoComplete='off'
           layout='vertical'

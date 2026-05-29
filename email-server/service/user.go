@@ -20,7 +20,7 @@ func Login(adminPassword, email, password string) (*model.UserItem, error) {
 	// 首先通过 IMAP 验证邮箱和密码是否正确
 	imapClient, err := utils.DialIMAPClient(email, password)
 	if err != nil {
-		return nil, fmt.Errorf("邮箱或密码错误: %w", err)
+		return nil, err
 	}
 	defer imapClient.Logout()
 
@@ -257,7 +257,7 @@ func CreateUser(Folders []string, adminPassword, email, password, firstName, las
 }
 
 // UserList 获取用户列表
-func UserList(adminPassword string) ([]*model.UserItem, int, error) {
+func UserList(adminPassword string) ([]*model.UserList, int, error) {
 	// 获取 hMailServer Application 对象
 	app, err := utils.InitHmailApp(adminPassword)
 	if err != nil {
@@ -284,7 +284,7 @@ func UserList(adminPassword string) ([]*model.UserItem, int, error) {
 	}
 	domainCount := int(countResult.Val)
 
-	var userList []*model.UserItem
+	var userList []*model.UserList
 	total := 0
 
 	// 遍历所有域名
@@ -332,7 +332,7 @@ func UserList(adminPassword string) ([]*model.UserItem, int, error) {
 			name := PersonFirstNameVar.ToString() + PersonLastNameVar.ToString()
 			isadmin := adminVar.Val
 
-			user := &model.UserItem{
+			user := &model.UserList{
 				ID:       id,
 				Email:    address,
 				FullName: name,

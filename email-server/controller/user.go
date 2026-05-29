@@ -90,7 +90,7 @@ func CreateUser(c *gin.Context) {
 	}
 
 	// 验证必传参数
-	if err := utils.ValidateRequiredParams([]string{"email", "password", "person_first_name", "person_last_name"}, req); err != nil {
+	if err := utils.ValidateRequiredParams([]string{"email", "password"}, req); err != nil {
 		c.JSON(200, gin.H{"code": 400, "msg": err.Error()})
 		return
 	}

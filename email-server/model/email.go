@@ -20,6 +20,14 @@ type UserItem struct {
 	Token    string `json:"token"`     // 访问令牌
 }
 
+// 用户列表
+type UserList struct {
+	ID       int64  `json:"id"`        // 用户ID
+	Email    string `json:"email"`     // 邮箱账号
+	FullName string `json:"full_name"` // 姓名
+	IsAdmin  int64  `json:"is_admin"`  // 0:用户，1：域管理员，2：服务器管理员
+}
+
 // 邮件信息
 type MailItem struct {
 	Uid       uint32 `json:"uid"`        // 邮件ID

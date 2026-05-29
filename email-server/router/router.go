@@ -5,7 +5,6 @@ import (
 	"email-server/middleware"
 	"os"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/gin-gonic/gin"
 )
 
@@ -13,7 +12,6 @@ func SetupRouter(r *gin.Engine) {
 	// 判断环境变量
 	apiPrefix := "/"
 	envValue := os.Getenv("GIN_MODE")
-	spew.Dump(envValue)
 
 	if envValue == "debug" {
 		gin.SetMode(gin.DebugMode)

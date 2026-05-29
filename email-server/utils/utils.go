@@ -50,7 +50,9 @@ func ValidateRequiredParams(fields []string, obj interface{}) error {
 
 // DialIMAPClient 连接IMAP服务器
 func DialIMAPClient(email, password string) (*client.Client, error) {
-	imapClient, err := client.Dial(fmt.Sprintf("%s:%d", config.HmailHost, config.ImapPort))
+	// 使用 net.JoinHostPort 处理 IPv4/IPv6 地址
+	address := net.JoinHostPort(config.HmailHost, fmt.Sprintf("%d", config.ImapPort))
+	imapClient, err := client.Dial(address)
 	if err != nil {
 		return nil, fmt.Errorf("连接IMAP失败: %v", err)
 	}
@@ -65,8 +67,9 @@ func DialIMAPClient(email, password string) (*client.Client, error) {
 
 // DialSMTPClient 连接SMTP服务器
 func DialSMTPClient(email, password string) (*smtp.Client, error) {
-	// 建立TCP连接
-	conn, err := net.Dial("tcp", fmt.Sprintf("%s:%d", config.HmailHost, config.SmtpPort))
+	// 建立TCP连接 - 使用 net.JoinHostPort 处理 IPv4/IPv6 地址
+	address := net.JoinHostPort(config.HmailHost, fmt.Sprintf("%d", config.SmtpPort))
+	conn, err := net.Dial("tcp", address)
 	if err != nil {
 		return nil, fmt.Errorf("连接SMTP服务器失败: %w", err)
 	}

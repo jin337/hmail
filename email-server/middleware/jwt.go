@@ -2,7 +2,6 @@ package middleware
 
 import (
 	"errors"
-	"strings"
 
 	"email-server/config"
 	"email-server/model"
@@ -13,13 +12,12 @@ import (
 
 func JWTAuth() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		authHeader := c.GetHeader("Authorization")
-		if authHeader == "" || !strings.HasPrefix(authHeader, config.TokenPrefix) {
+		tokenStr := c.GetHeader("Authorization")
+		if tokenStr == "" {
 			c.JSON(401, gin.H{"code": 401, "msg": "未登录，请先登录获取Token"})
 			c.Abort()
 			return
 		}
-		tokenStr := strings.TrimPrefix(authHeader, config.TokenPrefix)
 
 		token, err := jwt.ParseWithClaims(tokenStr, &model.UserClaims{}, func(token *jwt.Token) (any, error) {
 			return []byte(config.JwtSecretKey), nil
