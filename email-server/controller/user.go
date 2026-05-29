@@ -19,7 +19,7 @@ func Login(c *gin.Context) {
 	}
 
 	// 验证必传参数
-	if err := utils.ValidateRequiredParams([]string{"email", "password"}, req); err != nil {
+	if err := utils.ValidateRequiredParams([]string{"Email", "Password"}, req); err != nil {
 		c.JSON(200, gin.H{"code": 400, "msg": err.Error()})
 		return
 	}
@@ -48,7 +48,7 @@ func ChangePassword(c *gin.Context) {
 		return
 	}
 	// 验证必传参数
-	if err := utils.ValidateRequiredParams([]string{"old_password", "new_password"}, req); err != nil {
+	if err := utils.ValidateRequiredParams([]string{"OldPassword", "NewPassword"}, req); err != nil {
 		c.JSON(200, gin.H{"code": 400, "msg": err.Error()})
 		return
 	}
@@ -90,7 +90,7 @@ func CreateUser(c *gin.Context) {
 	}
 
 	// 验证必传参数
-	if err := utils.ValidateRequiredParams([]string{"email", "password"}, req); err != nil {
+	if err := utils.ValidateRequiredParams([]string{"Email", "Password"}, req); err != nil {
 		c.JSON(200, gin.H{"code": 400, "msg": err.Error()})
 		return
 	}
@@ -115,7 +115,7 @@ func DeleteUser(c *gin.Context) {
 	}
 
 	// 验证必传参数
-	if err := utils.ValidateRequiredParams([]string{"email"}, req); err != nil {
+	if err := utils.ValidateRequiredParams([]string{"Email"}, req); err != nil {
 		c.JSON(200, gin.H{"code": 400, "msg": err.Error()})
 		return
 	}
@@ -140,7 +140,7 @@ func UpdateUser(c *gin.Context) {
 	}
 
 	// 验证必传参数
-	if err := utils.ValidateRequiredParams([]string{"email"}, req); err != nil {
+	if err := utils.ValidateRequiredParams([]string{"Email"}, req); err != nil {
 		c.JSON(200, gin.H{"code": 400, "msg": err.Error()})
 		return
 	}

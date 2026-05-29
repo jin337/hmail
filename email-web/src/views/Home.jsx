@@ -67,6 +67,7 @@ const Home = () => {
           {userInfo?.email}
           <Dropdown
             position='br'
+            trigger='click'
             droplist={
               <Menu>
                 {userInfo?.is_admin === 1 && (

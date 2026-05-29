@@ -42,3 +42,12 @@ strong {
 .mail-detail {
   min-height: 100px;
 }
+.mail-detail blockquote {
+  background-color: var(--w-e-textarea-slight-bg-color);
+  border-left: 8px solid var(--w-e-textarea-selected-border-color);
+  display: block;
+  font-size: 100%;
+  line-height: 1.5;
+  margin: 10px 0;
+  padding: 10px;
+}

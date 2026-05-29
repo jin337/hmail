@@ -29,7 +29,6 @@ import IconMailOpen from 'src/assets/mail-open.svg'
 import IconMail from 'src/assets/mail.svg'
 import IconSent from 'src/assets/sent.svg'
 
-
 const { Sider, Content } = Layout
 
 // 左侧文件夹
@@ -289,6 +288,8 @@ const MailLayout = () => {
     const newMail = {
       ...currentMail,
       subject: `回复: ${currentMail.subject}`,
+      to_email: currentMail.to.split(', '),
+      cc: currentMail.cc ? currentMail.cc.split(', ') : [],
       detail: {
         content: currentMail?.cc ? FormContentCc : FormContent,
       },
@@ -296,7 +297,6 @@ const MailLayout = () => {
     if (currentFolder.key === 'inbox') {
       newMail.to_email = [currentMail.from]
     }
-
     onWriteMail('reply', newMail)
   }
 
@@ -336,12 +336,6 @@ const MailLayout = () => {
     }
   }
 
-  // 处理邮件发送后的回调
-  const handleSendMailCallback = (type) => {
-    // 根据发送类型关闭写邮件页面并返回相应文件夹
-    onClickCompose(type === 'sent' ? 'inbox' : 'drafts')
-  }
-
   // 发送邮件&草稿
   const handleSend = async (type, form, html, fileList, detail, setLoading) => {
     const values = form.getFieldsValue()
@@ -378,8 +372,7 @@ const MailLayout = () => {
     const { code, msg } = await request.post(url, formData, { headers: { 'Content-Type': 'multipart/form-data' } })
     if (code === 200) {
       Message.success(msg)
-      // 调用发送后的回调
-      handleSendMailCallback(type === 'Sent' ? 'sent' : 'drafts')
+      onClickCompose(type === 'Sent' ? 'inbox' : 'drafts')
     } else {
       Message.error(msg)
     }
@@ -599,7 +592,7 @@ const MailLayout = () => {
                   <Divider />
 
                   {/* 邮件正文 */}
-                  <div
+                  <div className="mail-detail"
                     dangerouslySetInnerHTML={{
                       __html: currentMail.detail?.content || '<div class="text-gray-500">暂无邮件内容</div>',
                     }}

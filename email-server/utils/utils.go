@@ -31,8 +31,7 @@ func ValidateRequiredParams(fields []string, obj interface{}) error {
 
 	for _, field := range fields {
 		// 查找对应字段（首字母大写）
-		fieldName := strings.ToUpper(field[:1]) + field[1:]
-		fieldVal := v.FieldByName(fieldName)
+		fieldVal := v.FieldByName(field)
 
 		if !fieldVal.IsValid() {
 			return fmt.Errorf("字段 %s 不存在", field)

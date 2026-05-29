@@ -24,7 +24,7 @@ func MailList(c *gin.Context) {
 	}
 
 	// 验证必传参数
-	if err := utils.ValidateRequiredParams([]string{"folder"}, req); err != nil {
+	if err := utils.ValidateRequiredParams([]string{"Folder"}, req); err != nil {
 		c.JSON(200, gin.H{"code": 400, "msg": err.Error()})
 		return
 	}
@@ -79,7 +79,7 @@ func MailDetail(c *gin.Context) {
 	}
 
 	// 验证必传参数
-	if err := utils.ValidateRequiredParams([]string{"uid", "folder"}, req); err != nil {
+	if err := utils.ValidateRequiredParams([]string{"Uid", "Folder"}, req); err != nil {
 		c.JSON(200, gin.H{"code": 400, "msg": err.Error()})
 		return
 	}
@@ -108,7 +108,7 @@ func MarkRead(c *gin.Context) {
 	}
 
 	// 验证必传参数
-	if err := utils.ValidateRequiredParams([]string{"uid", "folder", "status"}, req); err != nil {
+	if err := utils.ValidateRequiredParams([]string{"Uid", "Folder", "Status"}, req); err != nil {
 		c.JSON(200, gin.H{"code": 400, "msg": err.Error()})
 		return
 	}
@@ -136,7 +136,7 @@ func DownloadAttachment(c *gin.Context) {
 	}
 
 	// 验证必传参数
-	if err := utils.ValidateRequiredParams([]string{"uid", "folder", "part_id"}, req); err != nil {
+	if err := utils.ValidateRequiredParams([]string{"Uid", "Folder", "PartID"}, req); err != nil {
 		c.JSON(200, gin.H{"code": 400, "msg": err.Error()})
 		return
 	}
@@ -170,7 +170,7 @@ func MoveMail(c *gin.Context) {
 	}
 
 	// 验证必传参数
-	if err := utils.ValidateRequiredParams([]string{"uids", "from_folder", "to_folder"}, req); err != nil {
+	if err := utils.ValidateRequiredParams([]string{"FromFolder", "ToFolder", "Uids"}, req); err != nil {
 		c.JSON(200, gin.H{"code": 400, "msg": err.Error()})
 		return
 	}
@@ -204,7 +204,7 @@ func DeleteMail(c *gin.Context) {
 	}
 
 	// 验证必传参数
-	if err := utils.ValidateRequiredParams([]string{"uids", "folder"}, req); err != nil {
+	if err := utils.ValidateRequiredParams([]string{"Uids", "Folder"}, req); err != nil {
 		c.JSON(200, gin.H{"code": 400, "msg": err.Error()})
 		return
 	}
