@@ -18,6 +18,7 @@ import {
   IconImage,
   IconRedo,
   IconReply,
+  IconSearch,
   IconSend,
 } from '@arco-design/web-react/icon'
 
@@ -398,13 +399,16 @@ const MailLayout = () => {
   return (
     <Layout className='flex-1'>
       {/* 左列：文件夹导航 */}
-      <Sider width={220} theme='light' className='mail-menu border-r border-gray-200 bg-white'>
+      <Sider width={220} theme='light' className='mail-menu box-shadow-none bg-transparent!'>
         <div className='p-4'>
           <Button type='primary' icon={<IconEdit />} long onClick={() => onWriteMail('new')}>
             写信
           </Button>
         </div>
-        <Menu selectedKeys={[currentFolder?.key || '']} onClickMenuItem={(key) => loadMailList(key)}>
+        <Menu
+          className={'bg-transparent! px-2'}
+          selectedKeys={[currentFolder?.key || '']}
+          onClickMenuItem={(key) => loadMailList(key)}>
           {folderList.map((item) => (
             <Menu.Item key={item.key}>
               <span>
@@ -420,7 +424,7 @@ const MailLayout = () => {
       </Sider>
 
       {currentFolder?.key === 'compose' ? (
-        <Spin className={'w-full'} block loading={currentLoading}>
+        <Spin className={'mr-4 w-full rounded-t-xl bg-white'} block loading={currentLoading}>
           <WriteMail
             key={writeMail?.uid || '0'}
             detail={writeMail}
@@ -433,10 +437,11 @@ const MailLayout = () => {
       ) : (
         <>
           {/* 中列：邮件列表 */}
-          <div className='max-w-90 min-w-90 flex-1 border-r border-gray-200'>
+          <div className='max-w-90 min-w-90 flex-1 rounded-tl-xl border-r border-gray-200 bg-white'>
             {/* 搜索框 */}
-            <div className='border-b border-gray-200 p-2'>
+            <div className='fixed top-0 z-10 w-125 py-3'>
               <Input.Search
+                prefix={<IconSearch />}
                 placeholder='搜索主题/发件人'
                 searchButton
                 value={searchWord}
@@ -446,7 +451,7 @@ const MailLayout = () => {
             </div>
             <Table
               loading={loading}
-              scroll={{ y: 'calc(100vh - 157px)' }}
+              scroll={{ y: 'calc(100vh - 108px)' }}
               className='email-list h-full'
               rowKey='uid'
               pagination={false}
@@ -515,7 +520,7 @@ const MailLayout = () => {
           </div>
 
           {/* 右列：邮件详情 + 顶部操作按钮栏 */}
-          <Content className='min-w-130 flex-1'>
+          <Content className='mr-4 min-w-130 flex-1 rounded-tr-xl bg-white'>
             {currentMail ? (
               <>
                 {/* 邮件操作工具栏 */}
@@ -592,7 +597,8 @@ const MailLayout = () => {
                   <Divider />
 
                   {/* 邮件正文 */}
-                  <div className="mail-detail"
+                  <div
+                    className='mail-detail'
                     dangerouslySetInnerHTML={{
                       __html: currentMail.detail?.content || '<div class="text-gray-500">暂无邮件内容</div>',
                     }}

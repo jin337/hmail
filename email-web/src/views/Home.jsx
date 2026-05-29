@@ -57,12 +57,15 @@ const Home = () => {
 
   return (
     <Layout className='h-screen w-full overflow-hidden'>
-      <Layout.Header className='z-10 flex h-14 items-center justify-between bg-white px-6 shadow-sm'>
+      <Layout.Header className='z-10 flex h-14 items-center justify-between pr-6'>
         {/* Logo */}
-        <div className='flex cursor-pointer items-center gap-3' onClick={() => navigate('/')}>
-          <div className='flex h-8 w-8 items-center justify-center rounded bg-blue-500 text-lg font-bold text-white'>H</div>
-          <span className='text-lg font-bold text-gray-700'>{pageTitle}</span>
+        <div className='flex h-full w-55 cursor-pointer items-center justify-center'>
+          <div className='flex items-center gap-3' onClick={() => navigate('/')}>
+            <div className='flex h-8 w-8 items-center justify-center rounded bg-blue-500 text-lg font-bold text-white'>H</div>
+            <span className='text-lg font-bold text-gray-700'>{pageTitle}</span>
+          </div>
         </div>
+
         {/* 头像和退出登录按钮 */}
         <Space>
           {userInfo?.full_name}

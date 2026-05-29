@@ -79,7 +79,7 @@ export default function WriteMail({ detail, userList = [], onClose, onChange, on
 
   return (
     <Layout className='h-full'>
-      <Layout.Header className='flex h-14 items-center justify-between border-b border-gray-300 px-6'>
+      <Layout.Header className='flex h-15 items-center justify-between border-b border-gray-300 px-6'>
         <Space>
           <Button type='primary' icon={<IconSend />} loading={loading} onClick={() => handleSend('Sent')}>
             发送邮件
@@ -98,8 +98,13 @@ export default function WriteMail({ detail, userList = [], onClose, onChange, on
         </Space>
       </Layout.Header>
       <Layout.Content>
-        <div className='flex h-[calc(100vh-112px)] items-start'>
-          <Form className='h-full flex-1 overflow-y-auto p-6 pb-0' form={form} layout='vertical' onChange={onChangeMail}>
+        <div className='flex h-[calc(100vh-116px)] items-start'>
+          <Form
+            className='h-full flex-1 overflow-y-auto p-6 pb-0'
+            form={form}
+            autoComplete='off'
+            layout='vertical'
+            onChange={onChangeMail}>
             <Form.Item field='to' rules={[{ required: true, message: '请输入收件人' }, { validator: validateEmails }]}>
               <InputTag prefix='收件人' placeholder='test@xxx.com' saveOnBlur />
             </Form.Item>
@@ -148,7 +153,7 @@ export default function WriteMail({ detail, userList = [], onClose, onChange, on
               </Upload>
             </Form.Item>
           </Form>
-          <Card title='联系人' className='h-full w-60' bodyStyle={{ overflowY: 'auto', height: 'calc(100% - 46px)' }}>
+          <Card title='联系人' className='h-full w-60 border-t-0!' bodyStyle={{ overflowY: 'auto', height: 'calc(100% - 50px)' }}>
             {userList?.map((item) => (
               <Typography.Paragraph key={item?.id}>
                 {item?.full_name} <Typography.Text copyable>{item.email}</Typography.Text>

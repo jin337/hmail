@@ -63,7 +63,7 @@ export default function Login() {
           {/* 右侧登录卡片 */}
 
           <Card className={'w-87.5'} title='邮件系统登录'>
-            <Form initialValues={remember} onSubmit={onSubmit} layout='vertical'>
+            <Form initialValues={remember} autoComplete='off' onSubmit={onSubmit} layout='vertical'>
               <Form.Item label='邮箱地址' field='email' rules={[{ required: true, message: '请输入邮箱' }]}>
                 <Input suffix={suffix} placeholder='请输入用户名' />
               </Form.Item>

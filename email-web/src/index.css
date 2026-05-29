@@ -1,6 +1,9 @@
 @import 'tailwindcss';
 /* 表单内*号换行问题解决方案 */
-
+body {
+  background-color: #e6edf5;
+  position: relative;
+}
 strong {
   display: inline-block;
 }
@@ -21,6 +24,15 @@ strong {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  background-color: transparent;
+}
+.mail-menu .arco-menu-light .arco-menu-item.arco-menu-selected {
+  background-color: #c6dcf5;
+  font-weight: bold;
+  color: #13181d;
+}
+.mail-menu .arco-menu-light .arco-menu-item.arco-menu-selected .arco-icon{
+  color: #13181d;
 }
 .email-list thead .arco-table-th {
   background-color: #fff;
