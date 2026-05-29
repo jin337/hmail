@@ -22,10 +22,13 @@ type UserItem struct {
 
 // 用户列表
 type UserList struct {
-	ID       int64  `json:"id"`        // 用户ID
-	Email    string `json:"email"`     // 邮箱账号
-	FullName string `json:"full_name"` // 姓名
-	IsAdmin  int64  `json:"is_admin"`  // 0:用户，1：域管理员，2：服务器管理员
+	ID              int64  `json:"id"`                // 用户ID
+	Email           string `json:"email"`             // 邮箱账号
+	FullName        string `json:"full_name"`         // 姓名
+	PersonFirstName string `json:"person_first_name"` // 名
+	PersonLastName  string `json:"person_last_name"`  // 姓
+	IsAdmin         int64  `json:"is_admin"`          // 0:用户，1：域管理员，2：服务器管理员
+	LastLogonTime   string `json:"last_logon_time"`   // 最后登录时间
 }
 
 // 邮件信息
@@ -68,7 +71,15 @@ type UserReq struct {
 	Password        string `json:"password" binding:"required"` // 邮箱密码
 	PersonFirstName string `json:"person_first_name"`           // 用户名
 	PersonLastName  string `json:"person_last_name"`            // 姓名
-	IsAdmin         int64  `json:"is_admin" binding:"required"` // 0:用户，1：域管理员，2：服务器管理员
+	IsAdmin         int64  `json:"is_admin"`                    // 0:用户，1：域管理员，2：服务器管理员
+}
+
+// 用户注册请求
+type UserUpdateReq struct {
+	Email           string `json:"email" binding:"required"` // 邮箱账号
+	PersonFirstName string `json:"person_first_name"`        // 用户名
+	PersonLastName  string `json:"person_last_name"`         // 姓名
+	IsAdmin         int64  `json:"is_admin"`                 // 0:用户，1：域管理员，2：服务器管理员
 }
 
 // 用户删除请求

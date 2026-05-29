@@ -6,6 +6,16 @@ strong {
 .arco-spin-children {
   width: 100%;
 }
+.simpleModal .arco-modal-title {
+  text-align: left;
+}
+.simpleModal .arco-modal-header {
+  margin-bottom: 12px;
+}
+.simpleModal .arco-modal-footer {
+  text-align: right;
+  margin-top: 12px;
+}
 .mail-menu .arco-menu-item {
   display: flex;
   justify-content: space-between;

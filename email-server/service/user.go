@@ -326,17 +326,25 @@ func UserList(adminPassword string) ([]*model.UserList, int, error) {
 			PersonFirstNameVar, _ := oleutil.GetProperty(account, "PersonFirstName")
 			PersonLastNameVar, _ := oleutil.GetProperty(account, "PersonLastName")
 			adminVar, _ := oleutil.GetProperty(account, "Adminlevel")
+			lastLogonTimeVar, _ := oleutil.GetProperty(account, "LastLogonTime")
 
 			id := idVar.Val
 			address := addressVar.ToString()
-			name := PersonFirstNameVar.ToString() + PersonLastNameVar.ToString()
+			firstNameVar := PersonFirstNameVar.ToString()
+			lastNameVar := PersonLastNameVar.ToString()
 			isadmin := adminVar.Val
 
+			lastLogonTime, _ := ole.GetVariantDate(uint64(lastLogonTimeVar.Val))
+			time := lastLogonTime.Format("2006-01-02 15:04:05")
+
 			user := &model.UserList{
-				ID:       id,
-				Email:    address,
-				FullName: name,
-				IsAdmin:  isadmin,
+				ID:              id,
+				Email:           address,
+				FullName:        firstNameVar + lastNameVar,
+				PersonFirstName: firstNameVar,
+				PersonLastName:  lastNameVar,
+				IsAdmin:         isadmin,
+				LastLogonTime:   time,
 			}
 
 			// 添加到用户列表

@@ -1,4 +1,4 @@
-import { Button, Card, Form, Input, InputTag, Layout, Message, Space, Typography, Upload } from '@arco-design/web-react'
+import { Button, Card, Form, Input, InputTag, Layout, Space, Typography, Upload } from '@arco-design/web-react'
 import { IconClose, IconFile, IconPlus, IconSend, IconUpload } from '@arco-design/web-react/icon'
 
 import { useEffect, useState } from 'react'
@@ -6,8 +6,7 @@ import { useEffect, useState } from 'react'
 // 引入 wangEditor
 import { Editor, Toolbar } from '@wangeditor/editor-for-react'
 
-import request from 'src/api/request'
-export default function WriteMail({ detail, userList = [], onClose, onChange }) {
+export default function WriteMail({ detail, userList = [], onClose, onChange, onSend }) {
   const [form] = Form.useForm()
   const [loading, setLoading] = useState(false)
 
@@ -60,47 +59,10 @@ export default function WriteMail({ detail, userList = [], onClose, onChange }) 
 
   // 发送邮件&草稿
   const handleSend = async (type) => {
-    const values = form.getFieldsValue()
-    if (!values.to || !values.subject) {
-      Message.warning('请填写收件人和主题')
-      return
+    // 调用父组件传递的发送函数
+    if (onSend) {
+      onSend(type, form, html, fileList, detail, setLoading)
     }
-    const formData = new FormData()
-    formData.append('to', values.to)
-    formData.append('cc', values.cc || '')
-    formData.append('subject', values.subject)
-    formData.append('content', html)
-    if (detail?.uid) {
-      formData.append('uid', detail.uid)
-    }
-
-    const partIds = []
-    fileList.forEach((file) => {
-      if (file?.part_id) {
-        partIds.push(file.part_id)
-      } else {
-        formData.append('files', file?.originFile)
-      }
-    })
-    if (partIds.length > 0) {
-      formData.append('part_ids', partIds.join(','))
-    }
-
-    setLoading(true)
-    let url = '/api/mail/send'
-    if (type === 'Drafts') {
-      url = '/api/mail/save-draft'
-    }
-    const { code, msg } = await request.post(url, formData, { headers: { 'Content-Type': 'multipart/form-data' } })
-    if (code === 200) {
-      Message.success(msg)
-      onClose(type === 'Sent' ? 'sent' : 'drafts')
-      if (editor) editor.destroy()
-    } else {
-      setLoading(false)
-      Message.error(msg)
-    }
-    setLoading(false)
   }
 
   // 监控数据变化
