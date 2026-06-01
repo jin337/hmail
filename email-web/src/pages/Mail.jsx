@@ -18,9 +18,11 @@ import {
   IconFile,
   IconImage,
   IconLayout,
+  IconLeft,
   IconMenu,
   IconRedo,
   IconReply,
+  IconRight,
   IconSearch,
   IconSend,
 } from '@arco-design/web-react/icon'
@@ -58,6 +60,16 @@ const MailLayout = () => {
   const [writeMail, setWriteMail] = useState(null)
   const [newWriteMail, setNewWriteMail] = useState(null)
   const [isTable, setIsTable] = useState(false)
+
+  // 切换选中邮件
+  const handleCutMail = (record, key) => {
+    const index = mailList.findIndex((e) => e.uid === record.uid)
+    if (key === 'prev') {
+      handleSelectMail(mailList[index - 1])
+    } else if (key === 'next') {
+      handleSelectMail(mailList[index + 1])
+    }
+  }
 
   // 关闭写邮件页，返回收件箱
   const onClickCompose = (key) => {
@@ -128,7 +140,6 @@ const MailLayout = () => {
     // 排除复选框的点击
     if (isCheckboxClick) return
 
-    setCurrentMail()
     setCurrentLoading(true)
     const params = {
       uid: item.uid,
@@ -444,22 +455,22 @@ const MailLayout = () => {
 
       {currentFolder?.key !== 'compose' && (
         <Layout className='relative mr-4! rounded-t-xl'>
+          {/* 搜索框 */}
+          <div className='fixed top-0 z-10 w-125 py-3'>
+            <Input.Search
+              prefix={<IconSearch />}
+              placeholder='搜索主题/发件人'
+              searchButton
+              value={searchWord}
+              onChange={setSearchWord}
+              onSearch={handleSearch}
+            />
+          </div>
           {/* 中列：邮件列表 */}
-          <Layout.Sider className={`box-shadow-none z-10 flex-1 ${isTable ? 'w-full!' : 'w-90!'}`}>
-            {/* 搜索框 */}
-            <div className='fixed top-0 z-10 w-125 py-3'>
-              <Input.Search
-                prefix={<IconSearch />}
-                placeholder='搜索主题/发件人'
-                searchButton
-                value={searchWord}
-                onChange={setSearchWord}
-                onSearch={handleSearch}
-              />
-            </div>
+          <Layout.Sider width={isTable ? (currentMail ? 0 : '100%') : 360} className={`box-shadow-none z-10 flex-1`}>
             <Table
               loading={loading}
-              scroll={{ y: 'calc(100vh - 108px)' }}
+              scroll={{ y: 'calc(100vh - 116px)' }}
               className='email-list h-full'
               rowKey='uid'
               pagination={false}
@@ -506,24 +517,36 @@ const MailLayout = () => {
                   render: (text, record) => (
                     <div className={record.is_read ? '' : 'font-bold'} onClick={() => onRead(record)}>
                       <div className='mb-1 flex items-center justify-between gap-2'>
-                        <div className={'flex items-center gap-1.5'}>
-                          {record.is_read ? <IconMailOpen /> : <IconMail />}
-                          {currentFolder?.key === 'sent' ? (
-                            <>
-                              <IconSent />
-                              {record?.to_name}
-                              {record?.cc_name ? ', ' + record?.cc_name : ''}
-                            </>
-                          ) : (
-                            record?.from_name
-                          )}
+                        <div className={` ${isTable ? 'flex' : ''}`}>
+                          <div className={`flex items-center gap-1.5 ${isTable ? 'w-60!' : ''}`}>
+                            {record.is_read ? <IconMailOpen /> : <IconMail />}
+                            {currentFolder?.key === 'sent' ? (
+                              <>
+                                <IconSent />
+                                {record?.to_name}
+                                {record?.cc_name ? ', ' + record?.cc_name : ''}
+                              </>
+                            ) : (
+                              record?.from_name
+                            )}
 
-                          {record.has_attach ? <IconAttachment className='text-gray-400!' /> : ''}
+                            {record.has_attach ? <IconAttachment className='text-gray-400!' /> : ''}
+                          </div>
+                          {isTable && (
+                            <div className='flex gap-1'>
+                              <div className={'truncate'}>{record?.subject || ''}</div>
+                              <div className={'truncate font-light text-gray-400'}>{record?.text || ''}</div>
+                            </div>
+                          )}
                         </div>
                         <span>{dayjs(record?.send_time).fromNow()}</span>
                       </div>
-                      <div className={'truncate'}>{record?.subject || ''}</div>
-                      <div className={'truncate font-light text-gray-400'}>{record?.text || ''}</div>
+                      {!isTable && (
+                        <>
+                          <div className={'truncate'}>{record?.subject || ''}</div>
+                          <div className={'truncate font-light text-gray-400'}>{record?.text || ''}</div>
+                        </>
+                      )}
                     </div>
                   ),
                 },
@@ -533,48 +556,67 @@ const MailLayout = () => {
           </Layout.Sider>
 
           {/* 右列：邮件详情 + 顶部操作按钮栏 */}
-          <Layout.Content className={`min-w-130 flex-1 bg-white ${isTable && currentMail ? 'absolute z-10 w-full' : 'relative'}`}>
-            {!isTable && (
-              <div className={`absolute top-4 right-4`}>
-                <Button size='small' onClick={() => setIsTable(true)} icon={<IconMenu />}></Button>
-              </div>
-            )}
+          <Layout.Content className={`relative h-full min-w-130 flex-1 bg-white ${isTable && currentMail ? ' z-10 w-full' : ''}`}>
             {currentMail && (
-              <>
+              <Spin block loading={currentLoading}>
                 {/* 邮件操作工具栏 */}
-                <div className='flex items-center gap-2 border-b border-gray-200 p-4'>
-                  {isTable && currentMail && (
-                    <Button size='small' icon={<IconArrowLeft />} onClick={() => setCurrentMail()}>
-                      返回
+                <div className='flex items-center justify-between gap-2 border-b border-gray-200 p-4'>
+                  <div className='flex items-center gap-2'>
+                    {isTable && currentMail && (
+                      <Button size='small' icon={<IconArrowLeft />} onClick={() => setCurrentMail()}>
+                        返回
+                      </Button>
+                    )}
+                    <Button size='small' icon={<IconDelete />} onClick={() => handleDelMail([currentMail.uid])}>
+                      {currentFolder.key === 'delete' ? '彻底删除' : '删除'}
                     </Button>
+                    <Button size='small' icon={<IconReply />} onClick={handleReply}>
+                      回复
+                    </Button>
+                    <Button size='small' icon={<IconRedo />} onClick={handleForward}>
+                      转发
+                    </Button>
+                    <Dropdown
+                      trigger='click'
+                      droplist={
+                        <Menu onClickMenuItem={confirmMoveMail}>
+                          {folderList
+                            .filter((e) => ![currentFolder.folder].includes(e.folder))
+                            .map((e) => (
+                              <Menu.Item key={e.folder}>{e.title}</Menu.Item>
+                            ))}
+                        </Menu>
+                      }>
+                      <Button size='small'>
+                        移动
+                        <IconDown />
+                      </Button>
+                    </Dropdown>
+                  </div>
+
+                  {isTable ? (
+                    <Button.Group type='text'>
+                      <Button
+                        size='small'
+                        icon={<IconLeft />}
+                        disabled={currentMail?.uid === mailList[0]?.uid}
+                        onClick={() => handleCutMail(currentMail, 'prev')}>
+                        上一封
+                      </Button>
+                      <Button
+                        size='small'
+                        disabled={currentMail?.uid === mailList[mailList?.length - 1]?.uid}
+                        icon={<IconRight />}
+                        onClick={() => handleCutMail(currentMail, 'next')}>
+                        下一封
+                        <IconRight />
+                      </Button>
+                    </Button.Group>
+                  ) : (
+                    <Button size='small' onClick={() => setIsTable(true)} icon={<IconMenu />}></Button>
                   )}
-                  <Button size='small' icon={<IconDelete />} onClick={() => handleDelMail([currentMail.uid])}>
-                    {currentFolder.key === 'delete' ? '彻底删除' : '删除'}
-                  </Button>
-                  <Button size='small' icon={<IconReply />} onClick={handleReply}>
-                    回复
-                  </Button>
-                  <Button size='small' icon={<IconRedo />} onClick={handleForward}>
-                    转发
-                  </Button>
-                  <Dropdown
-                    trigger='click'
-                    droplist={
-                      <Menu onClickMenuItem={confirmMoveMail}>
-                        {folderList
-                          .filter((e) => ![currentFolder.folder].includes(e.folder))
-                          .map((e) => (
-                            <Menu.Item key={e.folder}>{e.title}</Menu.Item>
-                          ))}
-                      </Menu>
-                    }>
-                    <Button size='small'>
-                      移动
-                      <IconDown />
-                    </Button>
-                  </Dropdown>
                 </div>
-                <Spin className='h-[calc(100vh-180px)] flex-1 overflow-y-auto p-4' block loading={currentLoading}>
+                <div className='h-[calc(100vh-117px)] flex-1 overflow-y-auto p-4'>
                   {/* 邮件头部信息 */}
                   <div className='mb-4 text-lg font-bold'>{currentMail.subject}</div>
                   <div className='mb-4 flex items-start gap-3'>
@@ -618,7 +660,6 @@ const MailLayout = () => {
                     </div>
                   </div>
                   <Divider />
-
                   {/* 邮件正文 */}
                   <div
                     className='mail-detail'
@@ -659,8 +700,8 @@ const MailLayout = () => {
                       </div>
                     </Card>
                   )}
-                </Spin>
-              </>
+                </div>
+              </Spin>
             )}
             {!currentMail && (
               <div className='flex h-full items-center justify-center text-gray-300'>请在左侧选择一封邮件查看详情</div>
