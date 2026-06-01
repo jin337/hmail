@@ -140,7 +140,7 @@ const UserPage = () => {
   }, [])
 
   return (
-    <Layout.Content className={'p-4'}>
+    <Layout.Content className={'p-4 bg-white mx-4 rounded-xl'}>
       <div className='mb-4 flex items-center justify-between'>
         <div className='text-lg font-bold'>用户管理</div>
         <Button type='primary' icon={<IconPlus />} onClick={() => EditUser()}>

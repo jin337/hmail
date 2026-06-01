@@ -437,7 +437,7 @@ const MailLayout = () => {
       ) : (
         <>
           {/* 中列：邮件列表 */}
-          <div className='max-w-90 min-w-90 flex-1 rounded-tl-xl border-r border-gray-200 bg-white'>
+          <div className='max-w-90 min-w-90 flex-1 rounded-tl-xl border-r border-gray-200 bg-white overflow-hidden'>
             {/* 搜索框 */}
             <div className='fixed top-0 z-10 w-125 py-3'>
               <Input.Search
