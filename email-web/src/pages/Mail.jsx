@@ -8,6 +8,7 @@ dayjs.locale('zh-cn')
 
 import { Avatar, Button, Card, Divider, Dropdown, Input, Layout, Menu, Message, Space, Spin, Table } from '@arco-design/web-react'
 import {
+  IconArrowLeft,
   IconAttachment,
   IconClose,
   IconDelete,
@@ -16,6 +17,8 @@ import {
   IconEmail,
   IconFile,
   IconImage,
+  IconLayout,
+  IconMenu,
   IconRedo,
   IconReply,
   IconSearch,
@@ -30,8 +33,6 @@ import IconMailOpen from 'src/assets/mail-open.svg'
 import IconMail from 'src/assets/mail.svg'
 import IconSent from 'src/assets/sent.svg'
 
-const { Sider, Content } = Layout
-
 // 左侧文件夹
 const menuList = [
   { key: 'inbox', folder: 'INBOX', title: '收件箱', icon: <IconEmail /> },
@@ -42,17 +43,21 @@ const menuList = [
 
 const MailLayout = () => {
   const [userList, setUserList] = useState({})
+
   const [folderList, setFolderList] = useState(menuList)
   const [currentFolder, setCurrentFolder] = useState({})
   const [searchWord, setSearchWord] = useState('')
+
   const [loading, setLoading] = useState(false)
   const [mailList, setMailList] = useState([])
   const [total, setTotal] = useState(0)
+  const [selectedRowKeys, setSelectedRowKeys] = useState([])
+
   const [currentLoading, setCurrentLoading] = useState(false)
   const [currentMail, setCurrentMail] = useState(null)
   const [writeMail, setWriteMail] = useState(null)
   const [newWriteMail, setNewWriteMail] = useState(null)
-  const [selectedRowKeys, setSelectedRowKeys] = useState([])
+  const [isTable, setIsTable] = useState(false)
 
   // 关闭写邮件页，返回收件箱
   const onClickCompose = (key) => {
@@ -399,7 +404,7 @@ const MailLayout = () => {
   return (
     <Layout className='flex-1'>
       {/* 左列：文件夹导航 */}
-      <Sider width={220} theme='light' className='mail-menu box-shadow-none bg-transparent!'>
+      <Layout.Sider width={220} theme='light' className='mail-menu box-shadow-none bg-transparent!'>
         <div className='p-4'>
           <Button type='primary' icon={<IconEdit />} long onClick={() => onWriteMail('new')}>
             写信
@@ -421,9 +426,10 @@ const MailLayout = () => {
             </Menu.Item>
           ))}
         </Menu>
-      </Sider>
+      </Layout.Sider>
 
-      {currentFolder?.key === 'compose' ? (
+      {/* 写信 */}
+      {currentFolder?.key === 'compose' && (
         <Spin className={'mr-4 w-full rounded-t-xl bg-white'} block loading={currentLoading}>
           <WriteMail
             key={writeMail?.uid || '0'}
@@ -434,10 +440,12 @@ const MailLayout = () => {
             onSend={handleSend} // 传递邮件发送函数
           />
         </Spin>
-      ) : (
-        <>
+      )}
+
+      {currentFolder?.key !== 'compose' && (
+        <Layout className='relative mr-4! rounded-t-xl'>
           {/* 中列：邮件列表 */}
-          <div className='max-w-90 min-w-90 flex-1 rounded-tl-xl border-r border-gray-200 bg-white overflow-hidden'>
+          <Layout.Sider className={`box-shadow-none z-10 flex-1 ${isTable ? 'w-full!' : 'w-90!'}`}>
             {/* 搜索框 */}
             <div className='fixed top-0 z-10 w-125 py-3'>
               <Input.Search
@@ -485,7 +493,12 @@ const MailLayout = () => {
                             {currentFolder.key === 'delete' ? '清空' : '删除'}
                           </Button>
                         )}
-                        <span>共 {total} 封</span>
+                        <span className={`${isTable ? 'mr-8' : ''}`}>共 {total} 封</span>
+                        {isTable && (
+                          <div className={`absolute top-4 right-4`}>
+                            <Button size='small' onClick={() => setIsTable(false)} icon={<IconLayout />}></Button>
+                          </div>
+                        )}
                       </Space>
                     </div>
                   ),
@@ -517,14 +530,24 @@ const MailLayout = () => {
               ]}
               data={mailList}
             />
-          </div>
+          </Layout.Sider>
 
           {/* 右列：邮件详情 + 顶部操作按钮栏 */}
-          <Content className='mr-4 min-w-130 flex-1 rounded-tr-xl bg-white'>
-            {currentMail ? (
+          <Layout.Content className={`min-w-130 flex-1 bg-white ${isTable && currentMail ? 'absolute z-10 w-full' : 'relative'}`}>
+            {!isTable && (
+              <div className={`absolute top-4 right-4`}>
+                <Button size='small' onClick={() => setIsTable(true)} icon={<IconMenu />}></Button>
+              </div>
+            )}
+            {currentMail && (
               <>
                 {/* 邮件操作工具栏 */}
                 <div className='flex items-center gap-2 border-b border-gray-200 p-4'>
+                  {isTable && currentMail && (
+                    <Button size='small' icon={<IconArrowLeft />} onClick={() => setCurrentMail()}>
+                      返回
+                    </Button>
+                  )}
                   <Button size='small' icon={<IconDelete />} onClick={() => handleDelMail([currentMail.uid])}>
                     {currentFolder.key === 'delete' ? '彻底删除' : '删除'}
                   </Button>
@@ -638,11 +661,12 @@ const MailLayout = () => {
                   )}
                 </Spin>
               </>
-            ) : (
+            )}
+            {!currentMail && (
               <div className='flex h-full items-center justify-center text-gray-300'>请在左侧选择一封邮件查看详情</div>
             )}
-          </Content>
-        </>
+          </Layout.Content>
+        </Layout>
       )}
     </Layout>
   )
