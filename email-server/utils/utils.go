@@ -262,3 +262,16 @@ func GetHmailAccount(adminPassword, email string) (*ole.IDispatch, error) {
 	// 成功获取 account，由调用者负责 Release
 	return account, nil
 }
+
+// FormatFileSize 字节 转为 友好单位 B/KB/MB/GB
+func FormatFileSize(size uint32) string {
+	if size < 1024 {
+		return fmt.Sprintf("%dB", size)
+	} else if size < 1024*1024 {
+		return fmt.Sprintf("%.1fKB", float64(size)/1024)
+	} else if size < 1024*1024*1024 {
+		return fmt.Sprintf("%.1fMB", float64(size)/1024/1024)
+	} else {
+		return fmt.Sprintf("%.1fGB", float64(size)/1024/1024/1024)
+	}
+}

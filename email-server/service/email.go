@@ -83,6 +83,7 @@ func MailList(email, pwd, folder string, page, size int, keyword string) ([]*mod
 			imap.FetchUid,
 			imap.FetchFlags,
 			imap.FetchEnvelope,
+			imap.FetchRFC822Size,
 		}, mailMsg)
 	}()
 
@@ -132,6 +133,7 @@ func MailList(email, pwd, folder string, page, size int, keyword string) ([]*mod
 			HasAttach: len(env.Attachments) > 0,
 			IsRead:    isRead,
 			Folder:    folder,
+			Size:      utils.FormatFileSize(msg.Size),
 		}
 		list = append(list, item)
 	}
@@ -172,6 +174,7 @@ func MailDetail(email, pwd string, folder string, uid uint32) (*model.MailDetail
 		done <- imapClient.UidFetch(uidSet, []imap.FetchItem{
 			imap.FetchRFC822,
 			imap.FetchUid,
+			imap.FetchRFC822Size,
 		}, bodyMail)
 	}()
 
@@ -211,9 +214,18 @@ func MailDetail(email, pwd string, folder string, uid uint32) (*model.MailDetail
 		content = env.Text
 	}
 
+	var totalSize uint32
+	for _, a := range env.Attachments {
+		totalSize += uint32(len(a.Content))
+	}
+	for _, i := range env.Inlines {
+		totalSize += uint32(len(i.Content))
+	}
+
 	return &model.MailDetail{
 		Content:     content,
 		Attachments: attachments,
+		Size:        utils.FormatFileSize(totalSize),
 	}, nil
 }
 

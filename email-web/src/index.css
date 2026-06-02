@@ -31,7 +31,7 @@ strong {
   font-weight: bold;
   color: #13181d;
 }
-.mail-menu .arco-menu-light .arco-menu-item.arco-menu-selected .arco-icon{
+.mail-menu .arco-menu-light .arco-menu-item.arco-menu-selected .arco-icon {
   color: #13181d;
 }
 .email-list thead .arco-table-th {
@@ -47,6 +47,9 @@ strong {
 .email-list .arco-table-td {
   padding-left: 0;
   vertical-align: baseline;
+}
+.email-table .arco-table-td {
+  vertical-align: middle;
 }
 .select-row .arco-table-td {
   background-color: var(--color-fill-2);

@@ -43,12 +43,14 @@ type MailItem struct {
 	IsRead    bool   `json:"is_read"`    // 是否已读
 	HasAttach bool   `json:"has_attach"` // 是否有附件
 	Text      string `json:"text"`       // 邮件内容
+	Size      string `json:"size"`
 }
 
 // 邮件详情
 type MailDetail struct {
 	Content     string           `json:"content"`     // 邮件内容
 	Attachments []AttachmentInfo `json:"attachments"` // 附件信息
+	Size        string           `json:"size"`
 }
 
 // 附件信息

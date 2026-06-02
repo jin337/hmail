@@ -471,7 +471,7 @@ const MailLayout = () => {
             <Table
               loading={loading}
               scroll={{ y: 'calc(100vh - 116px)' }}
-              className='email-list h-full'
+              className={`email-list h-full ${isTable ? 'email-table' : ''}`}
               rowKey='uid'
               pagination={false}
               border={{
@@ -516,7 +516,7 @@ const MailLayout = () => {
                   dataIndex: 'date',
                   render: (text, record) => (
                     <div className={record.is_read ? '' : 'font-bold'} onClick={() => onRead(record)}>
-                      <div className='mb-1 flex items-center justify-between gap-2'>
+                      <div className={`flex items-center justify-between gap-2 ${!isTable ? 'mb-1' : ''}`}>
                         <div className={` ${isTable ? 'flex' : ''}`}>
                           <div className={`flex items-center gap-1.5 ${isTable ? 'w-60!' : ''}`}>
                             {record.is_read ? <IconMailOpen /> : <IconMail />}
@@ -539,7 +539,10 @@ const MailLayout = () => {
                             </div>
                           )}
                         </div>
-                        <span>{dayjs(record?.send_time).fromNow()}</span>
+                        <div>
+                          {isTable && <span className='mr-2'>{record.size}</span>}
+                          <span>{dayjs(record?.send_time).fromNow()}</span>
+                        </div>
                       </div>
                       {!isTable && (
                         <>
@@ -557,6 +560,17 @@ const MailLayout = () => {
 
           {/* 右列：邮件详情 + 顶部操作按钮栏 */}
           <Layout.Content className={`relative h-full min-w-130 flex-1 bg-white ${isTable && currentMail ? ' z-10 w-full' : ''}`}>
+            {!isTable && (
+              <div className='absolute top-4 right-4 z-10'>
+                <Button
+                  size='small'
+                  onClick={() => {
+                    setIsTable(true)
+                    setCurrentMail(null)
+                  }}
+                  icon={<IconMenu />}></Button>
+              </div>
+            )}
             {currentMail && (
               <Spin block loading={currentLoading}>
                 {/* 邮件操作工具栏 */}
@@ -594,7 +608,7 @@ const MailLayout = () => {
                     </Dropdown>
                   </div>
 
-                  {isTable ? (
+                  {isTable && (
                     <Button.Group type='text'>
                       <Button
                         size='small'
@@ -612,8 +626,6 @@ const MailLayout = () => {
                         <IconRight />
                       </Button>
                     </Button.Group>
-                  ) : (
-                    <Button size='small' onClick={() => setIsTable(true)} icon={<IconMenu />}></Button>
                   )}
                 </div>
                 <div className='h-[calc(100vh-117px)] flex-1 overflow-y-auto p-4'>
@@ -673,7 +685,7 @@ const MailLayout = () => {
                       title={
                         <>
                           <IconAttachment className='mr-1' />
-                          {currentMail?.detail?.attachments?.length}个 附件
+                          {currentMail?.detail?.attachments?.length}个 附件 {currentMail?.detail?.size}
                         </>
                       }>
                       <div className='flex flex-col gap-2'>
