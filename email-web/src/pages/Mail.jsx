@@ -172,20 +172,24 @@ const MailLayout = () => {
     getMailData(currentFolder.folder, val)
   }
 
+  // 根据邮箱地址获取用户姓名
+  const getName = (mail) => {
+    return userList?.list?.find((user) => user?.email === mail)?.full_name || false
+  }
   // 获取邮件数据
-  const getMailData = async (folder, keyword = '') => {
+  const getMailData = async (folder, keyword = '', size = 1000) => {
     // 加载邮件列表
     setLoading(true)
-    const params = { page: 1, size: 1000, folder, keyword }
+    const params = { page: 1, size, folder, keyword }
     let { code, data, msg } = await request.post('/api/mail/list', params)
     if (code === 200) {
       const list = (data?.list || []).map((e) => {
-        const from_name = e.from.split('@')[0]
-        const to_info = e.to.split(', ').map((t) => t && { email: t, name: t.split('@')[0] })
+        const from_name = getName(e.from) || e.from.split('@')[0]
+        const to_info = e.to.split(', ').map((t) => t && { email: t, name: getName(t) || t.split('@')[0] })
         const to_name = to_info.map((t) => t.name).join(', ')
         const to_reply = to_info.map((t) => t.name + ' &lt;' + t.email + '&gt;').join(', ')
 
-        const cc_info = e.cc ? e.cc.split(', ').map((t) => t && { email: t, name: t.split('@')[0] }) : []
+        const cc_info = e.cc ? e.cc.split(', ').map((t) => t && { email: t, name: getName(t) || t.split('@')[0] }) : []
         const cc_name = cc_info ? cc_info.map((t) => t.name).join(', ') : ''
         const cc_reply = cc_info ? cc_info?.map((t) => t.name + ' &lt;' + t.email + '&gt;').join(', ') : ''
 
@@ -200,6 +204,7 @@ const MailLayout = () => {
           cc_reply,
         }
       })
+
       setMailList(list)
       setTotal(data?.total || 0)
     } else {
@@ -360,6 +365,8 @@ const MailLayout = () => {
       Message.warning('请填写收件人和主题')
       return
     }
+
+    console.log(values)
     const formData = new FormData()
     formData.append('to', values.to)
     formData.append('cc', values.cc || '')
@@ -404,13 +411,15 @@ const MailLayout = () => {
     } else {
       Message.error(msg)
     }
-  }
 
+    loadMailList('inbox')
+  }
+  // 本地登录信息
+  const userToken = localStorage.getItem('mail_token')
   // 初始加载邮件列表
   useEffect(() => {
-    loadMailList('inbox')
-    getUserList()
-  }, [])
+    userToken && getUserList()
+  }, [userToken])
 
   return (
     <Layout className='flex-1'>
@@ -541,7 +550,11 @@ const MailLayout = () => {
                         </div>
                         <div>
                           {isTable && <span className='mr-2'>{record.size}</span>}
-                          <span>{dayjs(record?.send_time).fromNow()}</span>
+                          <span>
+                            {dayjs(record?.send_time).isBefore(dayjs().subtract(1, 'week'))
+                              ? dayjs(record?.send_time).format('MM/DD')
+                              : dayjs(record?.send_time).fromNow()}
+                          </span>
                         </div>
                       </div>
                       {!isTable && (
@@ -620,7 +633,6 @@ const MailLayout = () => {
                       <Button
                         size='small'
                         disabled={currentMail?.uid === mailList[mailList?.length - 1]?.uid}
-                        icon={<IconRight />}
                         onClick={() => handleCutMail(currentMail, 'next')}>
                         下一封
                         <IconRight />

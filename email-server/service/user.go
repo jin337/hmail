@@ -29,7 +29,6 @@ func Login(adminPassword, email, password string, Folders []string) (*model.User
 	if err != nil {
 		return nil, err
 	}
-	// 注意：GetHmailAccount 已经将 app/domain/accounts 的生命周期管理内部化了
 	// 这里只需要释放 account 对象和 COM 资源
 	defer func() {
 		account.Release()
@@ -39,29 +38,10 @@ func Login(adminPassword, email, password string, Folders []string) (*model.User
 
 	// 获取用户信息
 	idVar, err := oleutil.GetProperty(account, "Id")
-	if err != nil {
-		return nil, fmt.Errorf("获取用户ID失败: %v", err)
-	}
-
 	addressVar, err := oleutil.GetProperty(account, "Address")
-	if err != nil {
-		return nil, fmt.Errorf("获取邮箱地址失败: %v", err)
-	}
-
 	PersonFirstNameVar, err := oleutil.GetProperty(account, "PersonFirstName")
-	if err != nil {
-		return nil, fmt.Errorf("获取名字失败: %v", err)
-	}
-
 	PersonLastNameVar, err := oleutil.GetProperty(account, "PersonLastName")
-	if err != nil {
-		return nil, fmt.Errorf("获取姓氏失败: %v", err)
-	}
-
 	adminVar, err := oleutil.GetProperty(account, "Adminlevel")
-	if err != nil {
-		return nil, fmt.Errorf("获取管理员级别失败: %v", err)
-	}
 
 	id := idVar.Val
 	address := addressVar.ToString()
@@ -94,7 +74,6 @@ func Login(adminPassword, email, password string, Folders []string) (*model.User
 		createErr := imapClient.Create(folder)
 		if createErr != nil {
 			// 记录错误但不中断流程，因为文件夹可能已存在
-			fmt.Printf("警告: 创建文件夹 [%s] 失败: %v\n", folder, createErr)
 		}
 	}
 

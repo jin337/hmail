@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 
-import { Button, Form, Input, Layout, Message, Modal, Radio, Space, Table } from '@arco-design/web-react'
+import { Button, Form, Grid, Input, Layout, Message, Modal, Radio, Space, Table, Tag } from '@arco-design/web-react'
 import { IconPlus } from '@arco-design/web-react/icon'
 
 import request from 'src/api/request'
@@ -27,10 +27,10 @@ const UserPage = () => {
       dataIndex: 'email',
     },
     {
-      title: '管理员',
+      title: '权限',
       dataIndex: 'is_admin',
       align: 'center',
-      render: (is_admin) => (is_admin ? '是' : '否'),
+      render: (is_admin) => (is_admin ? <Tag color='arcoblue'>管理员</Tag> : <Tag>用户</Tag>),
     },
     {
       title: '最后登录时间',
@@ -140,7 +140,7 @@ const UserPage = () => {
   }, [])
 
   return (
-    <Layout.Content className={'p-4 bg-white mx-4 rounded-xl'}>
+    <Layout.Content className={'mx-4 rounded-xl bg-white p-4'}>
       <div className='mb-4 flex items-center justify-between'>
         <div className='text-lg font-bold'>用户管理</div>
         <Button type='primary' icon={<IconPlus />} onClick={() => EditUser()}>
@@ -165,16 +165,24 @@ const UserPage = () => {
             rules={[{ required: !editUser?.id, message: '请输入密码' }]}>
             <Input.Password placeholder='请输入密码' />
           </Form.Item>
-          <Form.Item label='姓' field='person_first_name' rules={[{ required: true, message: '请输入姓' }]}>
-            <Input placeholder='请输入姓' />
+          <Form.Item label='姓名' required>
+            <Grid.Row gutter={8}>
+              <Grid.Col span={8}>
+                <Form.Item field='person_first_name' rules={[{ required: true, message: '请输入姓' }]}>
+                  <Input placeholder='请输入姓' />
+                </Form.Item>
+              </Grid.Col>
+              <Grid.Col span={16}>
+                <Form.Item field='person_last_name' rules={[{ required: true, message: '请输入名' }]}>
+                  <Input placeholder='请输入名' />
+                </Form.Item>
+              </Grid.Col>
+            </Grid.Row>
           </Form.Item>
-          <Form.Item label='名' field='person_last_name' rules={[{ required: true, message: '请输入名' }]}>
-            <Input placeholder='请输入名' />
-          </Form.Item>
-          <Form.Item label='管理员' field='is_admin'>
-            <Radio.Group>
-              <Radio value={0}>否</Radio>
-              <Radio value={1}>是</Radio>
+          <Form.Item label='权限' field='is_admin'>
+            <Radio.Group type='button'>
+              <Radio value={0}>用户</Radio>
+              <Radio value={1}>管理员</Radio>
             </Radio.Group>
           </Form.Item>
         </Form>

@@ -33,24 +33,32 @@ type UserList struct {
 
 // 邮件信息
 type MailItem struct {
-	Uid       uint32 `json:"uid"`        // 邮件ID
-	Folder    string `json:"folder"`     // 文件夹
-	From      string `json:"from"`       // 发件人
-	To        string `json:"to"`         // 收件人
-	Cc        string `json:"cc"`         // 抄送人
-	Subject   string `json:"subject"`    // 主题
-	SendTime  string `json:"send_time"`  // 发送时间
-	IsRead    bool   `json:"is_read"`    // 是否已读
-	HasAttach bool   `json:"has_attach"` // 是否有附件
-	Text      string `json:"text"`       // 邮件内容
-	Size      string `json:"size"`
+	Uid       uint32      `json:"uid"`        // 邮件ID
+	Folder    string      `json:"folder"`     // 文件夹
+	From      string      `json:"from"`       // 发件人
+	FromName  *string     `json:"from_name"`  // 发件人姓名
+	To        string      `json:"to"`         // 收件人
+	ToInfo    []*MailInfo `json:"to_info"`    // 收件人姓名
+	Cc        string      `json:"cc"`         // 抄送人
+	CcInfo    []*MailInfo `json:"cc_info"`    // 抄送人姓名
+	Subject   string      `json:"subject"`    // 主题
+	SendTime  string      `json:"send_time"`  // 发送时间
+	IsRead    bool        `json:"is_read"`    // 是否已读
+	HasAttach bool        `json:"has_attach"` // 是否有附件
+	Text      string      `json:"text"`       // 邮件内容
+	Size      string      `json:"size"`       // 邮件大小
+}
+
+type MailInfo struct {
+	Email string `json:"email"` // 邮箱账号
+	Name  string `json:"name"`
 }
 
 // 邮件详情
 type MailDetail struct {
 	Content     string           `json:"content"`     // 邮件内容
 	Attachments []AttachmentInfo `json:"attachments"` // 附件信息
-	Size        string           `json:"size"`
+	Size        string           `json:"size"`        // 邮件大小
 }
 
 // 附件信息
