@@ -14,10 +14,12 @@ import (
 	"strings"
 	"time"
 
+	"email-server/config"
 	"email-server/model"
 	"email-server/utils"
 
 	"github.com/emersion/go-imap"
+	"github.com/google/uuid"
 	"github.com/jhillyerd/enmime"
 )
 
@@ -122,18 +124,33 @@ func MailList(email, pwd, folder string, page, size int, keyword string) ([]*mod
 		// 去除 * 号
 		showText = strings.ReplaceAll(showText, "*", "")
 
+		fromMail, formInfo, _ := utils.GetNameInfo(env.GetHeader("From"))
+		toMail, toInfo, _ := utils.GetNameInfo(env.GetHeader("To"))
+		ccMail, ccInfo, _ := utils.GetNameInfo(env.GetHeader("Cc"))
+
+		fromNameVal := formInfo[0].Name
+
+		inReplyToVal := env.GetHeader("In-Reply-To")
+		referencesVal := env.GetHeader("References")
+
 		item := &model.MailItem{
-			Uid:       msg.Uid,
-			Subject:   env.GetHeader("Subject"),
-			From:      env.GetHeader("From"),
-			To:        env.GetHeader("To"),
-			Cc:        env.GetHeader("Cc"),
-			SendTime:  env.GetHeader("Date"),
-			Text:      showText,
-			HasAttach: len(env.Attachments) > 0,
-			IsRead:    isRead,
-			Folder:    folder,
-			Size:      utils.FormatFileSize(msg.Size),
+			Uid:        msg.Uid,
+			MessageId:  env.GetHeader("Message-Id"),
+			ReplyTo:    &inReplyToVal,
+			References: &referencesVal,
+			From:       fromMail,
+			FromName:   &fromNameVal,
+			To:         toMail,
+			ToInfo:     toInfo,
+			Cc:         ccMail,
+			CcInfo:     ccInfo,
+			Subject:    env.GetHeader("Subject"),
+			SendTime:   env.GetHeader("Date"),
+			Text:       showText,
+			HasAttach:  len(env.Attachments) > 0,
+			IsRead:     isRead,
+			Folder:     folder,
+			Size:       utils.FormatFileSize(msg.Size),
 		}
 		list = append(list, item)
 	}
@@ -401,7 +418,7 @@ func DeleteMail(email, pwd string, folder string, uids []uint32) error {
 }
 
 // BuildRawEmail 构建原始邮件内容
-func BuildRawEmail(email, pwd, folder string, uid uint32, partIDs string, from, to []string, cc []string, subject, body string, files []*multipart.FileHeader) ([]byte, error) {
+func BuildRawEmail(email, pwd, folder string, uid uint32, partIDs string, from, to []string, cc []string, subject, body string, files []*multipart.FileHeader, inReplyTo, references string) ([]byte, error) {
 	buf := &bytes.Buffer{}
 	writer := multipart.NewWriter(buf)
 	defer writer.Close()
@@ -413,14 +430,41 @@ func BuildRawEmail(email, pwd, folder string, uid uint32, partIDs string, from, 
 	//  写入邮件头
 	headers := make(map[string]string)
 	headers["MIME-Version"] = "1.0"
-	headers["From"] = strings.Join(from, ", ")
-	headers["To"] = strings.Join(to, ", ")
+
+	// 发件人
+	headers["From"] = utils.FormatMailAddr(config.AdminPwd, from[0])
+	// 收件人
+	var toAddrs []string
+	for _, email := range to {
+		name := utils.FormatMailAddr(config.AdminPwd, email)
+
+		toAddrs = append(toAddrs, name)
+	}
+	headers["To"] = strings.Join(toAddrs, ", ")
+
+	// 抄送人
 	if len(cc) > 0 {
-		headers["Cc"] = strings.Join(cc, ", ")
+		var ccAddrs []string
+		for _, email := range cc {
+			name := utils.FormatMailAddr(config.AdminPwd, email)
+			fmt.Printf("ccName:%s\n", name)
+			ccAddrs = append(ccAddrs, name)
+		}
+		headers["Cc"] = strings.Join(ccAddrs, ", ")
 	}
 	headers["Date"] = time.Now().UTC().Format(time.RFC1123)
-	headers["Subject"] = mime.QEncoding.Encode("utf-8", subject) // 中文主题不乱码
+	headers["Subject"] = mime.BEncoding.Encode("utf-8", subject) // 中文不乱码
 	headers["Content-Type"] = fmt.Sprintf("multipart/mixed; boundary=%s", boundary)
+	headers["Message-ID"] = fmt.Sprintf("<%s@%s>", uuid.NewString(), strings.Split(email, "@")[1])
+
+	// in-reply-to
+	if inReplyTo != "" {
+		headers["In-Reply-To"] = inReplyTo
+	}
+	// references
+	if references != "" {
+		headers["References"] = references
+	}
 
 	// 写入头
 	for k, v := range headers {

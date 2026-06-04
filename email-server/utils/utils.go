@@ -2,8 +2,11 @@ package utils
 
 import (
 	"email-server/config"
+	"email-server/model"
 	"fmt"
+	"mime"
 	"net"
+	"net/mail"
 	"net/smtp"
 	"reflect"
 	"runtime"
@@ -274,4 +277,55 @@ func FormatFileSize(size uint32) string {
 	} else {
 		return fmt.Sprintf("%.1fGB", float64(size)/1024/1024/1024)
 	}
+}
+
+// FormatMailAddr 格式化邮箱地址，显示为 "姓名 <email>" 的形式
+func FormatMailAddr(adminPwd, email string) string {
+	if email == "" {
+		return ""
+	}
+	account, err := GetHmailAccount(adminPwd, email)
+	if err != nil {
+		return email // 获取账号失败，返回原始邮箱地址
+	}
+	defer func() {
+		account.Release()
+		ole.CoUninitialize()
+		runtime.UnlockOSThread()
+	}()
+
+	PersonFirstNameVar, err := oleutil.GetProperty(account, "PersonFirstName")
+	PersonLastNameVar, err := oleutil.GetProperty(account, "PersonLastName")
+	name := PersonFirstNameVar.ToString() + PersonLastNameVar.ToString()
+
+	encodedName := mime.BEncoding.Encode("utf-8", name)
+	return fmt.Sprintf(`%s <%s>`, encodedName, email)
+}
+
+// GetNameInfo 解析邮箱
+// 返回：邮箱逗号字符串 + 结构体列表 + 错误
+func GetNameInfo(mailStr string) (string, []*model.MailInfo, error) {
+	if mailStr == "" {
+		return "", nil, nil
+	}
+
+	// 标准库直接解析（自动处理中文、编码、格式）
+	addresses, err := mail.ParseAddressList(mailStr)
+	if err != nil {
+		return "", nil, err
+	}
+
+	mailList := make([]string, 0, len(addresses))
+	infoList := make([]*model.MailInfo, 0, len(addresses))
+
+	for _, addr := range addresses {
+		mailList = append(mailList, addr.Address)
+
+		infoList = append(infoList, &model.MailInfo{
+			Name:  addr.Name,
+			Email: addr.Address,
+		})
+	}
+
+	return strings.Join(mailList, ", "), infoList, nil
 }

@@ -233,6 +233,11 @@ func SaveDraft(c *gin.Context) {
 	uidStr := c.PostForm("uid")
 	partIds := c.PostForm("part_ids")
 
+	// in-reply-to
+	inReplyTo := c.PostForm("in_reply_to")
+	// references
+	references := c.PostForm("references")
+
 	files := c.Request.MultipartForm.File["files"]
 	if len(files) == 0 {
 		files = nil
@@ -249,7 +254,7 @@ func SaveDraft(c *gin.Context) {
 	// 构建邮件
 	toList := strings.Split(to, ",")
 	ccList := strings.Split(cc, ",")
-	raw, err := service.BuildRawEmail(email.(string), pwd.(string), config.FolderDrafts, uid, partIds, []string{email.(string)}, toList, ccList, subject, content, files)
+	raw, err := service.BuildRawEmail(email.(string), pwd.(string), config.FolderDrafts, uid, partIds, []string{email.(string)}, toList, ccList, subject, content, files, inReplyTo, references)
 	if err != nil {
 		c.JSON(200, gin.H{"code": 500, "msg": "构建邮件失败", "err": err.Error()})
 		return
@@ -287,6 +292,11 @@ func SendEmail(c *gin.Context) {
 	uidStr := c.PostForm("uid")
 	partIds := c.PostForm("part_ids")
 
+	// in-reply-to
+	inReplyTo := c.PostForm("in-reply-to")
+	// references
+	references := c.PostForm("references")
+
 	files := c.Request.MultipartForm.File["files"]
 	if len(files) == 0 {
 		files = nil
@@ -304,7 +314,7 @@ func SendEmail(c *gin.Context) {
 	// 构建邮件内容
 	toList := strings.Split(to, ",")
 	ccList := strings.Split(cc, ",")
-	raw, err := service.BuildRawEmail(email.(string), pwd.(string), config.FolderDrafts, uid, partIds, []string{email.(string)}, toList, ccList, subject, content, files)
+	raw, err := service.BuildRawEmail(email.(string), pwd.(string), config.FolderDrafts, uid, partIds, []string{email.(string)}, toList, ccList, subject, content, files, inReplyTo, references)
 	if err != nil {
 		c.JSON(200, gin.H{"code": 500, "msg": "构建邮件失败", "err": err.Error()})
 		return

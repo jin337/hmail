@@ -7,7 +7,7 @@ import (
 // 邮件服务器配置
 var (
 	Port      = 8058
-	HmailHost = "127.0.0.1" // 服务器：221.226.24.62
+	HmailHost = "127.0.0.1"
 	SmtpPort  = 25
 	ImapPort  = 993
 	AdminPwd  string

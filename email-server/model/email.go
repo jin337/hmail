@@ -33,20 +33,23 @@ type UserList struct {
 
 // 邮件信息
 type MailItem struct {
-	Uid       uint32      `json:"uid"`        // 邮件ID
-	Folder    string      `json:"folder"`     // 文件夹
-	From      string      `json:"from"`       // 发件人
-	FromName  *string     `json:"from_name"`  // 发件人姓名
-	To        string      `json:"to"`         // 收件人
-	ToInfo    []*MailInfo `json:"to_info"`    // 收件人姓名
-	Cc        string      `json:"cc"`         // 抄送人
-	CcInfo    []*MailInfo `json:"cc_info"`    // 抄送人姓名
-	Subject   string      `json:"subject"`    // 主题
-	SendTime  string      `json:"send_time"`  // 发送时间
-	IsRead    bool        `json:"is_read"`    // 是否已读
-	HasAttach bool        `json:"has_attach"` // 是否有附件
-	Text      string      `json:"text"`       // 邮件内容
-	Size      string      `json:"size"`       // 邮件大小
+	Uid        uint32      `json:"uid"`        // 邮件ID
+	MessageId  string      `json:"message_id"` // 邮件唯一ID
+	ReplyTo    *string     `json:"reply_to"`   // 回复地址
+	References *string     `json:"references"` // 引用
+	Folder     string      `json:"folder"`     // 文件夹
+	From       string      `json:"from"`       // 发件人
+	FromName   *string     `json:"from_name"`  // 发件人姓名
+	To         string      `json:"to"`         // 收件人
+	ToInfo     []*MailInfo `json:"to_info"`    // 收件人姓名
+	Cc         string      `json:"cc"`         // 抄送人
+	CcInfo     []*MailInfo `json:"cc_info"`    // 抄送人姓名
+	Subject    string      `json:"subject"`    // 主题
+	SendTime   string      `json:"send_time"`  // 发送时间
+	IsRead     bool        `json:"is_read"`    // 是否已读
+	HasAttach  bool        `json:"has_attach"` // 是否有附件
+	Text       string      `json:"text"`       // 邮件内容
+	Size       string      `json:"size"`       // 邮件大小
 }
 
 type MailInfo struct {
