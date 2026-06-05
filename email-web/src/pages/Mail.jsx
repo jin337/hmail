@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import dayjs from 'dayjs'
 import 'dayjs/locale/zh-cn'
@@ -35,6 +35,8 @@ import IconMailOpen from 'src/assets/mail-open.svg'
 import IconMail from 'src/assets/mail.svg'
 import IconSent from 'src/assets/sent.svg'
 
+import { throttle } from 'src/utils/index'
+
 // 左侧文件夹
 const menuList = [
   { key: 'inbox', folder: 'INBOX', title: '收件箱', icon: <IconEmail /> },
@@ -61,6 +63,10 @@ const MailLayout = () => {
   const [newWriteMail, setNewWriteMail] = useState(null)
   const [isTable, setIsTable] = useState(false)
 
+  const tableRef = useRef(null)
+  const pageSize = 20
+  const totalPages = Math.ceil(total / pageSize)
+
   // 切换选中邮件
   const handleCutMail = (record, key) => {
     const index = mailList.findIndex((e) => e.uid === record.uid)
@@ -75,6 +81,7 @@ const MailLayout = () => {
   const onClickCompose = (key) => {
     setNewWriteMail(null)
     setWriteMail(null)
+
     setFolderList((prev) => prev.filter((item) => item.key !== 'compose'))
     setTimeout(() => {
       const item = folderList.find((item) => item.key === key)
@@ -84,6 +91,8 @@ const MailLayout = () => {
 
   // 写邮件
   const onWriteMail = (key, mailData) => {
+    setWriteMail(null)
+    setNewWriteMail(null)
     // 草稿页已打开
     const isComposeExist = folderList.some((item) => item.key === 'compose')
     if (isComposeExist) {
@@ -161,51 +170,37 @@ const MailLayout = () => {
 
   // 搜索邮件
   const handleSearch = async (val) => {
-    if (!val) {
-      Message.warning('请输入搜索内容')
-      return
-    }
-
     setCurrentMail(null)
     setSelectedRowKeys([])
 
     getMailData(currentFolder.folder, val)
+
+    scrollToTop()
   }
 
-  // 根据邮箱地址获取用户姓名
-  const getName = (mail) => {
-    return userList?.list?.find((user) => user?.email === mail)?.full_name || false
-  }
   // 获取邮件数据
-  const getMailData = async (folder, keyword = '', size = 1000) => {
+  const getMailData = async (folder, keyword = '', page = 1) => {
     // 加载邮件列表
     setLoading(true)
-    const params = { page: 1, size, folder, keyword }
+    const params = { page, size: pageSize, folder, keyword }
     let { code, data, msg } = await request.post('/api/mail/list', params)
     if (code === 200) {
       const list = (data?.list || []).map((e) => {
-        const from_name = getName(e.from) || e.from.split('@')[0]
-        const to_info = e.to.split(', ').map((t) => t && { email: t, name: getName(t) || t.split('@')[0] })
-        const to_name = to_info.map((t) => t.name).join(', ')
-        const to_reply = to_info.map((t) => t.name + ' &lt;' + t.email + '&gt;').join(', ')
-
-        const cc_info = e.cc ? e.cc.split(', ').map((t) => t && { email: t, name: getName(t) || t.split('@')[0] }) : []
-        const cc_name = cc_info ? cc_info.map((t) => t.name).join(', ') : ''
-        const cc_reply = cc_info ? cc_info?.map((t) => t.name + ' &lt;' + t.email + '&gt;').join(', ') : ''
+        const to_reply = e?.to_info?.map((t) => t.name + ' &lt;' + t.email + '&gt;').join(', ')
+        const cc_reply = e.cc ? e?.cc_info?.map((t) => t.name + ' &lt;' + t.email + '&gt;').join(', ') : ''
 
         return {
           ...e,
-          from_name,
-          to_info,
-          to_name,
           to_reply,
-          cc_info,
-          cc_name,
           cc_reply,
         }
       })
 
-      setMailList(list)
+      if (page === 1) {
+        setMailList(list)
+      } else {
+        setMailList([...mailList, ...list])
+      }
       setTotal(data?.total || 0)
     } else {
       Message.error(msg)
@@ -315,6 +310,7 @@ const MailLayout = () => {
       detail: {
         content: currentMail?.cc ? FormContentCc : FormContent,
       },
+      is_reply: true,
     }
     if (currentFolder.key === 'inbox') {
       newMail.to_email = [currentMail.from]
@@ -334,6 +330,7 @@ const MailLayout = () => {
       detail: {
         content: currentMail?.cc ? FormContentCc : FormContent,
       },
+      is_forward: true,
     }
 
     onWriteMail('forward', newMail)
@@ -366,7 +363,6 @@ const MailLayout = () => {
       return
     }
 
-    console.log(values)
     const formData = new FormData()
     formData.append('to', values.to)
     formData.append('cc', values.cc || '')
@@ -374,6 +370,19 @@ const MailLayout = () => {
     formData.append('content', html)
     if (detail?.uid) {
       formData.append('uid', detail.uid)
+    }
+
+    // 回复
+    if (detail?.is_reply) {
+      const references = detail.references + ' ' + detail?.message_id
+      formData.append('in-reply-to', detail?.message_id)
+      formData.append('references', references)
+    }
+
+    // 转发
+    if (detail?.is_forward) {
+      const references = detail.references + ' ' + detail?.message_id
+      formData.append('references', references)
     }
 
     const partIds = []
@@ -420,6 +429,58 @@ const MailLayout = () => {
   useEffect(() => {
     userToken && getUserList()
   }, [userToken])
+
+  //   滚动到顶部
+  const scrollToTop = () => {
+    const scrollContainer = tableRef?.current?.querySelector('.arco-table-body')
+    if (scrollContainer) {
+      // 使用平滑滚动回到顶部
+      scrollContainer.scrollTo({
+        top: 0,
+        behavior: 'smooth',
+      })
+    }
+  }
+
+  // 滚动加载
+  const throttledScrollHandler = useMemo(
+    () =>
+      throttle((e) => {
+        const { scrollTop, scrollHeight, clientHeight } = e.target
+        const distanceToBottom = scrollHeight - scrollTop - clientHeight
+
+        if ((distanceToBottom <= 300) & !loading) {
+          let currentPage = Math.ceil(mailList.length / pageSize)
+          if (currentPage < totalPages) {
+            getMailData(currentFolder.folder, searchWord, currentPage + 1)
+          }
+        }
+      }, 500),
+    [totalPages, mailList.length, searchWord]
+  )
+
+  const handleScroll = useCallback(
+    (e) => {
+      throttledScrollHandler(e)
+    },
+    [throttledScrollHandler]
+  )
+
+  // 监听滚动事件
+  useEffect(() => {
+    const scrollContainer = tableRef?.current?.querySelector('.arco-table-body')
+
+    if (scrollContainer) {
+      scrollContainer.addEventListener('scroll', handleScroll)
+    }
+
+    return () => {
+      if (scrollContainer) {
+        scrollContainer.removeEventListener('scroll', handleScroll)
+      }
+      throttledScrollHandler.cancel()
+    }
+  }, [handleScroll, throttledScrollHandler])
 
   return (
     <Layout className='flex-1'>
@@ -470,13 +531,18 @@ const MailLayout = () => {
               prefix={<IconSearch />}
               placeholder='搜索主题/发件人'
               searchButton
+              allowClear
               value={searchWord}
               onChange={setSearchWord}
               onSearch={handleSearch}
+              onClear={handleSearch}
             />
           </div>
           {/* 中列：邮件列表 */}
-          <Layout.Sider width={isTable ? (currentMail ? 0 : '100%') : 360} className={`box-shadow-none z-10 flex-1`}>
+          <Layout.Sider
+            ref={tableRef}
+            width={isTable ? (currentMail ? 0 : '100%') : 360}
+            className={`box-shadow-none z-10 flex-1`}>
             <Table
               loading={loading}
               scroll={{ y: 'calc(100vh - 116px)' }}
@@ -532,8 +598,9 @@ const MailLayout = () => {
                             {currentFolder?.key === 'sent' ? (
                               <>
                                 <IconSent />
-                                {record?.to_name}
-                                {record?.cc_name ? ', ' + record?.cc_name : ''}
+                                {record?.to_info?.map((t) => t.name).join(', ') || record?.to}
+                                {record?.cc_info?.length > 0 ? ',  ' : ''}
+                                {record?.cc_info?.map((t) => t.name).join(', ') || record?.cc}
                               </>
                             ) : (
                               record?.from_name
@@ -697,7 +764,7 @@ const MailLayout = () => {
                       title={
                         <>
                           <IconAttachment className='mr-1' />
-                          {currentMail?.detail?.attachments?.length}个 附件 {currentMail?.detail?.size}
+                          {currentMail?.detail?.attachments?.length}个 附件 {currentMail?.detail?.attach_size}
                         </>
                       }>
                       <div className='flex flex-col gap-2'>
