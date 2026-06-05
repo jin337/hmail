@@ -19,6 +19,7 @@ import (
 	"email-server/utils"
 
 	"github.com/emersion/go-imap"
+	"github.com/emersion/go-imap/client"
 	"github.com/google/uuid"
 	"github.com/jhillyerd/enmime"
 )
@@ -239,11 +240,13 @@ func MailDetail(email, pwd string, folder string, uid uint32) (*model.MailDetail
 		totalSize += uint32(len(i.Content))
 	}
 
-	return &model.MailDetail{
+	detail := &model.MailDetail{
 		Content:     content,
 		Attachments: attachments,
-		Size:        utils.FormatFileSize(totalSize),
-	}, nil
+		AttachSize:  utils.FormatFileSize(totalSize),
+	}
+
+	return detail, nil
 }
 
 // UpdateMailStatus 更新邮件状态
@@ -430,6 +433,19 @@ func BuildRawEmail(email, pwd, folder string, uid uint32, partIDs string, from, 
 	//  写入邮件头
 	headers := make(map[string]string)
 	headers["MIME-Version"] = "1.0"
+	headers["Date"] = time.Now().UTC().Format(time.RFC1123)
+	headers["Subject"] = mime.BEncoding.Encode("utf-8", subject) // 中文不乱码
+	headers["Content-Type"] = fmt.Sprintf("multipart/mixed; boundary=%s", boundary)
+	headers["Message-ID"] = fmt.Sprintf("<%s@%s>", uuid.NewString(), strings.Split(email, "@")[1])
+
+	// in-reply-to
+	if inReplyTo != "" {
+		headers["In-Reply-To"] = inReplyTo
+	}
+	// references
+	if references != "" {
+		headers["References"] = references
+	}
 
 	// 发件人
 	headers["From"] = utils.FormatMailAddr(config.AdminPwd, from[0])
@@ -452,25 +468,13 @@ func BuildRawEmail(email, pwd, folder string, uid uint32, partIDs string, from, 
 		}
 		headers["Cc"] = strings.Join(ccAddrs, ", ")
 	}
-	headers["Date"] = time.Now().UTC().Format(time.RFC1123)
-	headers["Subject"] = mime.BEncoding.Encode("utf-8", subject) // 中文不乱码
-	headers["Content-Type"] = fmt.Sprintf("multipart/mixed; boundary=%s", boundary)
-	headers["Message-ID"] = fmt.Sprintf("<%s@%s>", uuid.NewString(), strings.Split(email, "@")[1])
-
-	// in-reply-to
-	if inReplyTo != "" {
-		headers["In-Reply-To"] = inReplyTo
-	}
-	// references
-	if references != "" {
-		headers["References"] = references
-	}
 
 	// 写入头
 	for k, v := range headers {
 		_, _ = fmt.Fprintf(buf, "%s: %s\r\n", k, v)
 	}
-	_, _ = buf.WriteString("\r\n") // 头结束
+	// 头结束
+	_, _ = buf.WriteString("\r\n")
 
 	// 写入正文（HTML）
 	textBodyHeader := textproto.MIMEHeader{}
@@ -705,4 +709,124 @@ func UpdateDraft(email, pwd, folder string, raw []byte, uid uint32) error {
 	}
 
 	return nil
+}
+
+// SearchMailByMessageID 通过 Message-ID 搜索邮件
+func SearchMailByMessageID(imapClient *client.Client, folder string, messageID string) (*model.MailItem, error) {
+	// 空值校验
+	if imapClient == nil {
+		return nil, fmt.Errorf("imapClient 不能为空")
+	}
+	if messageID == "" {
+		return nil, fmt.Errorf("messageID 不能为空")
+	}
+
+	// 确保选中目标文件夹（避免当前选中文件夹不一致）
+	_, err := imapClient.Select(folder, false)
+	if err != nil {
+		return nil, fmt.Errorf("选择文件夹 %s 失败: %w", folder, err)
+	}
+
+	// 构建搜索条件：精准匹配 Message-ID
+	searchCrit := &imap.SearchCriteria{
+		Header: map[string][]string{
+			"Message-ID": {messageID}, // IMAP 协议支持按 Message-ID 头搜索
+		},
+	}
+
+	// 执行搜索
+	ids, err := imapClient.Search(searchCrit)
+	if err != nil {
+		return nil, fmt.Errorf("搜索 Message-ID [%s] 失败: %w", messageID, err)
+	}
+
+	// 未找到对应邮件
+	if len(ids) == 0 {
+		return nil, fmt.Errorf("未找到 Message-ID 为 [%s] 的邮件", messageID)
+	}
+
+	// 构建序列号集合（取第一个匹配结果）
+	seqSet := new(imap.SeqSet)
+	seqSet.AddNum(ids[0])
+
+	// 异步获取邮件基础信息
+	mailMsg := make(chan *imap.Message, 1)
+	done := make(chan error, 1)
+	go func() {
+		done <- imapClient.Fetch(seqSet, []imap.FetchItem{
+			imap.FetchRFC822,     // 完整邮件内容（用于解析头信息）
+			imap.FetchUid,        // 邮件UID
+			imap.FetchFlags,      // 已读状态等标志
+			imap.FetchEnvelope,   // 邮件信封（发件人/收件人/主题等）
+			imap.FetchRFC822Size, // 邮件大小
+		}, mailMsg)
+	}()
+
+	// 读取邮件消息
+	var msg *imap.Message
+	select {
+	case msg = <-mailMsg:
+	case err = <-done:
+		return nil, fmt.Errorf("获取邮件内容失败: %w", err)
+	}
+
+	// 解析邮件内容
+	section := &imap.BodySectionName{}
+	r := msg.GetBody(section)
+	if r == nil {
+		return nil, fmt.Errorf("无法读取邮件内容")
+	}
+
+	env, err := enmime.ReadEnvelope(r)
+	if err != nil {
+		return nil, fmt.Errorf("解析邮件失败: %w", err)
+	}
+
+	// 处理已读状态（仅收件箱判断，其他文件夹默认已读）
+	isRead := true
+	if folder == "INBOX" {
+		isRead = false // 默认未读，存在 \\Seen 标志则为已读
+		for _, f := range msg.Flags {
+			if f == imap.SeenFlag {
+				isRead = true
+				break
+			}
+		}
+	}
+
+	// 处理邮件正文（精简显示）
+	showText := strings.TrimSpace(env.Text)
+	reg := regexp.MustCompile(`\s+`)
+	showText = reg.ReplaceAllString(showText, "")
+	showText = strings.ReplaceAll(showText, "*", "")
+
+	fromMail, formInfo, _ := utils.GetNameInfo(env.GetHeader("From"))
+	toMail, toInfo, _ := utils.GetNameInfo(env.GetHeader("To"))
+	ccMail, ccInfo, _ := utils.GetNameInfo(env.GetHeader("Cc"))
+
+	fromNameVal := formInfo[0].Name
+	inReplyToVal := env.GetHeader("In-Reply-To")
+	referencesVal := env.GetHeader("References")
+
+	item := &model.MailItem{
+		Uid:        msg.Uid,
+		MessageId:  env.GetHeader("Message-Id"),
+		ReplyTo:    &inReplyToVal,
+		References: &referencesVal,
+		From:       fromMail,
+		FromName:   &fromNameVal,
+		To:         toMail,
+		ToInfo:     toInfo,
+		Cc:         ccMail,
+		CcInfo:     ccInfo,
+		Subject:    env.GetHeader("Subject"),
+		SendTime:   env.GetHeader("Date"),
+		Text:       showText,
+		HasAttach:  len(env.Attachments) > 0,
+		IsRead:     isRead,
+		Folder:     folder,
+		Size:       utils.FormatFileSize(msg.Size),
+	}
+
+	return item, nil
 }

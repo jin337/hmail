@@ -304,15 +304,15 @@ func FormatMailAddr(adminPwd, email string) string {
 
 // GetNameInfo 解析邮箱
 // 返回：邮箱逗号字符串 + 结构体列表 + 错误
-func GetNameInfo(mailStr string) (string, []*model.MailInfo, error) {
+func GetNameInfo(mailStr string) (*string, []*model.MailInfo, error) {
 	if mailStr == "" {
-		return "", nil, nil
+		return nil, nil, nil
 	}
 
 	// 标准库直接解析（自动处理中文、编码、格式）
 	addresses, err := mail.ParseAddressList(mailStr)
 	if err != nil {
-		return "", nil, err
+		return nil, nil, err
 	}
 
 	mailList := make([]string, 0, len(addresses))
@@ -326,6 +326,7 @@ func GetNameInfo(mailStr string) (string, []*model.MailInfo, error) {
 			Email: addr.Address,
 		})
 	}
+	str := strings.Join(mailList, ", ")
 
-	return strings.Join(mailList, ", "), infoList, nil
+	return &str, infoList, nil
 }

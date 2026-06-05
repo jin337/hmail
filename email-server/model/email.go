@@ -38,11 +38,11 @@ type MailItem struct {
 	ReplyTo    *string     `json:"reply_to"`   // 回复地址
 	References *string     `json:"references"` // 引用
 	Folder     string      `json:"folder"`     // 文件夹
-	From       string      `json:"from"`       // 发件人
+	From       *string     `json:"from"`       // 发件人
 	FromName   *string     `json:"from_name"`  // 发件人姓名
-	To         string      `json:"to"`         // 收件人
+	To         *string     `json:"to"`         // 收件人
 	ToInfo     []*MailInfo `json:"to_info"`    // 收件人姓名
-	Cc         string      `json:"cc"`         // 抄送人
+	Cc         *string     `json:"cc"`         // 抄送人
 	CcInfo     []*MailInfo `json:"cc_info"`    // 抄送人姓名
 	Subject    string      `json:"subject"`    // 主题
 	SendTime   string      `json:"send_time"`  // 发送时间
@@ -61,7 +61,7 @@ type MailInfo struct {
 type MailDetail struct {
 	Content     string           `json:"content"`     // 邮件内容
 	Attachments []AttachmentInfo `json:"attachments"` // 附件信息
-	Size        string           `json:"size"`        // 邮件大小
+	AttachSize  string           `json:"attach_size"` // 邮件大小
 }
 
 // 附件信息
