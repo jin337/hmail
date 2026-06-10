@@ -25,7 +25,9 @@ import (
 )
 
 // MailList 获取邮件列表
-func MailList(email, pwd, folder string, page, size int, keyword string) ([]*model.MailItem, int, error) {
+var reg = regexp.MustCompile(`\s+`)
+
+func MailList(email, pwd, folder string, page, size int64, keyword string) ([]*model.MailItem, int, error) {
 	// 验证用户
 	imapClient, err := utils.DialIMAPClient(email, pwd)
 	if err != nil {
@@ -56,13 +58,13 @@ func MailList(email, pwd, folder string, page, size int, keyword string) ([]*mod
 	}
 
 	// 分页
-	startIdx := total - page*size
-	endIdx := total - (page-1)*size
+	startIdx := int64(total) - page*size
+	endIdx := int64(total) - (page-1)*size
 	if startIdx < 0 {
 		startIdx = 0
 	}
-	if endIdx > total {
-		endIdx = total
+	if endIdx > int64(total) {
+		endIdx = int64(total)
 	}
 	// 反转索引以获取正确的分页范围
 	pageIdx := ids[startIdx:endIdx]
@@ -77,12 +79,8 @@ func MailList(email, pwd, folder string, page, size int, keyword string) ([]*mod
 	mailMsg := make(chan *imap.Message, len(pageIdx))
 	done := make(chan error, 1)
 	go func() {
-		// 	imap.FetchUid - 获取邮件UID
-		// 	imap.FetchRFC822 - 获取完整邮件内容
-		// 	imap.FetchEnvelope - 获取邮件头信息
-		// 	imap.FetchFlags - 获取邮件标志（已读、删除等）
 		done <- imapClient.Fetch(seqSet, []imap.FetchItem{
-			imap.FetchRFC822,
+			imap.FetchItem("BODY.PEEK[]"), // 邮件内容,不标记已读
 			imap.FetchUid,
 			imap.FetchFlags,
 			imap.FetchEnvelope,
@@ -107,22 +105,9 @@ func MailList(email, pwd, folder string, page, size int, keyword string) ([]*mod
 			continue
 		}
 
-		// 只有收件箱INBOX才判断已读状态，其他文件夹默认为已读
-		isRead := true
-		if folder == "INBOX" {
-			for _, f := range msg.Flags {
-				if f != "\\Seen" {
-					isRead = false
-				}
-			}
-		}
-
-		// 去除首尾空白
+		// 处理邮件正文（精简显示）
 		showText := strings.TrimSpace(env.Text)
-		// 将多个连续空白字符（包括换行符、制表符等）替换为单个空格
-		reg := regexp.MustCompile(`\s+`)
 		showText = reg.ReplaceAllString(showText, "")
-		// 去除 * 号
 		showText = strings.ReplaceAll(showText, "*", "")
 
 		fromMail, formInfo, _ := utils.GetNameInfo(env.GetHeader("From"))
@@ -134,8 +119,17 @@ func MailList(email, pwd, folder string, page, size int, keyword string) ([]*mod
 		inReplyToVal := env.GetHeader("In-Reply-To")
 		referencesVal := env.GetHeader("References")
 
+		// 标记已读
+		isRead := false
+		for _, f := range msg.Flags {
+			if f == imap.SeenFlag {
+				isRead = true
+				break
+			}
+		}
+
 		item := &model.MailItem{
-			Uid:        msg.Uid,
+			Uid:        int64(msg.Uid),
 			MessageId:  env.GetHeader("Message-Id"),
 			ReplyTo:    &inReplyToVal,
 			References: &referencesVal,
@@ -146,7 +140,7 @@ func MailList(email, pwd, folder string, page, size int, keyword string) ([]*mod
 			Cc:         ccMail,
 			CcInfo:     ccInfo,
 			Subject:    env.GetHeader("Subject"),
-			SendTime:   env.GetHeader("Date"),
+			SendTime:   utils.ParseMailDate(env.GetHeader("Date")),
 			Text:       showText,
 			HasAttach:  len(env.Attachments) > 0,
 			IsRead:     isRead,
@@ -169,7 +163,7 @@ func MailList(email, pwd, folder string, page, size int, keyword string) ([]*mod
 }
 
 // MailDetail 获取邮件详情
-func MailDetail(email, pwd string, folder string, uid uint32) (*model.MailDetail, error) {
+func MailDetail(email, pwd string, folder string, uid int64) (*model.MailDetail, error) {
 	// 验证用户
 	imapClient, err := utils.DialIMAPClient(email, pwd)
 	if err != nil {
@@ -184,7 +178,7 @@ func MailDetail(email, pwd string, folder string, uid uint32) (*model.MailDetail
 	}
 
 	uidSet := new(imap.SeqSet)
-	uidSet.AddNum(uid)
+	uidSet.AddNum(uint32(uid))
 
 	bodyMail := make(chan *imap.Message, 1)
 	done := make(chan error, 1)
@@ -223,7 +217,7 @@ func MailDetail(email, pwd string, folder string, uid uint32) (*model.MailDetail
 			PartID:      att.PartID,
 			FileName:    att.FileName,
 			ContentType: att.ContentType,
-			Size:        len(att.Content),
+			Size:        int64(len(att.Content)),
 		})
 	}
 
@@ -250,7 +244,7 @@ func MailDetail(email, pwd string, folder string, uid uint32) (*model.MailDetail
 }
 
 // UpdateMailStatus 更新邮件状态
-func UpdateMailStatus(email, pwd string, folder string, uid uint32, status string) error {
+func UpdateMailStatus(email, pwd string, folder string, uid int64, status string) error {
 	imapClient, err := utils.DialIMAPClient(email, pwd)
 	if err != nil {
 		return err
@@ -264,7 +258,7 @@ func UpdateMailStatus(email, pwd string, folder string, uid uint32, status strin
 	}
 
 	uidSet := new(imap.SeqSet)
-	uidSet.AddNum(uid)
+	uidSet.AddNum(uint32(uid))
 
 	// 验证状态参数
 	validStatuses := []string{
@@ -297,7 +291,7 @@ func UpdateMailStatus(email, pwd string, folder string, uid uint32, status strin
 }
 
 // DownloadAttachment 下载附件
-func DownloadAttachment(email, pwd string, folder string, uid uint32, partID string) (string, []byte, error) {
+func DownloadAttachment(email, pwd string, folder string, uid int64, partID string) (string, []byte, error) {
 	imapClient, err := utils.DialIMAPClient(email, pwd)
 	if err != nil {
 		return "", nil, err
@@ -311,7 +305,7 @@ func DownloadAttachment(email, pwd string, folder string, uid uint32, partID str
 	}
 
 	uidSet := new(imap.SeqSet)
-	uidSet.AddNum(uid)
+	uidSet.AddNum(uint32(uid))
 
 	bodyMail := make(chan *imap.Message, 1)
 	done := make(chan error, 1)
@@ -356,7 +350,7 @@ func DownloadAttachment(email, pwd string, folder string, uid uint32, partID str
 }
 
 // MoveMail 移动邮件
-func MoveMail(email, pwd string, fromFolder string, toFolder string, uids []uint32) error {
+func MoveMail(email, pwd string, fromFolder string, toFolder string, uids []int64) error {
 	imapClient, err := utils.DialIMAPClient(email, pwd)
 	if err != nil {
 		return err
@@ -372,7 +366,7 @@ func MoveMail(email, pwd string, fromFolder string, toFolder string, uids []uint
 	// 构建UID集合
 	uidSet := new(imap.SeqSet)
 	for _, uid := range uids {
-		uidSet.AddNum(uid)
+		uidSet.AddNum(uint32(uid))
 	}
 
 	// 使用UidMove移动邮件（复制+删除）操作
@@ -385,7 +379,7 @@ func MoveMail(email, pwd string, fromFolder string, toFolder string, uids []uint
 }
 
 // DeleteMail 删除邮件
-func DeleteMail(email, pwd string, folder string, uids []uint32) error {
+func DeleteMail(email, pwd string, folder string, uids []int64) error {
 	// 建立IMAP连接
 	imapClient, err := utils.DialIMAPClient(email, pwd)
 	if err != nil {
@@ -402,7 +396,7 @@ func DeleteMail(email, pwd string, folder string, uids []uint32) error {
 	// 构建UID集合
 	uidSet := new(imap.SeqSet)
 	for _, uid := range uids {
-		uidSet.AddNum(uid)
+		uidSet.AddNum(uint32(uid))
 	}
 
 	// 标记为删除
@@ -421,7 +415,7 @@ func DeleteMail(email, pwd string, folder string, uids []uint32) error {
 }
 
 // BuildRawEmail 构建原始邮件内容
-func BuildRawEmail(email, pwd, folder string, uid uint32, partIDs string, from, to []string, cc []string, subject, body string, files []*multipart.FileHeader, inReplyTo, references string) ([]byte, error) {
+func BuildRawEmail(email, pwd, folder string, uid int64, partIDs string, from, to []string, cc []string, subject, body string, files []*multipart.FileHeader, inReplyTo, references string) ([]byte, error) {
 	buf := &bytes.Buffer{}
 	writer := multipart.NewWriter(buf)
 	defer writer.Close()
@@ -507,7 +501,7 @@ func BuildRawEmail(email, pwd, folder string, uid uint32, partIDs string, from, 
 			_, err = imapClient.Select(folder, false)
 			if err == nil {
 				uidSet := new(imap.SeqSet)
-				uidSet.AddNum(uid)
+				uidSet.AddNum(uint32(uid))
 
 				bodyMail := make(chan *imap.Message, 1)
 				done := make(chan error, 1)
@@ -697,9 +691,9 @@ func SaveMailToFolder(email, pwd, folder string, raw []byte) error {
 }
 
 // UpdateDraft 更新草稿邮件
-func UpdateDraft(email, pwd, folder string, raw []byte, uid uint32) error {
+func UpdateDraft(email, pwd, folder string, raw []byte, uid int64) error {
 	// 删除旧草稿
-	if err := DeleteMail(email, pwd, folder, []uint32{uid}); err != nil {
+	if err := DeleteMail(email, pwd, folder, []int64{uid}); err != nil {
 		return fmt.Errorf("删除旧草稿失败: %w", err)
 	}
 
@@ -749,16 +743,16 @@ func SearchMailByMessageID(imapClient *client.Client, folder string, messageID s
 	seqSet := new(imap.SeqSet)
 	seqSet.AddNum(ids[0])
 
-	// 异步获取邮件基础信息
+	// 获取完整原始邮件
 	mailMsg := make(chan *imap.Message, 1)
 	done := make(chan error, 1)
 	go func() {
 		done <- imapClient.Fetch(seqSet, []imap.FetchItem{
-			imap.FetchRFC822,     // 完整邮件内容（用于解析头信息）
-			imap.FetchUid,        // 邮件UID
-			imap.FetchFlags,      // 已读状态等标志
-			imap.FetchEnvelope,   // 邮件信封（发件人/收件人/主题等）
-			imap.FetchRFC822Size, // 邮件大小
+			imap.FetchItem("BODY.PEEK[]"), // 邮件内容,不标记已读
+			imap.FetchUid,
+			imap.FetchFlags,
+			imap.FetchEnvelope,
+			imap.FetchRFC822Size,
 		}, mailMsg)
 	}()
 
@@ -782,21 +776,8 @@ func SearchMailByMessageID(imapClient *client.Client, folder string, messageID s
 		return nil, fmt.Errorf("解析邮件失败: %w", err)
 	}
 
-	// 处理已读状态（仅收件箱判断，其他文件夹默认已读）
-	isRead := true
-	if folder == "INBOX" {
-		isRead = false // 默认未读，存在 \\Seen 标志则为已读
-		for _, f := range msg.Flags {
-			if f == imap.SeenFlag {
-				isRead = true
-				break
-			}
-		}
-	}
-
 	// 处理邮件正文（精简显示）
 	showText := strings.TrimSpace(env.Text)
-	reg := regexp.MustCompile(`\s+`)
 	showText = reg.ReplaceAllString(showText, "")
 	showText = strings.ReplaceAll(showText, "*", "")
 
@@ -805,11 +786,21 @@ func SearchMailByMessageID(imapClient *client.Client, folder string, messageID s
 	ccMail, ccInfo, _ := utils.GetNameInfo(env.GetHeader("Cc"))
 
 	fromNameVal := formInfo[0].Name
+
 	inReplyToVal := env.GetHeader("In-Reply-To")
 	referencesVal := env.GetHeader("References")
 
+	// 标记已读
+	isRead := false
+	for _, f := range msg.Flags {
+		if f == imap.SeenFlag {
+			isRead = true
+			break
+		}
+	}
+
 	item := &model.MailItem{
-		Uid:        msg.Uid,
+		Uid:        int64(msg.Uid),
 		MessageId:  env.GetHeader("Message-Id"),
 		ReplyTo:    &inReplyToVal,
 		References: &referencesVal,
@@ -820,7 +811,7 @@ func SearchMailByMessageID(imapClient *client.Client, folder string, messageID s
 		Cc:         ccMail,
 		CcInfo:     ccInfo,
 		Subject:    env.GetHeader("Subject"),
-		SendTime:   env.GetHeader("Date"),
+		SendTime:   utils.ParseMailDate(env.GetHeader("Date")),
 		Text:       showText,
 		HasAttach:  len(env.Attachments) > 0,
 		IsRead:     isRead,

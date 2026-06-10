@@ -205,6 +205,7 @@ const MailLayout = () => {
     } else {
       Message.error(msg)
     }
+
     setLoading(false)
   }
 
@@ -449,7 +450,7 @@ const MailLayout = () => {
         const { scrollTop, scrollHeight, clientHeight } = e.target
         const distanceToBottom = scrollHeight - scrollTop - clientHeight
 
-        if ((distanceToBottom <= 300) & !loading) {
+        if (distanceToBottom <= 300 && !loading) {
           let currentPage = Math.ceil(mailList.length / pageSize)
           if (currentPage < totalPages) {
             getMailData(currentFolder.folder, searchWord, currentPage + 1)

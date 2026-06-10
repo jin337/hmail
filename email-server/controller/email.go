@@ -254,7 +254,7 @@ func SaveDraft(c *gin.Context) {
 	// 构建邮件
 	toList := strings.Split(to, ",")
 	ccList := strings.Split(cc, ",")
-	raw, err := service.BuildRawEmail(email.(string), pwd.(string), config.FolderDrafts, uid, partIds, []string{email.(string)}, toList, ccList, subject, content, files, inReplyTo, references)
+	raw, err := service.BuildRawEmail(email.(string), pwd.(string), config.FolderDrafts, int64(uid), partIds, []string{email.(string)}, toList, ccList, subject, content, files, inReplyTo, references)
 	if err != nil {
 		c.JSON(200, gin.H{"code": 500, "msg": "构建邮件失败", "err": err.Error()})
 		return
@@ -262,7 +262,7 @@ func SaveDraft(c *gin.Context) {
 
 	// 更新草稿
 	if uidStr != "" {
-		err := service.UpdateDraft(email.(string), pwd.(string), config.FolderDrafts, raw, uid)
+		err := service.UpdateDraft(email.(string), pwd.(string), config.FolderDrafts, raw, int64(uid))
 		if err != nil {
 			c.JSON(200, gin.H{"code": 500, "msg": "更新草稿失败", "err": err.Error()})
 			return
@@ -314,7 +314,7 @@ func SendEmail(c *gin.Context) {
 	// 构建邮件内容
 	toList := strings.Split(to, ",")
 	ccList := strings.Split(cc, ",")
-	raw, err := service.BuildRawEmail(email.(string), pwd.(string), config.FolderDrafts, uid, partIds, []string{email.(string)}, toList, ccList, subject, content, files, inReplyTo, references)
+	raw, err := service.BuildRawEmail(email.(string), pwd.(string), config.FolderDrafts, int64(uid), partIds, []string{email.(string)}, toList, ccList, subject, content, files, inReplyTo, references)
 	if err != nil {
 		c.JSON(200, gin.H{"code": 500, "msg": "构建邮件失败", "err": err.Error()})
 		return
@@ -335,7 +335,7 @@ func SendEmail(c *gin.Context) {
 
 	// 删除草稿
 	if uidStr != "" {
-		err = service.DeleteMail(email.(string), pwd.(string), config.FolderDrafts, []uint32{uid})
+		err = service.DeleteMail(email.(string), pwd.(string), config.FolderDrafts, []int64{int64(uid)})
 		if err != nil {
 			c.JSON(200, gin.H{"code": 500, "msg": "删除草稿失败: " + err.Error()})
 			return

@@ -11,6 +11,7 @@ import (
 	"reflect"
 	"runtime"
 	"strings"
+	"time"
 
 	"github.com/emersion/go-imap/client"
 	"github.com/go-ole/go-ole"
@@ -329,4 +330,23 @@ func GetNameInfo(mailStr string) (*string, []*model.MailInfo, error) {
 	str := strings.Join(mailList, ", ")
 
 	return &str, infoList, nil
+}
+
+// parseMailDate 解析时间，格式化为 2006-01-02 15:04:05
+func ParseMailDate(dateStr string) string {
+	if dateStr == "" {
+		return ""
+	}
+	// 优先标准 RFC1123Z
+	t, err := time.Parse(time.RFC1123Z, dateStr)
+	if err == nil {
+		return t.Local().Format("2006-01-02 15:04:05")
+	}
+	// 兼容不带时区的 RFC1123
+	t, err = time.Parse(time.RFC1123, dateStr)
+	if err == nil {
+		return t.Local().Format("2006-01-02 15:04:05")
+	}
+	// 解析失败返回原值
+	return dateStr
 }

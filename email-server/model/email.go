@@ -6,9 +6,9 @@ import (
 
 // JWT载荷 存放邮箱账号密码
 type UserClaims struct {
-	Email    string `json:"email"` // 邮箱账号
-	Password string `json:"pwd"`   // 邮箱密码
-	jwt.RegisteredClaims
+	Email                string `json:"email"` // 邮箱账号
+	Password             string `json:"pwd"`   // 邮箱密码
+	jwt.RegisteredClaims        // JWT标准字段
 }
 
 // 用户信息
@@ -33,7 +33,7 @@ type UserList struct {
 
 // 邮件信息
 type MailItem struct {
-	Uid        uint32      `json:"uid"`        // 邮件ID
+	Uid        int64       `json:"uid"`        // 邮件ID
 	MessageId  string      `json:"message_id"` // 邮件唯一ID
 	ReplyTo    *string     `json:"reply_to"`   // 回复地址
 	References *string     `json:"references"` // 引用
@@ -69,7 +69,7 @@ type AttachmentInfo struct {
 	PartID      string `json:"part_id"`      // 附件ID
 	FileName    string `json:"file_name"`    // 文件名
 	ContentType string `json:"content_type"` // 内容类型
-	Size        int    `json:"size"`         // 文件大小
+	Size        int64  `json:"size"`         // 文件大小
 }
 
 // 登录请求
@@ -109,40 +109,40 @@ type PasswordReq struct {
 // 邮件列表请求
 type MailListReq struct {
 	Folder  string `json:"folder" binding:"required"` // 文件夹
-	Page    int    `json:"page"`                      // 页码
-	Size    int    `json:"size"`                      // 每页数量
+	Page    int64  `json:"page"`                      // 页码
+	Size    int64  `json:"size"`                      // 每页数量
 	Keyword string `json:"keyword"`                   // 关键字
 }
 
 // 邮件详情请求
 type MailDetailReq struct {
 	Folder string `json:"folder" binding:"required"` // 文件夹
-	Uid    uint32 `json:"uid" binding:"required"`    // 邮件ID
+	Uid    int64  `json:"uid" binding:"required"`    // 邮件ID
 }
 
 // 下载附件请求
 type DownloadAttachReq struct {
 	Folder string `json:"folder" binding:"required"`  // 文件夹
-	Uid    uint32 `json:"uid" binding:"required"`     // 邮件ID
+	Uid    int64  `json:"uid" binding:"required"`     // 邮件ID
 	PartID string `json:"part_id" binding:"required"` // 附件ID
 }
 
 // 邮件移动请求
 type MoveMailReq struct {
-	FromFolder string   `json:"from_folder" binding:"required"` // 源文件夹
-	ToFolder   string   `json:"to_folder" binding:"required"`   // 目标文件夹
-	Uids       []uint32 `json:"uids" binding:"required"`        // 邮件ID列表
+	FromFolder string  `json:"from_folder" binding:"required"` // 源文件夹
+	ToFolder   string  `json:"to_folder" binding:"required"`   // 目标文件夹
+	Uids       []int64 `json:"uids" binding:"required"`        // 邮件ID列表
 }
 
 // 邮件删除请求
 type DelMailReq struct {
-	Folder string   `json:"folder" binding:"required"` // 文件夹
-	Uids   []uint32 `json:"uids" binding:"required"`   // 邮件ID列表
+	Folder string  `json:"folder" binding:"required"` // 文件夹
+	Uids   []int64 `json:"uids" binding:"required"`   // 邮件ID列表
 }
 
 // 更新邮件状态请求
 type UpdateMailStatusReq struct {
 	Folder string `json:"folder" binding:"required"` // 文件夹
-	Uid    uint32 `json:"uid" binding:"required"`    // 邮件ID
+	Uid    int64  `json:"uid" binding:"required"`    // 邮件ID
 	Status string `json:"status" binding:"required"` // 状态
 }
