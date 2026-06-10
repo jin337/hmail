@@ -63,6 +63,7 @@ const MailLayout = () => {
   const [newWriteMail, setNewWriteMail] = useState(null)
   const [isTable, setIsTable] = useState(false)
 
+  const timerRef = useRef(null)
   const tableRef = useRef(null)
   const pageSize = 20
   const totalPages = Math.ceil(total / pageSize)
@@ -133,6 +134,19 @@ const MailLayout = () => {
 
     // 加载邮件列表
     getMailData(item.folder)
+    startAutoRefresh()
+  }
+
+  // 60秒刷新一次
+  const startAutoRefresh = () => {
+    // 先清除已有定时器
+    if (timerRef.current) clearTimeout(timerRef.current)
+
+    timerRef.current = setTimeout(async () => {
+      await getMailData('INBOX', '', 1, 1)
+      //本次请求完成，再开启下一轮计时
+      startAutoRefresh()
+    }, 60 * 1000)
   }
 
   // 选中邮件查看详情
@@ -179,7 +193,7 @@ const MailLayout = () => {
   }
 
   // 获取邮件数据
-  const getMailData = async (folder, keyword = '', page = 1) => {
+  const getMailData = async (folder, keyword = '', page = 1, isRefresh) => {
     // 加载邮件列表
     setLoading(true)
     const params = { page, size: pageSize, folder, keyword }
@@ -196,12 +210,26 @@ const MailLayout = () => {
         }
       })
 
-      if (page === 1) {
-        setMailList(list)
-      } else {
-        setMailList([...mailList, ...list])
+      if (folder === 'INBOX') {
+        let inbox = list.filter((item) => !item.is_read)?.length || 0
+        setFolderList((prev) =>
+          prev.map((item) => {
+            if (item.folder === folder) {
+              return { ...item, total: inbox }
+            }
+            return item
+          })
+        )
       }
-      setTotal(data?.total || 0)
+      // 刷新
+      if (!isRefresh) {
+        if (page === 1) {
+          setMailList(list)
+        } else {
+          setMailList([...mailList, ...list])
+        }
+        setTotal(data?.total || 0)
+      }
     } else {
       Message.error(msg)
     }
@@ -353,6 +381,15 @@ const MailLayout = () => {
         newList[index].is_read = true
         return newList
       })
+
+      setFolderList((prev) =>
+        prev.map((item) => {
+          if (item.folder === 'INBOX') {
+            return { ...item, total: item.total - 1 }
+          }
+          return item
+        })
+      )
     }
   }
 
@@ -406,7 +443,7 @@ const MailLayout = () => {
     const { code, msg } = await request.post(url, formData, { headers: { 'Content-Type': 'multipart/form-data' } })
     if (code === 200) {
       Message.success(msg)
-      onClickCompose(type === 'Sent' ? 'inbox' : 'drafts')
+      onClickCompose(type === 'Sent' ? 'sent' : 'drafts')
     } else {
       Message.error(msg)
     }
@@ -483,6 +520,13 @@ const MailLayout = () => {
     }
   }, [handleScroll, throttledScrollHandler])
 
+  // 销毁定时器
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current)
+    }
+  }, [])
+
   return (
     <Layout className='flex-1'>
       {/* 左列：文件夹导航 */}
@@ -504,6 +548,7 @@ const MailLayout = () => {
                   {item.title}
                 </span>
               </span>
+              {item?.key === 'inbox' && item?.total > 0 && <span className='font-medium text-blue-600'>{item.total}</span>}
               {item?.key === 'compose' && <IconClose className='m-0!' onClick={() => onClickCompose('inbox')} />}
             </Menu.Item>
           ))}
@@ -596,7 +641,7 @@ const MailLayout = () => {
                         <div className={` ${isTable ? 'flex' : ''}`}>
                           <div className={`flex items-center gap-1.5 ${isTable ? 'w-60!' : ''}`}>
                             {record.is_read ? <IconMailOpen /> : <IconMail />}
-                            {currentFolder?.key === 'sent' ? (
+                            {currentFolder?.key === 'Sent' ? (
                               <>
                                 <IconSent />
                                 {record?.to_info?.map((t) => t.name).join(', ') || record?.to}

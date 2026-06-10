@@ -322,8 +322,14 @@ func GetNameInfo(mailStr string) (*string, []*model.MailInfo, error) {
 	for _, addr := range addresses {
 		mailList = append(mailList, addr.Address)
 
+		name := addr.Name
+		if name == "" {
+			addname := strings.Split(addr.Address, "@")
+			name = addname[0]
+		}
+
 		infoList = append(infoList, &model.MailInfo{
-			Name:  addr.Name,
+			Name:  name,
 			Email: addr.Address,
 		})
 	}
