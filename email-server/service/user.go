@@ -251,7 +251,7 @@ func CreateUser(Folders []string, adminPassword, email, password, firstName, las
 }
 
 // UserList 获取用户列表
-func UserList(adminPassword string) ([]*model.UserList, int, error) {
+func UserList(adminPassword, email string) ([]*model.UserList, int, error) {
 	// 获取 hMailServer Application 对象
 	app, err := utils.InitHmailApp(adminPassword)
 	if err != nil {
@@ -263,6 +263,14 @@ func UserList(adminPassword string) ([]*model.UserList, int, error) {
 		runtime.UnlockOSThread()
 	}()
 
+	// 1. 从入参email提取目标域名
+	var targetDomain string
+	if idx := strings.LastIndex(email, "@"); idx == -1 {
+		return nil, 0, fmt.Errorf("邮箱格式非法，缺少@符号")
+	} else {
+		targetDomain = email[idx+1:]
+	}
+
 	// 获取 Domains 集合
 	domainsObj, err := oleutil.GetProperty(app, "Domains")
 	if err != nil {
@@ -271,7 +279,6 @@ func UserList(adminPassword string) ([]*model.UserList, int, error) {
 	domains := domainsObj.ToIDispatch()
 	defer domains.Release()
 
-	// 获取域名数量
 	countResult, err := oleutil.GetProperty(domains, "Count")
 	if err != nil {
 		return nil, 0, fmt.Errorf("获取域名数量失败: %v", err)
@@ -280,8 +287,9 @@ func UserList(adminPassword string) ([]*model.UserList, int, error) {
 
 	var userList []*model.UserList
 	total := 0
+	var targetDomainObj *ole.IDispatch
 
-	// 遍历所有域名
+	// 2. 只查找匹配的目标域名
 	for i := 0; i < domainCount; i++ {
 		domainItem, err := oleutil.GetProperty(domains, "Item", int32(i))
 		if err != nil {
@@ -289,67 +297,74 @@ func UserList(adminPassword string) ([]*model.UserList, int, error) {
 		}
 		domain := domainItem.ToIDispatch()
 
-		// 获取该域名下的 Accounts 集合
-		accountsObj, err := oleutil.GetProperty(domain, "Accounts")
-		if err != nil {
-			domain.Release()
-			continue
-		}
-		accounts := accountsObj.ToIDispatch()
-
-		// 获取账号数量
-		accountsCountResult, err := oleutil.GetProperty(accounts, "Count")
-		if err != nil {
-			accounts.Release()
-			domain.Release()
-			continue
-		}
-		accountsCount := int(accountsCountResult.Val)
-
-		// 遍历该域名下的所有账号
-		for j := 0; j < accountsCount; j++ {
-			acctItem, err := oleutil.GetProperty(accounts, "Item", int32(j))
-			if err != nil {
-				continue
+		nameResult, err := oleutil.GetProperty(domain, "Name")
+		if err == nil {
+			domainName := nameResult.ToString()
+			// 忽略大小写匹配域名
+			if strings.EqualFold(domainName, targetDomain) {
+				targetDomainObj = domain
+				break
 			}
-			account := acctItem.ToIDispatch()
-
-			// 提取账号信息
-			idVar, _ := oleutil.GetProperty(account, "Id")
-			addressVar, _ := oleutil.GetProperty(account, "Address")
-			PersonFirstNameVar, _ := oleutil.GetProperty(account, "PersonFirstName")
-			PersonLastNameVar, _ := oleutil.GetProperty(account, "PersonLastName")
-			adminVar, _ := oleutil.GetProperty(account, "Adminlevel")
-			lastLogonTimeVar, _ := oleutil.GetProperty(account, "LastLogonTime")
-
-			id := idVar.Val
-			address := addressVar.ToString()
-			firstNameVar := PersonFirstNameVar.ToString()
-			lastNameVar := PersonLastNameVar.ToString()
-			isadmin := adminVar.Val
-
-			lastLogonTime, _ := ole.GetVariantDate(uint64(lastLogonTimeVar.Val))
-			time := lastLogonTime.Format("2006-01-02 15:04:05")
-
-			user := &model.UserList{
-				ID:              id,
-				Email:           address,
-				FullName:        firstNameVar + lastNameVar,
-				PersonFirstName: firstNameVar,
-				PersonLastName:  lastNameVar,
-				IsAdmin:         isadmin,
-				LastLogonTime:   time,
-			}
-
-			// 添加到用户列表
-			userList = append(userList, user)
-			total++
-
-			account.Release()
 		}
-
-		accounts.Release()
 		domain.Release()
+	}
+
+	// 未找到对应域名直接返回
+	if targetDomainObj == nil {
+		return nil, 0, fmt.Errorf("未找到域名: %s", targetDomain)
+	}
+	defer targetDomainObj.Release()
+
+	// 3. 仅遍历当前域名下的账号
+	accountsObj, err := oleutil.GetProperty(targetDomainObj, "Accounts")
+	if err != nil {
+		return nil, 0, fmt.Errorf("获取 Accounts 属性失败: %v", err)
+	}
+	accounts := accountsObj.ToIDispatch()
+	defer accounts.Release()
+
+	accountsCountResult, err := oleutil.GetProperty(accounts, "Count")
+	if err != nil {
+		return nil, 0, fmt.Errorf("获取账号数量失败: %v", err)
+	}
+	accountsCount := int(accountsCountResult.Val)
+
+	for j := 0; j < accountsCount; j++ {
+		acctItem, err := oleutil.GetProperty(accounts, "Item", int32(j))
+		if err != nil {
+			continue
+		}
+		account := acctItem.ToIDispatch()
+
+		idVar, _ := oleutil.GetProperty(account, "Id")
+		addressVar, _ := oleutil.GetProperty(account, "Address")
+		PersonFirstNameVar, _ := oleutil.GetProperty(account, "PersonFirstName")
+		PersonLastNameVar, _ := oleutil.GetProperty(account, "PersonLastName")
+		adminVar, _ := oleutil.GetProperty(account, "Adminlevel")
+		lastLogonTimeVar, _ := oleutil.GetProperty(account, "LastLogonTime")
+
+		id := idVar.Val
+		address := addressVar.ToString()
+		firstNameVar := PersonFirstNameVar.ToString()
+		lastNameVar := PersonLastNameVar.ToString()
+		isadmin := adminVar.Val
+
+		lastLogonTime, _ := ole.GetVariantDate(uint64(lastLogonTimeVar.Val))
+		loginTimeStr := lastLogonTime.Format("2006-01-02 15:04:05")
+
+		user := &model.UserList{
+			ID:              id,
+			Email:           address,
+			FullName:        firstNameVar + lastNameVar,
+			PersonFirstName: firstNameVar,
+			PersonLastName:  lastNameVar,
+			IsAdmin:         isadmin,
+			LastLogonTime:   loginTimeStr,
+		}
+
+		userList = append(userList, user)
+		total++
+		account.Release()
 	}
 
 	return userList, total, nil

@@ -1,7 +1,8 @@
-import { Button, Card, Checkbox, Form, Input, Message } from '@arco-design/web-react'
-
 import { useState } from 'react'
 import { useNavigate } from 'react-router'
+
+import { Button, Card, Checkbox, Form, Input, Message } from '@arco-design/web-react'
+
 import request from 'src/api/request'
 
 import loginImg from '../assets/img_login.gif'

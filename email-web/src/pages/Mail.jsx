@@ -63,6 +63,7 @@ const MailLayout = () => {
   const [newWriteMail, setNewWriteMail] = useState(null)
   const [isTable, setIsTable] = useState(false)
 
+  const [_, setRefreshCount] = useState(0)
   const timerRef = useRef(null)
   const tableRef = useRef(null)
   const pageSize = 20
@@ -116,6 +117,7 @@ const MailLayout = () => {
 
   // 点击导航栏
   const loadMailList = async (key) => {
+    setRefreshCount(0)
     setSelectedRowKeys([])
     setMailList([])
     setTotal(0)
@@ -134,19 +136,31 @@ const MailLayout = () => {
 
     // 加载邮件列表
     getMailData(item.folder)
-    startAutoRefresh()
+    InboxRefresh()
   }
 
-  // 60秒刷新一次
-  const startAutoRefresh = () => {
-    // 先清除已有定时器
-    if (timerRef.current) clearTimeout(timerRef.current)
+  // 自动刷新，获取收件箱邮件
+  const InboxRefresh = () => {
+    setRefreshCount((prevCount) => {
+      // 1分钟刷新一次，10分钟以后，10分钟刷新一次
+      let count = prevCount >= 10 ? 60 * 1000 : 10 * 60 * 1000 // 60秒和10分钟
 
-    timerRef.current = setTimeout(async () => {
-      await getMailData('INBOX', '', 1, 1)
-      //本次请求完成，再开启下一轮计时
-      startAutoRefresh()
-    }, 60 * 1000)
+      // 最大刷新次数
+      if (prevCount >= 30) {
+        if (timerRef.current) clearTimeout(timerRef.current)
+        return
+      }
+      // 先清除已有定时器
+      if (timerRef.current) clearTimeout(timerRef.current)
+
+      timerRef.current = setTimeout(async () => {
+        await getMailData('INBOX', '', 1, 1) //收件箱，无关键字，第一页，刷新
+        //本次请求完成，再开启下一轮计时
+        setRefreshCount((prev) => prev + 1)
+        InboxRefresh()
+      }, count)
+      return prevCount
+    })
   }
 
   // 选中邮件查看详情
@@ -656,8 +670,8 @@ const MailLayout = () => {
                           </div>
                           {isTable && (
                             <div className='flex gap-1'>
-                              <div className={'truncate'}>{record?.subject || ''}</div>
-                              <div className={'truncate font-light text-gray-400'}>{record?.text || ''}</div>
+                              <div className={'max-w-50 truncate'}>{record?.subject || ''}</div>
+                              <div className={'max-w-50 truncate font-light text-gray-400'}>{record?.text || ''}</div>
                             </div>
                           )}
                         </div>

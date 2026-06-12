@@ -66,7 +66,8 @@ func ChangePassword(c *gin.Context) {
 
 // UserList 获取用户列表
 func UserList(c *gin.Context) {
-	list, total, err := service.UserList(config.AdminPwd)
+	email, _ := c.Get("userEmail")
+	list, total, err := service.UserList(config.AdminPwd, email.(string))
 	if err != nil {
 		c.JSON(200, gin.H{"code": 500, "msg": "获取用户列表失败: " + err.Error()})
 		return
