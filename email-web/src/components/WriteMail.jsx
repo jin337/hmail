@@ -1,7 +1,7 @@
-import { Button, Card, Form, Input, InputTag, Layout, Space, Typography, Upload } from '@arco-design/web-react'
-import { IconClose, IconFile, IconPlus, IconSend, IconUpload } from '@arco-design/web-react/icon'
+import { useEffect, useRef, useState } from 'react'
 
-import { useEffect, useState } from 'react'
+import { Button, Card, Form, Input, InputTag, Layout, Space, Upload } from '@arco-design/web-react'
+import { IconClose, IconFile, IconPlus, IconSend, IconUpload } from '@arco-design/web-react/icon'
 
 // 引入 wangEditor
 import { Editor, Toolbar } from '@wangeditor/editor-for-react'
@@ -16,10 +16,45 @@ export default function WriteMail({ detail, userList = [], onClose, onChange, on
   const [editor, setEditor] = useState(null)
   const [html, setHtml] = useState('')
 
+  const toRef = useRef(null)
+  const ccRef = useRef(null)
+  const [lastFocus, setLastFocus] = useState(null) // 缓存最后一次焦点
+
+  // 选择用户
+  const handleSelectUser = (item) => {
+    const targetEmail = {
+      label: item.full_name,
+      value: item.email,
+    }
+
+    // 优先使用缓存的最后焦点
+    if (lastFocus === 'to_info') {
+      toRef.current.focus()
+    }
+    if (lastFocus === 'cc_info') {
+      ccRef.current.focus()
+    }
+    if (!lastFocus) return
+
+    const list = form.getFieldValue(lastFocus) || []
+    if (!list.includes(targetEmail)) {
+      form.setFieldValue(lastFocus, [...list, targetEmail])
+    }
+  }
+
+  // 打开CC
+  const openCC = () => {
+    setAddCC(true)
+    // 延迟聚焦，等待DOM渲染完成
+    setTimeout(() => {
+      ccRef.current?.focus()
+    }, 0)
+  }
+
   // 自动回填
   useEffect(() => {
     if (detail?.uid) {
-      form.setFieldsValue({ ...detail, to: detail?.to_email, cc: detail?.cc_email })
+      form.setFieldsValue(detail)
 
       setAddCC(detail?.cc_email?.length > 0)
 
@@ -31,7 +66,8 @@ export default function WriteMail({ detail, userList = [], onClose, onChange, on
       setFileList(list)
 
       if (editor) {
-        editor.setHtml(`${detail?.detail?.content || ''}`)
+        editor?.setHtml(`${detail?.detail?.content || ''}`)
+        editor?.focus() //获取焦点
       }
     }
   }, [detail, form, editor])
@@ -43,18 +79,30 @@ export default function WriteMail({ detail, userList = [], onClose, onChange, on
     }
   }, [])
 
+  // 写信，默认获取焦点
+  useEffect(() => {
+    if (!detail?.uid) {
+      toRef.current.focus() //获取焦点
+    }
+  }, [detail, toRef, ccRef])
+
   // 提取验证函数
   const validateEmails = (value, callback) => {
     const EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/
-    if (!value || value.length === 0) {
+
+    if (!Array.isArray(value) || value.length === 0) {
       return callback()
     }
-    const invalid = value.filter((v) => !EMAIL_REGEX.test(v))
-    if (invalid.length > 0) {
-      callback(`存在无效的邮箱地址: ${invalid.join(', ')}`)
-    } else {
-      callback()
+
+    for (const item of value) {
+      const emailStr = item.value || ''
+      // 标准邮箱格式
+      if (/\s/.test(emailStr) || !EMAIL_REGEX.test(emailStr)) {
+        return callback(`【${emailStr}】邮箱格式不正确`)
+      }
     }
+
+    callback()
   }
 
   // 发送邮件&草稿
@@ -90,7 +138,7 @@ export default function WriteMail({ detail, userList = [], onClose, onChange, on
         </Space>
         <Space>
           {!addCC && (
-            <Button type='text' icon={<IconPlus />} onClick={() => setAddCC(true)}>
+            <Button type='text' icon={<IconPlus />} onClick={() => openCC()}>
               添加抄送
             </Button>
           )}
@@ -105,11 +153,27 @@ export default function WriteMail({ detail, userList = [], onClose, onChange, on
             autoComplete='off'
             layout='vertical'
             onChange={onChangeMail}>
-            <Form.Item field='to' rules={[{ required: true, message: '请输入收件人' }, { validator: validateEmails }]}>
-              <InputTag prefix='收件人' placeholder='test@xxx.com' saveOnBlur />
+            <Form.Item field='to_info' rules={[{ required: true, message: '请输入收件人' }, { validator: validateEmails }]}>
+              <InputTag
+                labelInValue
+                ref={toRef}
+                prefix='收件人'
+                placeholder='test@xxx.com'
+                maxTagCount={5}
+                saveOnBlur
+                onFocus={() => setLastFocus('to_info')}
+              />
             </Form.Item>
-            <Form.Item field='cc' hidden={!addCC} rules={[{ validator: validateEmails }]}>
-              <InputTag prefix='抄送' placeholder='test@xxx.com' saveOnBlur />
+            <Form.Item field='cc_info' hidden={!addCC} rules={[{ validator: validateEmails }]}>
+              <InputTag
+                labelInValue
+                ref={ccRef}
+                prefix='抄送'
+                placeholder='test@xxx.com'
+                maxTagCount={5}
+                saveOnBlur
+                onFocus={() => setLastFocus('cc_info')}
+              />
             </Form.Item>
             <Form.Item field='subject' rules={[{ required: true, message: '请输入主题' }]}>
               <Input prefix='主题' placeholder='邮件主题' />
@@ -154,11 +218,13 @@ export default function WriteMail({ detail, userList = [], onClose, onChange, on
             </Form.Item>
           </Form>
           <Card title='联系人' className='h-full w-60 border-t-0!' bodyStyle={{ overflowY: 'auto', height: 'calc(100% - 50px)' }}>
-            {userList?.map((item) => (
-              <Typography.Paragraph key={item?.id}>
-                {item?.full_name} <Typography.Text copyable>{item.email}</Typography.Text>
-              </Typography.Paragraph>
-            ))}
+            <div className='flex flex-col gap-2'>
+              {userList?.map((item) => (
+                <div key={item?.id} className='cursor-pointer' onClick={() => handleSelectUser(item)}>
+                  {item?.full_name} <span>{item.email}</span>
+                </div>
+              ))}
+            </div>
           </Card>
         </div>
       </Layout.Content>

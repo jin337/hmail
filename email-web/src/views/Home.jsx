@@ -13,8 +13,9 @@ const Home = () => {
   const [visible, setVisible] = useState(false)
 
   // 本地登录信息
-  const userToken = localStorage.getItem('mail_token')
-  const userInfo = JSON.parse(localStorage.getItem('mail_info') || '{}')
+  const currentAccountId = localStorage.getItem('current_account_id') || ''
+  const userToken = currentAccountId ? localStorage.getItem(`TOKEN_${currentAccountId}`) : null
+  const userInfo = currentAccountId ? JSON.parse(localStorage.getItem(`USERINFO_${currentAccountId}`) || '{}') : {}
 
   // 修改密码
   const handleRepasword = () => {
@@ -43,17 +44,22 @@ const Home = () => {
 
   // 退出
   const handleLogout = () => {
-    localStorage.removeItem('mail_token')
-    localStorage.removeItem('mail_info')
+    if (currentAccountId) {
+      // 删除当前账号独立存储
+      localStorage.removeItem(`TOKEN_${currentAccountId}`)
+      localStorage.removeItem(`USERINFO_${currentAccountId}`)
+    }
+    // 清空活跃账号标记
+    localStorage.removeItem('current_account_id')
     navigate('/login')
   }
 
   // 初始加载，如果没有登录信息则跳转到登录页
   useEffect(() => {
-    if (!userToken) {
+    if (!currentAccountId || !userToken) {
       navigate('/login')
     }
-  }, [userToken, navigate])
+  }, [currentAccountId, userToken, navigate])
 
   return (
     <Layout className='h-screen w-full overflow-hidden'>

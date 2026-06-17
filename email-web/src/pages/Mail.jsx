@@ -313,32 +313,40 @@ const MailLayout = () => {
   // 邮件原内容
   const FormContent = `<p style="line-height: 1;"><br></p>
   <p style="line-height: 1;"><br></p>
-  <p style="line-height: 1;"><span style="font-size: 13px;">原始邮件</span>——————</p>
+  <p style="line-height: 1;">
+  <span style="color: rgb(140, 140, 140);">— </span>
+  <span style="font-size: 12px; color: rgb(140, 140, 140);">原始邮件</span>
+  <span style="color: rgb(140, 140, 140);"> ————————————</span>
+  </p>
   <blockquote>
-  <span style="color: rgb(140, 140, 140); font-size: 13px;">发件人：</span>
-  <span style="font-size: 13px;">${currentMail?.from_name} &lt;${currentMail?.from}&gt; </span>
-  <span style="color: rgb(140, 140, 140); font-size: 13px;"><br>发件时间：</span>
-  <span style="font-size: 13px;">${dayjs(currentMail?.date).format('YYYY年MM月DD日 HH:mm:ss')}</span>
-  <span style="color: rgb(140, 140, 140); font-size: 13px;"><br>收件人：</span>
-  <span style="font-size: 13px;">${currentMail?.to_reply}</span>
-  <span style="color: rgb(140, 140, 140); font-size: 13px;"><br>主题：</span>
-  <span style="font-size: 13px;">${currentMail?.subject}</span>
+  <span style="color: rgb(140, 140, 140); font-size: 12px;">发件人：</span>
+  <span style="font-size: 12px;">${currentMail?.from_name} &lt;${currentMail?.from}&gt; </span>
+  <span style="color: rgb(140, 140, 140); font-size: 12px;"><br>发件时间：</span>
+  <span style="font-size: 12px;">${dayjs(currentMail?.date).format('YYYY年MM月DD日 HH:mm:ss')}</span>
+  <span style="color: rgb(140, 140, 140); font-size: 12px;"><br>收件人：</span>
+  <span style="font-size: 12px;">${currentMail?.to_reply}</span>
+  <span style="color: rgb(140, 140, 140); font-size: 12px;"><br>主题：</span>
+  <span style="font-size: 12px;">${currentMail?.subject}</span>
   </blockquote>${currentMail?.detail?.content || ''}`
 
   const FormContentCc = `<p style="line-height: 1;"><br></p>
   <p style="line-height: 1;"><br></p>
-  <p style="line-height: 1;"><span style="font-size: 13px;">原始邮件</span>——————</p>
+  <p style="line-height: 1;">
+  <span style="color: rgb(140, 140, 140);">— </span>
+  <span style="font-size: 12px; color: rgb(140, 140, 140);">原始邮件</span>
+  <span style="color: rgb(140, 140, 140);"> ————————————</span>
+  </p>
   <blockquote>
-  <span style="color: rgb(140, 140, 140); font-size: 13px;">发件人：</span>
-  <span style="font-size: 13px;">${currentMail?.from_name} &lt;${currentMail?.from}&gt;</span>
-  <span style="color: rgb(140, 140, 140); font-size: 13px;"><br>发件时间：</span>
-  <span style="font-size: 13px;">${dayjs(currentMail?.date).format('YYYY年MM月DD日 HH:mm:ss')}</span>
-  <span style="color: rgb(140, 140, 140); font-size: 13px;"><br>收件人：</span>
-  <span style="font-size: 13px;">${currentMail?.to_reply}</span>
-  <span style="color: rgb(140, 140, 140); font-size: 13px;"><br>抄送：</span>
-  <span style="font-size: 13px;">${currentMail?.cc_reply}</span>
-  <span style="color: rgb(140, 140, 140); font-size: 13px;"><br>主题：</span>
-  <span style="font-size: 13px;">${currentMail?.subject}</span>
+  <span style="color: rgb(140, 140, 140); font-size: 12px;">发件人：</span>
+  <span style="font-size: 12px;">${currentMail?.from_name} &lt;${currentMail?.from}&gt;</span>
+  <span style="color: rgb(140, 140, 140); font-size: 12px;"><br>发件时间：</span>
+  <span style="font-size: 12px;">${dayjs(currentMail?.date).format('YYYY年MM月DD日 HH:mm:ss')}</span>
+  <span style="color: rgb(140, 140, 140); font-size: 12px;"><br>收件人：</span>
+  <span style="font-size: 12px;">${currentMail?.to_reply}</span>
+  <span style="color: rgb(140, 140, 140); font-size: 12px;"><br>抄送：</span>
+  <span style="font-size: 12px;">${currentMail?.cc_reply}</span>
+  <span style="color: rgb(140, 140, 140); font-size: 12px;"><br>主题：</span>
+  <span style="font-size: 12px;">${currentMail?.subject}</span>
   </blockquote>${currentMail?.detail?.content || ''}`
 
   // 回复邮件
@@ -348,15 +356,16 @@ const MailLayout = () => {
     const newMail = {
       ...currentMail,
       subject: `回复: ${currentMail.subject}`,
-      to_email: currentMail.to.split(', '),
-      cc: currentMail.cc ? currentMail.cc.split(', ') : [],
+      to_info: currentMail.to_info.map((e) => ({ label: e.name, value: e.email })),
+      cc_info: currentMail?.cc_info?.map((e) => ({ label: e.name, value: e.email })) || [],
       detail: {
         content: currentMail?.cc ? FormContentCc : FormContent,
       },
       is_reply: true,
     }
+
     if (currentFolder.key === 'inbox') {
-      newMail.to_email = [currentMail.from]
+      newMail.to_info = [{ label: currentMail.from_name, value: currentMail.from }]
     }
     onWriteMail('reply', newMail)
   }
@@ -368,8 +377,8 @@ const MailLayout = () => {
     const newMail = {
       ...currentMail,
       subject: `转发: ${currentMail.subject}`,
-      to_email: null,
-      cc_email: null,
+      to_info: [],
+      cc_info: [],
       detail: {
         content: currentMail?.cc ? FormContentCc : FormContent,
       },
@@ -410,14 +419,17 @@ const MailLayout = () => {
   // 发送邮件&草稿
   const handleSend = async (type, form, html, fileList, detail, setLoading) => {
     const values = form.getFieldsValue()
-    if (!values.to || !values.subject) {
+    if (!values.to_info || !values.subject) {
       Message.warning('请填写收件人和主题')
       return
     }
 
     const formData = new FormData()
-    formData.append('to', values.to)
-    formData.append('cc', values.cc || '')
+    const to = values.to_info.map((e) => e.value)
+    const cc = values?.cc_info?.map((e) => e.value) || ''
+
+    formData.append('to', to)
+    formData.append('cc', cc)
     formData.append('subject', values.subject)
     formData.append('content', html)
     if (detail?.uid) {
@@ -475,12 +487,10 @@ const MailLayout = () => {
 
     loadMailList('inbox')
   }
-  // 本地登录信息
-  const userToken = localStorage.getItem('mail_token')
   // 初始加载邮件列表
   useEffect(() => {
-    userToken && getUserList()
-  }, [userToken])
+    getUserList()
+  }, [])
 
   //   滚动到顶部
   const scrollToTop = () => {
@@ -655,7 +665,7 @@ const MailLayout = () => {
                         <div className={` ${isTable ? 'flex' : ''}`}>
                           <div className={`flex items-center gap-1.5 ${isTable ? 'w-60!' : ''}`}>
                             {record.is_read ? <IconMailOpen /> : <IconMail />}
-                            {currentFolder?.key === 'Sent' ? (
+                            {currentFolder?.key === 'sent' ? (
                               <>
                                 <IconSent />
                                 {record?.to_info?.map((t) => t.name).join(', ') || record?.to}
@@ -780,15 +790,15 @@ const MailLayout = () => {
                         <span className='text-gray-400'>&nbsp;&lt;{currentMail.from}&gt;</span>
                       </div>
                       <div className='flex items-center justify-between gap-2'>
-                        <div className='flex-1 whitespace-nowrap'>
+                        <div className='flex-1'>
                           <div className='mb-1 flex items-center'>
-                            <div className='text-gray-400'>收件人</div>
+                            <div className='text-gray-400 whitespace-nowrap'>收件人</div>
                             {currentMail?.to_info?.map((e, index) => (
-                              <div key={index}>
+                              <span key={index}>
                                 {index !== 0 && <span className='text-gray-400'>,</span>}
                                 <span className='mr-1 ml-3'>{e.name}</span>
                                 <span className='text-gray-400'>&lt;{e.email}&gt;</span>
-                              </div>
+                              </span>
                             ))}
                           </div>
                           {currentMail?.cc && (

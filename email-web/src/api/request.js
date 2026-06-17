@@ -10,7 +10,8 @@ const service = axios.create({
 // 请求拦截器 带token
 service.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('mail_token')
+    const currentAccountId = localStorage.getItem('current_account_id')
+    const token = currentAccountId ? localStorage.getItem(`TOKEN_${currentAccountId}`) : null
     if (token) {
       config.headers.Authorization = token
     }

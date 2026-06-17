@@ -27,9 +27,11 @@ export default function Login() {
       } else {
         localStorage.removeItem('mail_remember')
       }
+      const accountId = data.email
+      localStorage.setItem(`TOKEN_${accountId}`, data.token)
+      localStorage.setItem(`USERINFO_${accountId}`, JSON.stringify(data))
 
-      localStorage.setItem('mail_token', data.token)
-      localStorage.setItem('mail_info', JSON.stringify(data))
+      localStorage.setItem('current_account_id', accountId)
       Message.success('登录成功')
       navigate('/')
     } else {
@@ -48,7 +50,7 @@ export default function Login() {
         <div className='flex w-full max-w-6xl items-center justify-center gap-16 pt-12'>
           {/* 左侧宣传文案 */}
           <div>
-            <h1 className='mb-6 text-4xl font-bold'>
+            <h1 className='mb-6 h-8 text-4xl font-bold'>
               <span className='text-[#00a4ff]'>{pageTitle}</span>
               <span className='text-black'>，常联系！</span>
             </h1>
