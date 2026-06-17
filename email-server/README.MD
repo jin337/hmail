@@ -22,7 +22,7 @@ var (
 	HmailHost = "127.0.0.1"
 	SmtpPort  = 25
 	ImapPort  = 993
-	AdminPwd  = "a123321"
+	AdminPwd  = "hMailServer密码"
 )
 ```
 

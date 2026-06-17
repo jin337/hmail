@@ -5,6 +5,7 @@
 ## 项目简介
 
 ### 后端 (email-server)
+
 1. JWT 登录认证，Token 内置邮箱账号密码，业务接口无需重复传参
 2. 支持发送邮件、抄送、多文件附件上传(20M 限制)
 3. 自动归档已发送邮件到 Sent 文件夹
@@ -16,12 +17,14 @@
 9. 用户管理功能：创建、删除、更新用户信息
 
 ### 前端 (email-web)
+
 1. 基于 React + Vite 构建的现代化邮件客户端
 2. 响应式设计，多模式查看
 3. 直观的邮件列表、详情和撰写界面
 4. 与后端 API 无缝集成
 
 ## 项目结构
+
 ```
 hmail/
 ├── email-server/          # 后端服务
@@ -57,6 +60,7 @@ hmail/
 ```
 
 ## 环境依赖
+
 - Go >= 1.21
 - Node.js >= 20
 - 本地搭建 `hMailServer` 邮件服务
@@ -67,36 +71,45 @@ hmail/
 ## 快速部署
 
 ### 后端部署
+
 #### 1. 安装依赖
+
 ```bash
 cd email-server
 go mod tidy
 ```
 
 #### 2. 安装 air 热重载
+
 ```bash
 go install github.com/cosmtrek/air@latest
 ```
 
 #### 3. 修改配置
+
 打开 `config/config.go` 修改为你的邮件服务器地址
+
 ```go
 var (
 	HmailHost = "127.0.0.1"
 	SmtpPort  = 25
 	ImapPort  = 143
-	AdminPwd  = "a123456"
+	AdminPwd  = "hMailServer密码"
 )
 ```
 
 #### 4. 启动项目
+
 ```bash
 air
 ```
+
 默认运行端口：`8058`
 
 ### 前端部署
+
 #### 1. 安装依赖
+
 ```bash
 cd email-web
 npm install
@@ -105,6 +118,7 @@ pnpm install
 ```
 
 #### 2. 启动开发服务器
+
 ```bash
 npm run dev
 # 或
@@ -112,6 +126,7 @@ pnpm dev
 ```
 
 #### 3. 构建生产版本
+
 ```bash
 npm run build
 # 或
@@ -119,6 +134,7 @@ pnpm build
 ```
 
 ## 全局规则
+
 1. 所有接口**统一 POST**
 2. 除登录接口外，所有接口必须携带 Token
 3. 请求头格式`Token: 你的登录token`
@@ -129,6 +145,7 @@ pnpm build
 ### 认证相关
 
 #### 1. 登录获取Token
+
 **地址**：`POST /api/login`
 **参数**
 | 参数 | 说明 | 必填 |
@@ -136,24 +153,10 @@ pnpm build
 | email | 邮箱账号 | 是 |
 | password | 邮箱登录密码 | 是 |
 
-**返回示例**
-```json
-{
-    "code": 200,
-    "msg": "登录成功",
-    "data": {
-        "email": "user@example.com",
-        "full_name": "张三",
-        "token": "xxxx.xxxx.xxxx"
-    }
-}
-```
-
----
-
 ### 用户管理相关
 
 #### 2. 修改密码
+
 **地址**：`POST /api/user/chgpwd`
 **需要认证**
 | 参数 | 说明 | 必填 |
@@ -162,10 +165,12 @@ pnpm build
 | new_password | 新密码 | 是 |
 
 #### 3. 获取用户列表
+
 **地址**：`POST /api/user/list`
 **需要认证**
 
 #### 4. 创建用户
+
 **地址**：`POST /api/user/create`
 **需要认证**
 | 参数 | 说明 | 必填 |
@@ -176,6 +181,7 @@ pnpm build
 | person_last_name | 姓氏 | 是 |
 
 #### 5. 删除用户
+
 **地址**：`POST /api/user/delete`
 **需要认证**
 | 参数 | 说明 | 必填 |
@@ -183,6 +189,7 @@ pnpm build
 | email | 邮箱账号 | 是 |
 
 #### 6. 更新用户
+
 **地址**：`POST /api/user/update`
 **需要认证**
 | 参数 | 说明 | 必填 |
@@ -196,6 +203,7 @@ pnpm build
 ### 邮件管理相关
 
 #### 7. 获取邮件列表
+
 **地址**：`POST /api/mail/list`
 **需要认证**
 | 参数 | 说明 | 必填 |
@@ -206,6 +214,7 @@ pnpm build
 | keyword | 搜索关键词 | 否 |
 
 **内置标准文件夹**
+
 - INBOX 收件箱
 - Sent 已发送
 - Drafts 草稿箱
@@ -213,6 +222,7 @@ pnpm build
 - Junk 垃圾邮件
 
 #### 8. 获取邮件详情
+
 **地址**：`POST /api/mail/detail`
 **需要认证**
 | 参数 | 说明 | 必填 |
@@ -221,6 +231,7 @@ pnpm build
 | uid | 邮件唯一ID | 是 |
 
 #### 9. 标记邮件状态
+
 **地址**：`POST /api/mail/status`
 **需要认证**
 | 参数 | 说明 | 必填 |
@@ -230,6 +241,7 @@ pnpm build
 | status | 状态值 | 是 |
 
 #### 10. 移动邮件
+
 **地址**：`POST /api/mail/move`
 **需要认证**
 | 参数 | 说明 | 必填 |
@@ -239,6 +251,7 @@ pnpm build
 | uids | 邮件UID数组 | 是 |
 
 #### 11. 删除邮件
+
 **地址**：`POST /api/mail/delete`
 **需要认证**
 | 参数 | 说明 | 必填 |
@@ -247,6 +260,7 @@ pnpm build
 | uids | 邮件UID数组 | 是 |
 
 #### 12. 保存草稿
+
 **地址**：`POST /api/mail/save-draft`
 **需要认证**
 | 参数 | 说明 | 必填 |
@@ -259,6 +273,7 @@ pnpm build
 | uid | 草稿UID（更新时使用） | 否 |
 
 #### 13. 发送邮件
+
 **地址**：`POST /api/mail/send`
 **需要认证**
 | 参数 | 说明 | 必填 |
@@ -271,6 +286,7 @@ pnpm build
 | uid | 草稿UID（从草稿发送时使用） | 否 |
 
 #### 14. 附件下载
+
 **地址**：`POST /api/mail/download`
 **需要认证**
 | 参数 | 说明 | 必填 |
@@ -282,6 +298,7 @@ pnpm build
 ## 技术栈
 
 ### 后端
+
 - **框架**: Gin Web Framework
 - **认证**: JWT (golang-jwt/jwt)
 - **邮件协议**: IMAP, SMTP
@@ -289,6 +306,7 @@ pnpm build
 - **跨域**: gin-contrib/cors
 
 ### 前端
+
 - **框架**: React 19
 - **构建工具**: Vite
 - **路由**: React Router DOM
@@ -299,12 +317,14 @@ pnpm build
 ## 开发说明
 
 ### 后端开发
+
 - 使用 `air` 进行热重载开发
 - 遵循 MVC 架构模式
 - 所有业务逻辑在 service 层实现
 - 控制器负责参数验证和响应格式化
 
 ### 前端开发
+
 - 组件化开发，复用性强
 - 统一的 API 请求封装
 - 响应式设计，多模式查看
