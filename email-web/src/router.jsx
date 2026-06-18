@@ -5,6 +5,7 @@ import Login from 'src/views/Login'
 
 import Mail from 'src/pages/Mail'
 import User from 'src/pages/User'
+import Preview from 'src/pages/Preview'
 
 export const router = createBrowserRouter([
   {
@@ -21,6 +22,10 @@ export const router = createBrowserRouter([
       {
         path: '/user',
         element: <User />,
+      },
+      {
+        path: '/preview',
+        element: <Preview />,
       },
     ],
   },

@@ -69,6 +69,7 @@ type AttachmentInfo struct {
 	PartID      string `json:"part_id"`      // 附件ID
 	FileName    string `json:"file_name"`    // 文件名
 	ContentType string `json:"content_type"` // 内容类型
+	FileType    string `json:"file_type"`    // 文件类型
 	Size        int64  `json:"size"`         // 文件大小
 }
 

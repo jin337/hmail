@@ -251,6 +251,20 @@ const MailLayout = () => {
     setLoading(false)
   }
 
+  // 预览附件
+  const handlePreviewAttachment = (item) => {
+    const params = {
+      uid: currentMail.uid,
+      part_id: item.part_id,
+      folder: currentFolder.folder,
+      file_name: item.file_name,
+      file_type: item.file_type,
+    }
+    const jsonString = JSON.stringify(params)
+    const base64Str = btoa(encodeURIComponent(jsonString))
+    window.open(`/preview?data=${base64Str}`, '_blank')
+  }
+
   // 下载附件
   const handleDownloadAttachment = async (item) => {
     const params = {
@@ -792,7 +806,7 @@ const MailLayout = () => {
                       <div className='flex items-center justify-between gap-2'>
                         <div className='flex-1'>
                           <div className='mb-1 flex items-center'>
-                            <div className='text-gray-400 whitespace-nowrap'>收件人</div>
+                            <div className='whitespace-nowrap text-gray-400'>收件人</div>
                             {currentMail?.to_info?.map((e, index) => (
                               <span key={index}>
                                 {index !== 0 && <span className='text-gray-400'>,</span>}
@@ -853,9 +867,14 @@ const MailLayout = () => {
                               </Avatar>
                               {item.file_name}
                             </div>
-                            <Button type='text' size='small' onClick={() => handleDownloadAttachment(item)}>
-                              下载
-                            </Button>
+                            <Space>
+                              <Button type='text' size='small' onClick={() => handlePreviewAttachment(item)}>
+                                预览
+                              </Button>
+                              <Button type='text' size='small' onClick={() => handleDownloadAttachment(item)}>
+                                下载
+                              </Button>
+                            </Space>
                           </div>
                         ))}
                       </div>

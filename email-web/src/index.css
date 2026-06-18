@@ -67,3 +67,8 @@ strong {
   margin: 10px 0;
   padding: 10px;
 }
+
+/* jit-viewer全屏按钮隐藏  */
+.jv-toolbar-btn--fullscreen {
+  display: none !important;
+}
