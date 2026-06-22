@@ -15,8 +15,8 @@ import {
   IconDown,
   IconEdit,
   IconEmail,
+  IconEye,
   IconFile,
-  IconImage,
   IconLayout,
   IconLeft,
   IconMenu,
@@ -25,17 +25,28 @@ import {
   IconRight,
   IconSearch,
   IconSend,
+  IconToBottom,
 } from '@arco-design/web-react/icon'
 
 import request from 'src/api/request'
 
 import WriteMail from 'src/components/WriteMail'
 
-import IconMailOpen from 'src/assets/mail-open.svg'
-import IconMail from 'src/assets/mail.svg'
-import IconSent from 'src/assets/sent.svg'
+import IconAudio from 'src/assets/file_aduio.svg'
+import IconExcel from 'src/assets/file_excel.svg'
+import IconImage from 'src/assets/file_image.svg'
+import IconPdf from 'src/assets/file_pdf.svg'
+import IconPpt from 'src/assets/file_ppt.svg'
+import IconText from 'src/assets/file_text.svg'
+import IconVideo from 'src/assets/file_video.svg'
+import IconWord from 'src/assets/file_word.svg'
+import IconZip from 'src/assets/file_zip.svg'
 
-import { throttle } from 'src/utils/index'
+import IconMail from 'src/assets/mail.svg'
+import IconMailOpen from 'src/assets/mail_open.svg'
+import IconSent from 'src/assets/mail_sent.svg'
+
+import { getFileType, throttle } from 'src/utils/index'
 
 // 左侧文件夹
 const menuList = [
@@ -163,6 +174,39 @@ const MailLayout = () => {
     })
   }
 
+  // 预览附件
+  const handlePreviewAttachment = (item) => {
+    const params = {
+      uid: currentMail.uid,
+      part_id: item.part_id,
+      folder: currentFolder.folder,
+      file_name: item.file_name,
+      file_type: item.file_type,
+    }
+    const jsonString = JSON.stringify(params)
+    const base64Str = btoa(encodeURIComponent(jsonString))
+    window.open(`/preview?data=${base64Str}`, '_blank')
+  }
+
+  // 下载附件
+  const handleDownloadAttachment = async (item) => {
+    const params = {
+      uid: currentMail.uid,
+      part_id: item.part_id,
+      folder: currentFolder.folder,
+    }
+    const res = await request.post('/api/mail/download', params, {
+      responseType: 'blob',
+    })
+    const url = window.URL.createObjectURL(res)
+    const link = document.createElement('a')
+    link.href = url
+    link.setAttribute('download', item.file_name)
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }
+
   // 选中邮件查看详情
   const handleSelectMail = async (item, e) => {
     // 排除干扰点击
@@ -185,9 +229,21 @@ const MailLayout = () => {
 
     const { code, data, msg } = await request.post('/api/mail/detail', params)
     if (code === 200) {
-      setCurrentMail({ ...item, detail: data })
+      const newData = {
+        ...data,
+        attachments: data?.attachments?.map((e) => ({
+          ...e,
+          file_type: getFileType(e.file_type),
+        })),
+      }
+      setCurrentMail({ ...item, detail: newData })
       if (currentFolder.key === 'drafts') {
-        const newItem = { ...item, detail: data, to_email: item?.to.split(', '), cc_email: item?.cc ? item?.cc.split(', ') : [] }
+        const newItem = {
+          ...item,
+          detail: newData,
+          to_email: item?.to.split(', '),
+          cc_email: item?.cc ? item?.cc.split(', ') : [],
+        }
         onWriteMail('rewrite', newItem)
       }
     } else {
@@ -251,39 +307,6 @@ const MailLayout = () => {
     setLoading(false)
   }
 
-  // 预览附件
-  const handlePreviewAttachment = (item) => {
-    const params = {
-      uid: currentMail.uid,
-      part_id: item.part_id,
-      folder: currentFolder.folder,
-      file_name: item.file_name,
-      file_type: item.file_type,
-    }
-    const jsonString = JSON.stringify(params)
-    const base64Str = btoa(encodeURIComponent(jsonString))
-    window.open(`/preview?data=${base64Str}`, '_blank')
-  }
-
-  // 下载附件
-  const handleDownloadAttachment = async (item) => {
-    const params = {
-      uid: currentMail.uid,
-      part_id: item.part_id,
-      folder: currentFolder.folder,
-    }
-    const res = await request.post('/api/mail/download', params, {
-      responseType: 'blob',
-    })
-    const url = window.URL.createObjectURL(res)
-    const link = document.createElement('a')
-    link.href = url
-    link.setAttribute('download', item.file_name)
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-  }
-
   // 删除邮件
   const handleDelMail = async (ids) => {
     setSelectedRowKeys([])
@@ -334,7 +357,7 @@ const MailLayout = () => {
   </p>
   <blockquote>
   <span style="color: rgb(140, 140, 140); font-size: 12px;">发件人：</span>
-  <span style="font-size: 12px;">${currentMail?.from_name} &lt;${currentMail?.from}&gt; </span>
+  <span style="font-size: 12px;">${currentMail?.from_info?.name} &lt;${currentMail?.from}&gt; </span>
   <span style="color: rgb(140, 140, 140); font-size: 12px;"><br>发件时间：</span>
   <span style="font-size: 12px;">${dayjs(currentMail?.date).format('YYYY年MM月DD日 HH:mm:ss')}</span>
   <span style="color: rgb(140, 140, 140); font-size: 12px;"><br>收件人：</span>
@@ -352,7 +375,7 @@ const MailLayout = () => {
   </p>
   <blockquote>
   <span style="color: rgb(140, 140, 140); font-size: 12px;">发件人：</span>
-  <span style="font-size: 12px;">${currentMail?.from_name} &lt;${currentMail?.from}&gt;</span>
+  <span style="font-size: 12px;">${currentMail?.from_info?.name} &lt;${currentMail?.from}&gt;</span>
   <span style="color: rgb(140, 140, 140); font-size: 12px;"><br>发件时间：</span>
   <span style="font-size: 12px;">${dayjs(currentMail?.date).format('YYYY年MM月DD日 HH:mm:ss')}</span>
   <span style="color: rgb(140, 140, 140); font-size: 12px;"><br>收件人：</span>
@@ -379,7 +402,7 @@ const MailLayout = () => {
     }
 
     if (currentFolder.key === 'inbox') {
-      newMail.to_info = [{ label: currentMail.from_name, value: currentMail.from }]
+      newMail.to_info = [{ label: currentMail.from_info.name, value: currentMail.from }]
     }
     onWriteMail('reply', newMail)
   }
@@ -609,6 +632,18 @@ const MailLayout = () => {
 
       {currentFolder?.key !== 'compose' && (
         <Layout className='relative mr-4! rounded-t-xl'>
+          {/* 切换模式按钮 */}
+          {!(isTable && currentMail) && (
+            <div className={`absolute top-4 right-4 z-20`}>
+              <Button
+                size='small'
+                onClick={() => {
+                  setIsTable(!isTable)
+                  setCurrentMail(null)
+                }}
+                icon={isTable ? <IconLayout /> : <IconMenu />}></Button>
+            </div>
+          )}
           {/* 搜索框 */}
           <div className='fixed top-0 z-10 w-125 py-3'>
             <Input.Search
@@ -663,12 +698,7 @@ const MailLayout = () => {
                             {currentFolder.key === 'delete' ? '清空' : '删除'}
                           </Button>
                         )}
-                        <span className={`${isTable ? 'mr-8' : ''}`}>共 {total} 封</span>
-                        {isTable && (
-                          <div className={`absolute top-4 right-4`}>
-                            <Button size='small' onClick={() => setIsTable(false)} icon={<IconLayout />}></Button>
-                          </div>
-                        )}
+                        <span className={`${isTable ? 'mr-9' : ''}`}>共 {total} 封</span>
                       </Space>
                     </div>
                   ),
@@ -687,7 +717,7 @@ const MailLayout = () => {
                                 {record?.cc_info?.map((t) => t.name).join(', ') || record?.cc}
                               </>
                             ) : (
-                              record?.from_name
+                              record?.from_info.name || record?.from
                             )}
 
                             {record.has_attach ? <IconAttachment className='text-gray-400!' /> : ''}
@@ -724,17 +754,6 @@ const MailLayout = () => {
 
           {/* 右列：邮件详情 + 顶部操作按钮栏 */}
           <Layout.Content className={`relative h-full min-w-130 flex-1 bg-white ${isTable && currentMail ? ' z-10 w-full' : ''}`}>
-            {!isTable && (
-              <div className='absolute top-4 right-4 z-10'>
-                <Button
-                  size='small'
-                  onClick={() => {
-                    setIsTable(true)
-                    setCurrentMail(null)
-                  }}
-                  icon={<IconMenu />}></Button>
-              </div>
-            )}
             {currentMail && (
               <Spin block loading={currentLoading}>
                 {/* 邮件操作工具栏 */}
@@ -796,35 +815,39 @@ const MailLayout = () => {
                   <div className='mb-4 text-lg font-bold'>{currentMail.subject}</div>
                   <div className='mb-4 flex items-start gap-3'>
                     <Avatar className={'min-w-10!'} style={{ backgroundColor: '#FFEDD8', color: '#FF8800' }}>
-                      {currentMail?.from_name?.slice(0, 1).toUpperCase()}
+                      {currentMail?.from_info?.name?.slice(0, 1).toUpperCase()}
                     </Avatar>
                     <div className='flex-1 text-sm'>
                       <div className='mb-1'>
-                        <strong>{currentMail.from_name}</strong>
+                        <strong>{currentMail?.from_info?.name}</strong>
                         <span className='text-gray-400'>&nbsp;&lt;{currentMail.from}&gt;</span>
                       </div>
-                      <div className='flex items-center justify-between gap-2'>
+                      <div className='flex items-start justify-between gap-2'>
                         <div className='flex-1'>
-                          <div className='mb-1 flex items-center'>
+                          <div className='mb-1 flex'>
                             <div className='whitespace-nowrap text-gray-400'>收件人</div>
-                            {currentMail?.to_info?.map((e, index) => (
-                              <span key={index}>
-                                {index !== 0 && <span className='text-gray-400'>,</span>}
-                                <span className='mr-1 ml-3'>{e.name}</span>
-                                <span className='text-gray-400'>&lt;{e.email}&gt;</span>
-                              </span>
-                            ))}
+                            <div className='flex flex-wrap'>
+                              {currentMail?.to_info?.map((e, index) => (
+                                <div key={index}>
+                                  <span className='mr-1 ml-3'>{e.name}</span>
+                                  <span className='text-gray-400'>&lt;{e.email}&gt;</span>
+                                  {index !== currentMail?.to_info?.length - 1 && <span className='text-gray-400'>,</span>}
+                                </div>
+                              ))}
+                            </div>
                           </div>
                           {currentMail?.cc && (
                             <div className='flex items-center'>
                               <div className='text-gray-400'>抄送</div>
-                              {currentMail?.cc_info?.map((e, index) => (
-                                <div key={index}>
-                                  {index !== 0 && <span className='text-gray-400'>,</span>}
-                                  <span className='mr-1 ml-3'>{e.name}</span>
-                                  <span className='text-gray-400'>&lt;{e.email}&gt;</span>
-                                </div>
-                              ))}
+                              <div className='flex flex-wrap'>
+                                {currentMail?.cc_info?.map((e, index) => (
+                                  <div key={index}>
+                                    <span className='mr-1 ml-3'>{e.name}</span>
+                                    <span className='text-gray-400'>&lt;{e.email}&gt;</span>
+                                    {index !== currentMail?.to_info?.length - 1 && <span className='text-gray-400'>,</span>}
+                                  </div>
+                                ))}
+                              </div>
                             </div>
                           )}
                         </div>
@@ -842,7 +865,9 @@ const MailLayout = () => {
                       __html: currentMail.detail?.content || '<div class="text-gray-500">暂无邮件内容</div>',
                     }}
                   />
-                  {currentMail.detail?.attachments?.length > 0 && (
+
+                  {/* 附件 */}
+                  {currentMail?.has_attach && (
                     <Card
                       className='mt-10'
                       title={
@@ -853,25 +878,31 @@ const MailLayout = () => {
                       }>
                       <div className='flex flex-col gap-2'>
                         {currentMail.detail.attachments.map((item, index) => (
-                          <div key={index} className='flex items-center justify-between gap-2 bg-gray-100 p-2'>
-                            <div className='flex-1'>
-                              <Avatar
-                                size={28}
-                                shape='square'
-                                className={`mr-2 ${item?.content_type?.includes('image') ? 'bg-[#0BB5B5]!' : 'bg-[#5252CC]!'}`}>
-                                {item?.content_type?.includes('image') ? (
-                                  <IconImage className={'text-xl'} />
-                                ) : (
-                                  <IconFile className={'text-xl'} />
-                                )}
-                              </Avatar>
+                          <div key={index} className='flex items-center justify-between gap-2 bg-gray-100 p-2 hover:bg-gray-200'>
+                            <div className='flex flex-1 items-center'>
+                              <span className='mr-2'>
+                                {item?.file_type === 'video' && <IconVideo />}
+                                {item?.file_type === 'audio' && <IconAudio />}
+                                {item?.file_type === 'zip' && <IconZip />}
+                                {item?.file_type === 'image' && <IconImage />}
+
+                                {item?.file_type === 'ppt' && <IconPpt />}
+                                {item?.file_type === 'pdf' && <IconPdf />}
+                                {item?.file_type === 'excel' && <IconExcel />}
+                                {item?.file_type === 'word' && <IconWord />}
+
+                                {item?.file_type === 'text' && <IconText />}
+                              </span>
                               {item.file_name}
+                              <span className='text-gray-400'>（{item.size}）</span>
                             </div>
                             <Space>
                               <Button type='text' size='small' onClick={() => handlePreviewAttachment(item)}>
+                                <IconEye />
                                 预览
                               </Button>
                               <Button type='text' size='small' onClick={() => handleDownloadAttachment(item)}>
+                                <IconToBottom />
                                 下载
                               </Button>
                             </Space>

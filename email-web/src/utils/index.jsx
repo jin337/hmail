@@ -46,3 +46,38 @@ export function throttle(fn, delay) {
 
   return throttledFn
 }
+
+// 获取文件类型
+export function getFileType(contentType) {
+  const type = contentType?.toLowerCase()
+
+  // 图片
+  const imageExts = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp']
+  // 视频
+  const videoExts = ['mp4', 'webm', 'ogg', 'mov']
+  // 音频
+  const audioExts = ['mp3', 'wav', 'aac', 'flac', 'm4a']
+  // 压缩文件
+  const zipExts = ['zip', 'rar', '7z', 'tar', 'gz', 'bz2', 'xz']
+  // excel
+  const excelExts = ['xls', 'xlsx', 'csv']
+  // word
+  const wordExts = ['doc', 'docx']
+  // ppt
+  const pptExts = ['ppt', 'pptx']
+  // pdf
+  const pdfExts = ['pdf']
+
+
+  if (imageExts.includes(type)) return 'image'
+  if (videoExts.includes(type)) return 'video'
+  if (audioExts.includes(type)) return 'audio'
+  if (zipExts.includes(type)) return 'zip'
+  if (excelExts.includes(type)) return 'excel'
+  if (wordExts.includes(type)) return 'word'
+  if (pptExts.includes(type)) return 'ppt'
+  if (pdfExts.includes(type)) return 'pdf'
+
+  // 默认为文本
+  return 'text'
+}

@@ -100,10 +100,12 @@ func InitHmailApp(adminPassword string) (*ole.IDispatch, error) {
 	runtime.LockOSThread()
 
 	// 初始化 COM 库
-	err := ole.CoInitialize(0)
+	err := ole.CoInitializeEx(0, ole.COINIT_APARTMENTTHREADED|ole.COINIT_DISABLE_OLE1DDE)
 	if err != nil {
-		runtime.UnlockOSThread()
-		return nil, fmt.Errorf("初始化 COM 失败: %v", err)
+		if oleErr, ok := err.(*ole.OleError); !ok || oleErr.Code() != 0x00000001 {
+			runtime.UnlockOSThread()
+			return nil, fmt.Errorf("初始化 COM 失败: %v", err)
+		}
 	}
 
 	// 创建 hMailServer.Application 对象

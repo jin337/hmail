@@ -114,8 +114,6 @@ func MailList(email, pwd, folder string, page, size int64, keyword string) ([]*m
 		toMail, toInfo, _ := utils.GetNameInfo(env.GetHeader("To"))
 		ccMail, ccInfo, _ := utils.GetNameInfo(env.GetHeader("Cc"))
 
-		fromNameVal := formInfo[0].Name
-
 		inReplyToVal := env.GetHeader("In-Reply-To")
 		referencesVal := env.GetHeader("References")
 
@@ -134,7 +132,7 @@ func MailList(email, pwd, folder string, page, size int64, keyword string) ([]*m
 			ReplyTo:    &inReplyToVal,
 			References: &referencesVal,
 			From:       fromMail,
-			FromName:   &fromNameVal,
+			FromInfo:   formInfo[0],
 			To:         toMail,
 			ToInfo:     toInfo,
 			Cc:         ccMail,
@@ -216,12 +214,14 @@ func MailDetail(email, pwd string, folder string, uid int64) (*model.MailDetail,
 
 		filetype := strings.Split(att.FileName, ".")[1]
 
+		size := uint32(len(att.Content))
+
 		attachments = append(attachments, model.AttachmentInfo{
 			PartID:      att.PartID,
 			FileName:    att.FileName,
 			ContentType: att.ContentType,
-			FileType:    filetype,
-			Size:        int64(len(att.Content)),
+			FileType:    strings.ToLower(filetype),
+			Size:        utils.FormatFileSize(size),
 		})
 	}
 
@@ -789,8 +789,6 @@ func SearchMailByMessageID(imapClient *client.Client, folder string, messageID s
 	toMail, toInfo, _ := utils.GetNameInfo(env.GetHeader("To"))
 	ccMail, ccInfo, _ := utils.GetNameInfo(env.GetHeader("Cc"))
 
-	fromNameVal := formInfo[0].Name
-
 	inReplyToVal := env.GetHeader("In-Reply-To")
 	referencesVal := env.GetHeader("References")
 
@@ -809,7 +807,7 @@ func SearchMailByMessageID(imapClient *client.Client, folder string, messageID s
 		ReplyTo:    &inReplyToVal,
 		References: &referencesVal,
 		From:       fromMail,
-		FromName:   &fromNameVal,
+		FromInfo:   formInfo[0],
 		To:         toMail,
 		ToInfo:     toInfo,
 		Cc:         ccMail,

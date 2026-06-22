@@ -39,11 +39,11 @@ type MailItem struct {
 	References *string     `json:"references"` // 引用
 	Folder     string      `json:"folder"`     // 文件夹
 	From       *string     `json:"from"`       // 发件人
-	FromName   *string     `json:"from_name"`  // 发件人姓名
+	FromInfo   *MailInfo   `json:"from_info"`  // 发件人信息
 	To         *string     `json:"to"`         // 收件人
-	ToInfo     []*MailInfo `json:"to_info"`    // 收件人姓名
+	ToInfo     []*MailInfo `json:"to_info"`    // 收件人信息
 	Cc         *string     `json:"cc"`         // 抄送人
-	CcInfo     []*MailInfo `json:"cc_info"`    // 抄送人姓名
+	CcInfo     []*MailInfo `json:"cc_info"`    // 抄送人信息
 	Subject    string      `json:"subject"`    // 主题
 	SendTime   string      `json:"send_time"`  // 发送时间
 	IsRead     bool        `json:"is_read"`    // 是否已读
@@ -70,7 +70,7 @@ type AttachmentInfo struct {
 	FileName    string `json:"file_name"`    // 文件名
 	ContentType string `json:"content_type"` // 内容类型
 	FileType    string `json:"file_type"`    // 文件类型
-	Size        int64  `json:"size"`         // 文件大小
+	Size        string `json:"size"`         // 文件大小
 }
 
 // 登录请求
