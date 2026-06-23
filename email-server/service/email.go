@@ -117,12 +117,15 @@ func MailList(email, pwd, folder string, page, size int64, keyword string) ([]*m
 		inReplyToVal := env.GetHeader("In-Reply-To")
 		referencesVal := env.GetHeader("References")
 
-		// 标记已读
-		isRead := false
-		for _, f := range msg.Flags {
-			if f == imap.SeenFlag {
-				isRead = true
-				break
+		// 只有收件箱INBOX才判断已读状态，其他文件夹默认为已读
+		isRead := true
+		if folder == "INBOX" {
+			isRead = false
+			for _, f := range msg.Flags {
+				if f == imap.SeenFlag {
+					isRead = true
+					break
+				}
 			}
 		}
 

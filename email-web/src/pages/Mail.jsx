@@ -185,7 +185,7 @@ const MailLayout = () => {
     }
     const jsonString = JSON.stringify(params)
     const base64Str = btoa(encodeURIComponent(jsonString))
-    window.open(`/preview?data=${base64Str}`, '_blank')
+    window.open(`/preview?preview=${base64Str}`, '_blank')
   }
 
   // 下载附件
@@ -241,8 +241,8 @@ const MailLayout = () => {
         const newItem = {
           ...item,
           detail: newData,
-          to_email: item?.to.split(', '),
-          cc_email: item?.cc ? item?.cc.split(', ') : [],
+          to_info: item.to_info.map((e) => ({ label: e.name, value: e.email })),
+          cc_info: item?.cc_info?.map((e) => ({ label: e.name, value: e.email })) || [],
         }
         onWriteMail('rewrite', newItem)
       }

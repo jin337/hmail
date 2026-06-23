@@ -72,3 +72,6 @@ strong {
 .jv-toolbar-btn--fullscreen {
   display: none !important;
 }
+.pptx-preview-wrapper{
+  height: 100% !important;
+}

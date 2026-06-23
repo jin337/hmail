@@ -37,14 +37,14 @@ const Preview = () => {
   }
 
   useEffect(() => {
-    const encodedData = searchParams.get('data')
+    const encodedData = searchParams.get('preview')
     encodedData && init(encodedData)
 
     return () => viewer && viewer.destroy()
   }, [searchParams])
 
   return (
-    <div className='relative z-10 h-[calc(100%-56px)] w-full'>
+    <div className='relative z-10 h-screen w-full'>
       <div ref={containerRef} className='h-full w-full' />
       <div className='absolute bottom-0 z-20 h-9 w-full border-t border-gray-300 bg-white'></div>
     </div>

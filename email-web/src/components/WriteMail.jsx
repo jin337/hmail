@@ -210,6 +210,7 @@ export default function WriteMail({ detail, userList = [], onClose, onChange, on
                 autoUpload={false}
                 action='/'
                 multiple
+                tip='（上传附件不得超过20M）'
                 showUploadList={{ startIcon: null }}
                 fileList={fileList}
                 onChange={setFileList}>
