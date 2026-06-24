@@ -189,7 +189,7 @@ const MailLayout = () => {
     }
     const jsonString = JSON.stringify(params)
     const base64Str = btoa(encodeURIComponent(jsonString))
-    window.open(`/preview?preview=${base64Str}`, '_blank')
+    window.open(`/web/preview?preview=${base64Str}`, '_blank')
   }
 
   // 下载附件
@@ -918,7 +918,7 @@ const MailLayout = () => {
                           )}
                         </div>
                         <div className='w-45 text-right text-gray-400'>
-                          {dayjs(currentMail?.date).format('YYYY年MM月DD日 HH:mm:ss') || ''}
+                          {dayjs(currentMail?.send_time).format('YYYY年MM月DD日 HH:mm:ss') || ''}
                         </div>
                       </div>
                     </div>
