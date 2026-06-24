@@ -96,31 +96,31 @@ func MailDetail(c *gin.Context) {
 	})
 }
 
-// MarkRead 标记已读
-func MarkRead(c *gin.Context) {
+// MarkFlag 标记已读
+func MarkFlag(c *gin.Context) {
 	email, _ := c.Get("userEmail")
 	pwd, _ := c.Get("userPwd")
 
-	var req model.UpdateMailStatusReq
+	var req model.UpdateMailFlagReq
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(200, gin.H{"code": 400, "msg": "参数错误"})
 		return
 	}
 
 	// 验证必传参数
-	if err := utils.ValidateRequiredParams([]string{"Uid", "Folder", "Status"}, req); err != nil {
+	if err := utils.ValidateRequiredParams([]string{"Uid", "Folder", "Status", "Type"}, req); err != nil {
 		c.JSON(200, gin.H{"code": 400, "msg": err.Error()})
 		return
 	}
 
-	err := service.UpdateMailStatus(email.(string), pwd.(string), req.Folder, req.Uid, req.Status)
+	err := service.UpdateMailFlag(email.(string), pwd.(string), req.Folder, req.Uid, req.Type, req.Status)
 	if err != nil {
 		c.JSON(200, gin.H{"code": 500, "msg": "更新邮件状态失败: " + err.Error()})
 		return
 	}
 	c.JSON(200, gin.H{
 		"code": 200,
-		"msg":  "状态成功",
+		"msg":  "状态修改成功",
 	})
 }
 

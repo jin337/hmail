@@ -2,6 +2,7 @@ package main
 
 import (
 	"email-server/config"
+	"email-server/constant"
 	"email-server/router"
 	"fmt"
 	"time"
@@ -11,6 +12,9 @@ import (
 )
 
 func main() {
+	// // 配置注册
+	config.Init()
+
 	r := gin.Default()
 	r.Use(cors.New(cors.Config{
 		AllowOrigins:     []string{"*"},
@@ -28,5 +32,5 @@ func main() {
 	router.SetupRouter(r)
 
 	// 启动服务
-	r.Run(fmt.Sprintf(":%d", config.Port))
+	r.Run(fmt.Sprintf(":%s", config.GetConfig(constant.MailServerPort)))
 }

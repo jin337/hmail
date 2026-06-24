@@ -45,7 +45,7 @@ const UserPage = () => {
           <Button type='text' size='mini' onClick={() => EditUser(record)}>
             编辑
           </Button>
-          <Button type='text' size='mini' status='danger' onClick={() => DeleteUser(record)}>
+          <Button type='text' size='mini' status='danger' disabled={record?.is_admin} onClick={() => DeleteUser(record)}>
             删除
           </Button>
         </Space>

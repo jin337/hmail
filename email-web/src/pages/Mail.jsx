@@ -25,7 +25,8 @@ import {
   IconRight,
   IconSearch,
   IconSend,
-  IconToBottom,
+  IconStar,
+  IconToBottom
 } from '@arco-design/web-react/icon'
 
 import request from 'src/api/request'
@@ -45,12 +46,15 @@ import IconZip from 'src/assets/file_zip.svg'
 import IconMail from 'src/assets/mail.svg'
 import IconMailOpen from 'src/assets/mail_open.svg'
 import IconSent from 'src/assets/mail_sent.svg'
+import IconStarUnselect from 'src/assets/mail_star.svg'
+import IconStarSelect from 'src/assets/mail_star_open.svg'
 
 import { getFileType, throttle } from 'src/utils/index'
 
 // 左侧文件夹
 const menuList = [
   { key: 'inbox', folder: 'INBOX', title: '收件箱', icon: <IconEmail /> },
+  { key: 'archive', folder: 'Archive', title: '星标邮件', icon: <IconStar /> },
   { key: 'sent', folder: 'Sent', title: '已发送', icon: <IconSend /> },
   { key: 'drafts', folder: 'Drafts', title: '草稿箱', icon: <IconFile /> },
   { key: 'delete', folder: 'Deleted', title: '垃圾箱', icon: <IconDelete /> },
@@ -81,12 +85,12 @@ const MailLayout = () => {
   const totalPages = Math.ceil(total / pageSize)
 
   // 切换选中邮件
-  const handleCutMail = (record, key) => {
+  const onCutMail = (record, key) => {
     const index = mailList.findIndex((e) => e.uid === record.uid)
     if (key === 'prev') {
-      handleSelectMail(mailList[index - 1])
+      onSelectMail(mailList[index - 1])
     } else if (key === 'next') {
-      handleSelectMail(mailList[index + 1])
+      onSelectMail(mailList[index + 1])
     }
   }
 
@@ -175,7 +179,7 @@ const MailLayout = () => {
   }
 
   // 预览附件
-  const handlePreviewAttachment = (item) => {
+  const onPreviewAttachment = (item) => {
     const params = {
       uid: currentMail.uid,
       part_id: item.part_id,
@@ -189,7 +193,7 @@ const MailLayout = () => {
   }
 
   // 下载附件
-  const handleDownloadAttachment = async (item) => {
+  const onDownloadAttachment = async (item) => {
     const params = {
       uid: currentMail.uid,
       part_id: item.part_id,
@@ -208,7 +212,7 @@ const MailLayout = () => {
   }
 
   // 选中邮件查看详情
-  const handleSelectMail = async (item, e) => {
+  const onSelectMail = async (item, e) => {
     // 排除干扰点击
     const targetElement = e?.target
 
@@ -253,7 +257,7 @@ const MailLayout = () => {
   }
 
   // 搜索邮件
-  const handleSearch = async (val) => {
+  const onSearch = async (val) => {
     setCurrentMail(null)
     setSelectedRowKeys([])
 
@@ -281,7 +285,7 @@ const MailLayout = () => {
       })
 
       if (folder === 'INBOX') {
-        let inbox = list.filter((item) => !item.is_read)?.length || 0
+        let inbox = list.filter((item) => !item?.flags?.includes('Seen'))?.length || 0
         setFolderList((prev) =>
           prev.map((item) => {
             if (item.folder === folder) {
@@ -308,7 +312,7 @@ const MailLayout = () => {
   }
 
   // 删除邮件
-  const handleDelMail = async (ids) => {
+  const onDelMail = async (ids) => {
     setSelectedRowKeys([])
 
     if (currentFolder.folder === 'Deleted') {
@@ -387,7 +391,7 @@ const MailLayout = () => {
   </blockquote>${currentMail?.detail?.content || ''}`
 
   // 回复邮件
-  const handleReply = () => {
+  const onReply = () => {
     if (!currentMail) return
 
     const newMail = {
@@ -408,7 +412,7 @@ const MailLayout = () => {
   }
 
   // 转发邮件
-  const handleForward = () => {
+  const onForward = () => {
     if (!currentMail) return
 
     const newMail = {
@@ -425,20 +429,63 @@ const MailLayout = () => {
     onWriteMail('forward', newMail)
   }
 
-  // 标记已读
-  const onRead = async (item) => {
-    if (item?.is_read) return
+  // 星标邮件
+  const onStar = async (item) => {
+    const type = item?.flags?.includes('Flagged') ? 2 : 1 // 1:添加星标 2:取消星标
     const params = {
       uid: item.uid,
       folder: currentFolder.folder,
-      status: '\\Seen',
+      status: 'Flagged',
+      type,
+    }
+    const { code } = await request.post('/api/mail/status', params)
+    if (code === 200) {
+      setMailList((prev) => {
+        let newList = [...prev]
+        const index = newList.findIndex((item) => item.uid === params.uid)
+        let flags = newList[index]?.flags || []
+        if (type === 1) {
+          flags.push('Flagged')
+        } else {
+          flags = flags?.filter((item) => item !== 'Flagged')
+        }
+        newList[index].flags = flags
+        return newList
+      })
+
+      setCurrentMail((prev) => {
+        let newItem = { ...prev }
+        let flags = newItem?.flags || []
+        if (type === 1) {
+          flags.push('Flagged')
+        } else {
+          flags = flags?.filter((item) => item !== 'Flagged')
+        }
+        newItem.flags = flags
+
+        return newItem
+      })
+    }
+  }
+
+  // 标记已读
+  const onRead = async (item) => {
+    const isRead = item?.flags?.includes('Seen')
+    if (isRead) return
+    const params = {
+      uid: item.uid,
+      folder: currentFolder.folder,
+      status: 'Seen',
+      type: 1,
     }
     const { code } = await request.post('/api/mail/status', params)
     if (code === 200) {
       setMailList((prev) => {
         const newList = [...prev]
         const index = newList.findIndex((item) => item.uid === params.uid)
-        newList[index].is_read = true
+        let flags = newList[index]?.flags || []
+        flags.push('Seen')
+        newList[index].flags = flags
         return newList
       })
 
@@ -454,7 +501,7 @@ const MailLayout = () => {
   }
 
   // 发送邮件&草稿
-  const handleSend = async (type, form, html, fileList, detail, setLoading) => {
+  const onSend = async (type, form, html, fileList, detail, setLoading) => {
     const values = form.getFieldsValue()
     if (!values.to_info || !values.subject) {
       Message.warning('请填写收件人和主题')
@@ -558,7 +605,7 @@ const MailLayout = () => {
     [totalPages, mailList.length, searchWord]
   )
 
-  const handleScroll = useCallback(
+  const onScroll = useCallback(
     (e) => {
       throttledScrollHandler(e)
     },
@@ -570,16 +617,16 @@ const MailLayout = () => {
     const scrollContainer = tableRef?.current?.querySelector('.arco-table-body')
 
     if (scrollContainer) {
-      scrollContainer.addEventListener('scroll', handleScroll)
+      scrollContainer.addEventListener('scroll', onScroll)
     }
 
     return () => {
       if (scrollContainer) {
-        scrollContainer.removeEventListener('scroll', handleScroll)
+        scrollContainer.removeEventListener('scroll', onScroll)
       }
       throttledScrollHandler.cancel()
     }
-  }, [handleScroll, throttledScrollHandler])
+  }, [onScroll, throttledScrollHandler])
 
   // 销毁定时器
   useEffect(() => {
@@ -625,7 +672,7 @@ const MailLayout = () => {
             userList={userList?.list || []}
             onChange={setNewWriteMail}
             onClose={onClickCompose}
-            onSend={handleSend} // 传递邮件发送函数
+            onSend={onSend} // 传递邮件发送函数
           />
         </Spin>
       )}
@@ -653,8 +700,8 @@ const MailLayout = () => {
               allowClear
               value={searchWord}
               onChange={setSearchWord}
-              onSearch={handleSearch}
-              onClear={handleSearch}
+              onSearch={onSearch}
+              onClear={onSearch}
             />
           </div>
           {/* 中列：邮件列表 */}
@@ -683,7 +730,7 @@ const MailLayout = () => {
               onRow={(record) => {
                 return {
                   onClick: (e) => {
-                    handleSelectMail(record, e)
+                    onSelectMail(record, e)
                   },
                 }
               }}
@@ -694,7 +741,7 @@ const MailLayout = () => {
                       <span className={'text-base font-bold'}>{currentFolder?.title}</span>
                       <Space>
                         {selectedRowKeys.length > 0 && (
-                          <Button size='mini' icon={<IconDelete />} onClick={() => handleDelMail(selectedRowKeys)}>
+                          <Button size='mini' icon={<IconDelete />} onClick={() => onDelMail(selectedRowKeys)}>
                             {currentFolder.key === 'delete' ? '清空' : '删除'}
                           </Button>
                         )}
@@ -704,11 +751,11 @@ const MailLayout = () => {
                   ),
                   dataIndex: 'date',
                   render: (text, record) => (
-                    <div className={record.is_read ? '' : 'font-bold'} onClick={() => onRead(record)}>
+                    <div className={record?.flags?.includes('Seen') ? '' : 'font-bold'} onClick={() => onRead(record)}>
                       <div className={`flex items-center justify-between gap-2 ${!isTable ? 'mb-1' : ''}`}>
                         <div className={` ${isTable ? 'flex' : ''}`}>
                           <div className={`flex items-center gap-1.5 ${isTable ? 'w-60!' : ''}`}>
-                            {record.is_read ? <IconMailOpen /> : <IconMail />}
+                            {record?.flags?.includes('Seen') ? <IconMailOpen /> : <IconMail />}
                             {currentFolder?.key === 'sent' ? (
                               <>
                                 <IconSent />
@@ -729,19 +776,31 @@ const MailLayout = () => {
                             </div>
                           )}
                         </div>
-                        <div>
-                          {isTable && <span className='mr-2'>{record.size}</span>}
-                          <span>
+                        <div className='flex gap-4 text-right'>
+                          {isTable && <div className='w-16'>{record.size}</div>}
+                          <div className='w-16'>
                             {dayjs(record?.send_time).isBefore(dayjs().subtract(1, 'week'))
                               ? dayjs(record?.send_time).format('MM/DD')
                               : dayjs(record?.send_time).fromNow()}
-                          </span>
+                          </div>
+                          {isTable && (
+                            <>
+                              {record?.flags?.includes('Flagged') ? (
+                                <IconStarSelect data-no-click className='cursor-pointer text-xl!' />
+                              ) : (
+                                <IconStarUnselect data-no-click className='cursor-pointer text-xl!' />
+                              )}
+                            </>
+                          )}
                         </div>
                       </div>
                       {!isTable && (
                         <>
                           <div className={'truncate'}>{record?.subject || ''}</div>
-                          <div className={'truncate font-light text-gray-400'}>{record?.text || ''}</div>
+                          <div className={'flex items-center justify-between gap-2'}>
+                            <div className={'flex-1 truncate font-light text-gray-400'}>{record?.text || ''}</div>
+                            {record?.flags?.includes('Flagged') && <IconStarSelect className='cursor-pointer text-xl!' />}
+                          </div>
                         </>
                       )}
                     </div>
@@ -764,13 +823,13 @@ const MailLayout = () => {
                         返回
                       </Button>
                     )}
-                    <Button size='small' icon={<IconDelete />} onClick={() => handleDelMail([currentMail.uid])}>
+                    <Button size='small' icon={<IconDelete />} onClick={() => onDelMail([currentMail.uid])}>
                       {currentFolder.key === 'delete' ? '彻底删除' : '删除'}
                     </Button>
-                    <Button size='small' icon={<IconReply />} onClick={handleReply}>
+                    <Button size='small' icon={<IconReply />} onClick={onReply}>
                       回复
                     </Button>
-                    <Button size='small' icon={<IconRedo />} onClick={handleForward}>
+                    <Button size='small' icon={<IconRedo />} onClick={onForward}>
                       转发
                     </Button>
                     <Dropdown
@@ -797,13 +856,13 @@ const MailLayout = () => {
                         size='small'
                         icon={<IconLeft />}
                         disabled={currentMail?.uid === mailList[0]?.uid}
-                        onClick={() => handleCutMail(currentMail, 'prev')}>
+                        onClick={() => onCutMail(currentMail, 'prev')}>
                         上一封
                       </Button>
                       <Button
                         size='small'
                         disabled={currentMail?.uid === mailList[mailList?.length - 1]?.uid}
-                        onClick={() => handleCutMail(currentMail, 'next')}>
+                        onClick={() => onCutMail(currentMail, 'next')}>
                         下一封
                         <IconRight />
                       </Button>
@@ -812,7 +871,14 @@ const MailLayout = () => {
                 </div>
                 <div className='h-[calc(100vh-117px)] flex-1 overflow-y-auto p-4'>
                   {/* 邮件头部信息 */}
-                  <div className='mb-4 text-lg font-bold'>{currentMail.subject}</div>
+                  <div className='mb-4 flex items-center gap-2'>
+                    <span className='text-lg font-bold'>{currentMail.subject}</span>
+                    {currentMail?.flags?.includes('Flagged') ? (
+                      <IconStarSelect className='cursor-pointer text-xl!' onClick={() => onStar(currentMail)} />
+                    ) : (
+                      <IconStarUnselect className='cursor-pointer text-xl!' onClick={() => onStar(currentMail)} />
+                    )}
+                  </div>
                   <div className='mb-4 flex items-start gap-3'>
                     <Avatar className={'min-w-10!'} style={{ backgroundColor: '#FFEDD8', color: '#FF8800' }}>
                       {currentMail?.from_info?.name?.slice(0, 1).toUpperCase()}
@@ -897,11 +963,11 @@ const MailLayout = () => {
                               <span className='text-gray-400'>（{item.size}）</span>
                             </div>
                             <Space>
-                              <Button type='text' size='small' onClick={() => handlePreviewAttachment(item)}>
+                              <Button type='text' size='small' onClick={() => onPreviewAttachment(item)}>
                                 <IconEye />
                                 预览
                               </Button>
-                              <Button type='text' size='small' onClick={() => handleDownloadAttachment(item)}>
+                              <Button type='text' size='small' onClick={() => onDownloadAttachment(item)}>
                                 <IconToBottom />
                                 下载
                               </Button>

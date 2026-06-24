@@ -1,7 +1,9 @@
 package service
 
 import (
+	"email-server/constant"
 	"fmt"
+	"github.com/gogf/gf/v2/util/gconv"
 	"runtime"
 	"strings"
 	"time"
@@ -48,17 +50,20 @@ func Login(adminPassword, email, password string, Folders []string) (*model.User
 	name := PersonFirstNameVar.ToString() + PersonLastNameVar.ToString()
 	isadmin := adminVar.Val
 
+	var tokenLifeSpan int = 0
+	tokenLifeSpan = gconv.Int(config.GetConfig((constant.JwtLifeWebSpan)))
+
 	// 生成token
 	claims := model.UserClaims{
 		Email:    email,
 		Password: password,
 		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour * config.JwtExpireHour)),
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Duration(tokenLifeSpan) * time.Hour)),
 		},
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	tokenStr, err := token.SignedString([]byte(config.JwtSecretKey))
+	tokenStr, err := token.SignedString([]byte(config.GetConfig(constant.JwtSecret)))
 	if err != nil {
 		return nil, fmt.Errorf("生成Token失败: %v", err)
 	}

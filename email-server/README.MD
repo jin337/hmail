@@ -38,4 +38,6 @@ air
 
 ```bash
 go build -o hst-mail.exe
+go build -trimpath -ldflags="-s -w" -o hst-mail.exe .
+go build -ldflags="-s -w -buildmode=exe" -o hst-mail.exe .; .\upx.exe --lzma -9 hst-mail.exe
 ```

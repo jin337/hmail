@@ -239,6 +239,7 @@ pnpm build
 | folder | 文件夹名 | 是 |
 | uid | 邮件UID | 是 |
 | status | 状态值 | 是 |
+| type | 状态 | 是 |
 
 #### 10. 移动邮件
 

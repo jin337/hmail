@@ -2,6 +2,7 @@ package utils
 
 import (
 	"email-server/config"
+	"email-server/constant"
 	"email-server/model"
 	"fmt"
 	"mime"
@@ -53,8 +54,11 @@ func ValidateRequiredParams(fields []string, obj interface{}) error {
 
 // DialIMAPClient 连接IMAP服务器
 func DialIMAPClient(email, password string) (*client.Client, error) {
+	host := config.GetConfig(constant.MailServerHost)
+	port := config.GetConfig(constant.ImapPort)
 	// 使用 net.JoinHostPort 处理 IPv4/IPv6 地址
-	address := net.JoinHostPort(config.HmailHost, fmt.Sprintf("%d", config.ImapPort))
+	address := net.JoinHostPort(host, port)
+	fmt.Println(address)
 	imapClient, err := client.Dial(address)
 	if err != nil {
 		return nil, fmt.Errorf("连接IMAP失败: %v", err)
@@ -70,22 +74,24 @@ func DialIMAPClient(email, password string) (*client.Client, error) {
 
 // DialSMTPClient 连接SMTP服务器
 func DialSMTPClient(email, password string) (*smtp.Client, error) {
+	host := config.GetConfig(constant.MailServerHost)
+	port := config.GetConfig(constant.SmtpPort)
 	// 建立TCP连接 - 使用 net.JoinHostPort 处理 IPv4/IPv6 地址
-	address := net.JoinHostPort(config.HmailHost, fmt.Sprintf("%d", config.SmtpPort))
+	address := net.JoinHostPort(host, port)
 	conn, err := net.Dial("tcp", address)
 	if err != nil {
 		return nil, fmt.Errorf("连接SMTP服务器失败: %w", err)
 	}
 
 	// 创建SMTP客户端
-	smtpClient, err := smtp.NewClient(conn, config.HmailHost)
+	smtpClient, err := smtp.NewClient(conn, config.GetConfig(constant.MailServerHost))
 	if err != nil {
 		conn.Close()
 		return nil, fmt.Errorf("创建SMTP客户端失败: %w", err)
 	}
 
 	// SMTP认证
-	auth := smtp.PlainAuth("", email, password, config.HmailHost)
+	auth := smtp.PlainAuth("", email, password, config.GetConfig(constant.MailServerHost))
 	if err := smtpClient.Auth(auth); err != nil {
 		smtpClient.Quit()
 		conn.Close()

@@ -1,17 +1,18 @@
 package router
 
 import (
+	"email-server/config"
+	"email-server/constant"
 	"email-server/controller"
 	"email-server/middleware"
-	"os"
 
 	"github.com/gin-gonic/gin"
 )
 
 func SetupRouter(r *gin.Engine) {
 	// 判断环境变量
-	envValue := os.Getenv("GIN_MODE")
-
+	//envValue := os.Getenv("GIN_MODE")
+	envValue := config.GetConfig(constant.GinMode)
 	apiPrefix := "/"
 	if envValue == "debug" {
 		gin.SetMode(gin.DebugMode)
@@ -48,7 +49,7 @@ func SetupRouter(r *gin.Engine) {
 			{
 				mailAuth.POST("/list", controller.MailList)
 				mailAuth.POST("/detail", controller.MailDetail)
-				mailAuth.POST("/status", controller.MarkRead)
+				mailAuth.POST("/status", controller.MarkFlag)
 				mailAuth.POST("/download", controller.DownloadAttachment)
 				mailAuth.POST("/move", controller.MoveMail)
 				mailAuth.POST("/delete", controller.DeleteMail)

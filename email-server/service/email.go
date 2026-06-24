@@ -2,6 +2,7 @@ package service
 
 import (
 	"bytes"
+	"email-server/constant"
 	"encoding/base64"
 	"fmt"
 	"io"
@@ -117,15 +118,11 @@ func MailList(email, pwd, folder string, page, size int64, keyword string) ([]*m
 		inReplyToVal := env.GetHeader("In-Reply-To")
 		referencesVal := env.GetHeader("References")
 
-		// 只有收件箱INBOX才判断已读状态，其他文件夹默认为已读
-		isRead := true
-		if folder == "INBOX" {
-			isRead = false
-			for _, f := range msg.Flags {
-				if f == imap.SeenFlag {
-					isRead = true
-					break
-				}
+		var flags []string
+		for _, flag := range msg.Flags {
+			// 以 \ 开头的系统标记，截取后面文本
+			if strings.HasPrefix(flag, "\\") {
+				flags = append(flags, flag[1:])
 			}
 		}
 
@@ -144,9 +141,9 @@ func MailList(email, pwd, folder string, page, size int64, keyword string) ([]*m
 			SendTime:   utils.ParseMailDate(env.GetHeader("Date")),
 			Text:       showText,
 			HasAttach:  len(env.Attachments) > 0,
-			IsRead:     isRead,
 			Folder:     folder,
 			Size:       utils.FormatFileSize(msg.Size),
+			Flags:      flags,
 		}
 		list = append(list, item)
 	}
@@ -250,8 +247,8 @@ func MailDetail(email, pwd string, folder string, uid int64) (*model.MailDetail,
 	return detail, nil
 }
 
-// UpdateMailStatus 更新邮件状态
-func UpdateMailStatus(email, pwd string, folder string, uid int64, status string) error {
+// UpdateMailFlag 更新邮件状态
+func UpdateMailFlag(email, pwd string, folder string, uid int64, opType int64, status string) error {
 	imapClient, err := utils.DialIMAPClient(email, pwd)
 	if err != nil {
 		return err
@@ -276,20 +273,33 @@ func UpdateMailStatus(email, pwd string, folder string, uid int64, status string
 		imap.DraftFlag,    // "\\Draft" - 草稿
 	}
 
+	// 验证状态参数
+	var flag = "\\" + status
 	isValid := false
 	for _, vs := range validStatuses {
-		if status == vs {
+		if flag == vs {
 			isValid = true
 			break
 		}
 	}
 
 	if !isValid {
-		return fmt.Errorf("无效的状态标志: %s，必须是以下之一: %v", status, validStatuses)
+		return fmt.Errorf("无效的状态标志: %s，必须是以下之一: %v", flag, validStatuses)
 	}
 
-	flags := []interface{}{status}
-	err = imapClient.UidStore(uidSet, imap.AddFlags, flags, nil)
+	// 映射操作类型
+	var storeOp imap.StoreItem
+	switch opType {
+	case 1:
+		storeOp = imap.AddFlags // 添加标记
+	case 2:
+		storeOp = imap.RemoveFlags // 删除指定标记
+	default:
+		return fmt.Errorf("操作类型仅支持 1(添加)、2(删除)，传入值：%d", opType)
+	}
+
+	flags := []interface{}{flag}
+	err = imapClient.UidStore(uidSet, storeOp, flags, nil)
 	if err != nil {
 		return fmt.Errorf("更新邮件状态失败: %w", err)
 	}
@@ -449,11 +459,11 @@ func BuildRawEmail(email, pwd, folder string, uid int64, partIDs string, from, t
 	}
 
 	// 发件人
-	headers["From"] = utils.FormatMailAddr(config.AdminPwd, from[0])
+	headers["From"] = utils.FormatMailAddr(config.GetConfig(constant.AdminPassword), from[0])
 	// 收件人
 	var toAddrs []string
 	for _, email := range to {
-		name := utils.FormatMailAddr(config.AdminPwd, email)
+		name := utils.FormatMailAddr(config.GetConfig(constant.AdminPassword), email)
 
 		toAddrs = append(toAddrs, name)
 	}
@@ -463,7 +473,7 @@ func BuildRawEmail(email, pwd, folder string, uid int64, partIDs string, from, t
 	if len(cc) > 0 {
 		var ccAddrs []string
 		for _, email := range cc {
-			name := utils.FormatMailAddr(config.AdminPwd, email)
+			name := utils.FormatMailAddr(config.GetConfig(constant.AdminPassword), email)
 			fmt.Printf("ccName:%s\n", name)
 			ccAddrs = append(ccAddrs, name)
 		}
@@ -795,12 +805,11 @@ func SearchMailByMessageID(imapClient *client.Client, folder string, messageID s
 	inReplyToVal := env.GetHeader("In-Reply-To")
 	referencesVal := env.GetHeader("References")
 
-	// 标记已读
-	isRead := false
-	for _, f := range msg.Flags {
-		if f == imap.SeenFlag {
-			isRead = true
-			break
+	var flags []string
+	for _, flag := range msg.Flags {
+		// 以 \ 开头的系统标记，截取后面文本
+		if strings.HasPrefix(flag, "\\") {
+			flags = append(flags, flag[1:])
 		}
 	}
 
@@ -819,9 +828,9 @@ func SearchMailByMessageID(imapClient *client.Client, folder string, messageID s
 		SendTime:   utils.ParseMailDate(env.GetHeader("Date")),
 		Text:       showText,
 		HasAttach:  len(env.Attachments) > 0,
-		IsRead:     isRead,
 		Folder:     folder,
 		Size:       utils.FormatFileSize(msg.Size),
+		Flags:      flags,
 	}
 
 	return item, nil

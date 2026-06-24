@@ -36,7 +36,8 @@ export default function WriteMail({ detail, userList = [], onClose, onChange, on
     }
     if (!lastFocus) return
 
-    const list = form.getFieldValue(lastFocus) || []
+    const valueslist = form.getFieldValue(lastFocus) || []
+    const list = valueslist.filter((e) => e.value !== targetEmail.value)
     if (!list.includes(targetEmail)) {
       form.setFieldValue(lastFocus, [...list, targetEmail])
     }

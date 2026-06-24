@@ -46,10 +46,10 @@ type MailItem struct {
 	CcInfo     []*MailInfo `json:"cc_info"`    // 抄送人信息
 	Subject    string      `json:"subject"`    // 主题
 	SendTime   string      `json:"send_time"`  // 发送时间
-	IsRead     bool        `json:"is_read"`    // 是否已读
 	HasAttach  bool        `json:"has_attach"` // 是否有附件
 	Text       string      `json:"text"`       // 邮件内容
 	Size       string      `json:"size"`       // 邮件大小
+	Flags      []string    `json:"flags"`      // 标记
 }
 
 type MailInfo struct {
@@ -142,8 +142,9 @@ type DelMailReq struct {
 }
 
 // 更新邮件状态请求
-type UpdateMailStatusReq struct {
+type UpdateMailFlagReq struct {
 	Folder string `json:"folder" binding:"required"` // 文件夹
 	Uid    int64  `json:"uid" binding:"required"`    // 邮件ID
 	Status string `json:"status" binding:"required"` // 状态
+	Type   int64  `json:"type" binding:"required"`   // 1：添加，2：删除
 }

@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"email-server/constant"
 	"errors"
 
 	"email-server/config"
@@ -20,7 +21,7 @@ func JWTAuth() gin.HandlerFunc {
 		}
 
 		token, err := jwt.ParseWithClaims(tokenStr, &model.UserClaims{}, func(token *jwt.Token) (any, error) {
-			return []byte(config.JwtSecretKey), nil
+			return []byte(config.GetConfig(constant.JwtSecret)), nil
 		})
 		if err != nil {
 			// 检查是否是过期错误

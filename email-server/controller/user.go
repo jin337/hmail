@@ -2,6 +2,7 @@ package controller
 
 import (
 	"email-server/config"
+	"email-server/constant"
 	"email-server/model"
 	"email-server/service"
 	"email-server/utils"
@@ -25,7 +26,7 @@ func Login(c *gin.Context) {
 	}
 
 	// 获取用户信息
-	user, err := service.Login(config.AdminPwd, req.Email, req.Password, config.DefaultFolders)
+	user, err := service.Login(config.GetConfig(constant.AdminPassword), req.Email, req.Password, config.DefaultFolders)
 	if err != nil {
 		c.JSON(200, gin.H{"code": 500, "msg": err.Error()})
 		return
@@ -53,7 +54,7 @@ func ChangePassword(c *gin.Context) {
 		return
 	}
 
-	err := service.UpdatePassword(config.AdminPwd, email.(string), req.OldPassword, req.NewPassword)
+	err := service.UpdatePassword(config.GetConfig(constant.AdminPassword), email.(string), req.OldPassword, req.NewPassword)
 	if err != nil {
 		c.JSON(200, gin.H{"code": 500, "msg": err.Error()})
 		return
@@ -67,7 +68,7 @@ func ChangePassword(c *gin.Context) {
 // UserList 获取用户列表
 func UserList(c *gin.Context) {
 	email, _ := c.Get("userEmail")
-	list, total, err := service.UserList(config.AdminPwd, email.(string))
+	list, total, err := service.UserList(config.GetConfig(constant.AdminPassword), email.(string))
 	if err != nil {
 		c.JSON(200, gin.H{"code": 500, "msg": "获取用户列表失败: " + err.Error()})
 		return
@@ -96,7 +97,7 @@ func CreateUser(c *gin.Context) {
 		return
 	}
 
-	err := service.CreateUser(config.DefaultFolders, config.AdminPwd, req.Email, req.Password, req.PersonFirstName, req.PersonLastName, req.IsAdmin)
+	err := service.CreateUser(config.DefaultFolders, config.GetConfig(constant.AdminPassword), req.Email, req.Password, req.PersonFirstName, req.PersonLastName, req.IsAdmin)
 	if err != nil {
 		c.JSON(200, gin.H{"code": 500, "msg": err.Error()})
 		return
@@ -121,7 +122,7 @@ func DeleteUser(c *gin.Context) {
 		return
 	}
 
-	err := service.DeleteUser(config.AdminPwd, req.Email)
+	err := service.DeleteUser(config.GetConfig(constant.AdminPassword), req.Email)
 	if err != nil {
 		c.JSON(200, gin.H{"code": 500, "msg": err.Error()})
 		return
@@ -146,7 +147,7 @@ func UpdateUser(c *gin.Context) {
 		return
 	}
 
-	err := service.UpdateUser(config.AdminPwd, req.Email, req.PersonFirstName, req.PersonLastName, req.IsAdmin)
+	err := service.UpdateUser(config.GetConfig(constant.AdminPassword), req.Email, req.PersonFirstName, req.PersonLastName, req.IsAdmin)
 	if err != nil {
 		c.JSON(200, gin.H{"code": 500, "msg": err.Error()})
 		return
