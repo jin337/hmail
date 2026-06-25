@@ -115,7 +115,7 @@ type MailListReq struct {
 	Keyword string `json:"keyword"`                   // 关键字
 }
 type MailStarListReq struct {
-	Keyword string `json:"keyword"`                   // 关键字
+	Keyword string `json:"keyword"` // 关键字
 }
 
 // 邮件详情请求

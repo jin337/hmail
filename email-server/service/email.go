@@ -20,6 +20,7 @@ import (
 	"email-server/model"
 	"email-server/utils"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/emersion/go-imap"
 	"github.com/google/uuid"
 	"github.com/jhillyerd/enmime"
@@ -89,6 +90,11 @@ func MailList(email, pwd, folder string, page, size int64, keyword string) ([]*m
 		}, mailMsg)
 	}()
 
+	// 时间戳
+	type timeStamp struct {
+		timeStamp int64
+	}
+	var tmpList []timeStamp
 	// 获取邮件列表
 	var list []*model.MailItem
 	for msg := range mailMsg {
@@ -115,6 +121,8 @@ func MailList(email, pwd, folder string, page, size int64, keyword string) ([]*m
 		toMail, toInfo, _ := utils.GetNameInfo(env.GetHeader("To"))
 		ccMail, ccInfo, _ := utils.GetNameInfo(env.GetHeader("Cc"))
 
+		sendTime, sendTimeUnix := utils.ParseMailTime(env.GetHeader("Date"))
+
 		inReplyToVal := env.GetHeader("In-Reply-To")
 		referencesVal := env.GetHeader("References")
 
@@ -138,13 +146,16 @@ func MailList(email, pwd, folder string, page, size int64, keyword string) ([]*m
 			Cc:         ccMail,
 			CcInfo:     ccInfo,
 			Subject:    env.GetHeader("Subject"),
-			SendTime:   utils.ParseMailDate(env.GetHeader("Date")),
+			SendTime:   sendTime,
 			Text:       showText,
 			HasAttach:  len(env.Attachments) > 0,
 			Folder:     folder,
 			Size:       utils.FormatFileSize(msg.Size),
 			Flags:      flags,
 		}
+		tmpList = append(tmpList, timeStamp{
+			timeStamp: sendTimeUnix,
+		})
 		list = append(list, item)
 	}
 
@@ -152,9 +163,9 @@ func MailList(email, pwd, folder string, page, size int64, keyword string) ([]*m
 		return nil, 0, fmt.Errorf("获取邮件失败: %v", err)
 	}
 
-	// 按照uid倒序
+	// 按照时间倒序
 	sort.Slice(list, func(i, j int) bool {
-		return list[i].Uid > list[j].Uid
+		return tmpList[i].timeStamp > tmpList[j].timeStamp
 	})
 
 	return list, total, nil
@@ -833,6 +844,12 @@ func StarMailList(email, pwd string, keyword string) ([]*model.MailItem, int64, 
 	}
 	defer imapClient.Logout()
 
+	// 时间戳
+	type timeStamp struct {
+		timeStamp int64
+	}
+	var tmpList []timeStamp
+
 	var total int64
 	var list []*model.MailItem
 
@@ -907,6 +924,8 @@ func StarMailList(email, pwd string, keyword string) ([]*model.MailItem, int64, 
 			toMail, toInfo, _ := utils.GetNameInfo(env.GetHeader("To"))
 			ccMail, ccInfo, _ := utils.GetNameInfo(env.GetHeader("Cc"))
 
+			sendTime, sendTimeUnix := utils.ParseMailTime(env.GetHeader("Date"))
+
 			inReplyToVal := env.GetHeader("In-Reply-To")
 			referencesVal := env.GetHeader("References")
 
@@ -930,13 +949,16 @@ func StarMailList(email, pwd string, keyword string) ([]*model.MailItem, int64, 
 				Cc:         ccMail,
 				CcInfo:     ccInfo,
 				Subject:    env.GetHeader("Subject"),
-				SendTime:   utils.ParseMailDate(env.GetHeader("Date")),
+				SendTime:   sendTime,
 				Text:       showText,
 				HasAttach:  len(env.Attachments) > 0,
 				Folder:     folder,
 				Size:       utils.FormatFileSize(msg.Size),
 				Flags:      flags,
 			}
+			tmpList = append(tmpList, timeStamp{
+				timeStamp: sendTimeUnix,
+			})
 			list = append(list, item)
 		}
 
@@ -945,9 +967,10 @@ func StarMailList(email, pwd string, keyword string) ([]*model.MailItem, int64, 
 		}
 	}
 
-	// 按照uid倒序
+	// 按照时间倒序
 	sort.Slice(list, func(i, j int) bool {
-		return list[i].Uid > list[j].Uid
+		spew.Dump(tmpList[i], tmpList[j])
+		return tmpList[i].timeStamp > tmpList[j].timeStamp
 	})
 
 	return list, total, nil

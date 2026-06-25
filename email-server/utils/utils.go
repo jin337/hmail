@@ -345,6 +345,30 @@ func GetNameInfo(mailStr string) (*string, []*model.MailInfo, error) {
 	return &str, infoList, nil
 }
 
+// ParseMailDateToUnix 将邮件Date字符串转为Unix时间戳(秒)
+func ParseMailDateToUnix(dateStr string) int64 {
+	if dateStr == "" {
+		return 0
+	}
+	// RFC1123Z
+	t, err := time.Parse(time.RFC1123Z, dateStr)
+	if err == nil {
+		return t.Unix()
+	}
+	// RFC1123
+	t, err = time.Parse(time.RFC1123, dateStr)
+	if err == nil {
+		return t.Unix()
+	}
+	// 兼容老式RFC822格式
+	t, err = time.Parse("02 Jan 06 15:04 -0700", dateStr)
+	if err == nil {
+		return t.Unix()
+	}
+	// 解析失败返回0
+	return 0
+}
+
 // parseMailDate 解析时间，格式化为 2006-01-02 15:04:05
 func ParseMailDate(dateStr string) string {
 	if dateStr == "" {
@@ -360,6 +384,15 @@ func ParseMailDate(dateStr string) string {
 	if err == nil {
 		return t.Local().Format("2006-01-02 15:04:05")
 	}
+
 	// 解析失败返回原值
 	return dateStr
+}
+
+// parseMailDate 解析时间，格式化为 2006-01-02 15:04:05
+func ParseMailTime(dateStr string) (string, int64) {
+	date := ParseMailDate(dateStr)
+	unix := ParseMailDateToUnix(dateStr)
+	// 解析失败返回原值
+	return date, unix
 }

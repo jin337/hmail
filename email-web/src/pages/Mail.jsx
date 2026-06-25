@@ -451,6 +451,9 @@ const MailLayout = () => {
           flags = flags?.filter((item) => item !== 'Flagged')
         }
         newList[index].flags = flags
+        if (currentFolder.folder === 'Star') {
+          newList = newList?.filter((item) => item.uid !== params.uid)
+        }
         return newList
       })
 
@@ -463,7 +466,9 @@ const MailLayout = () => {
           flags = flags?.filter((item) => item !== 'Flagged')
         }
         newItem.flags = flags
-
+        if (currentFolder.folder === 'Star') {
+          newItem = null
+        }
         return newItem
       })
     }
