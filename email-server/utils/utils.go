@@ -312,7 +312,6 @@ func FormatMailAddr(adminPwd, email string) string {
 }
 
 // GetNameInfo 解析邮箱
-// 返回：邮箱逗号字符串 + 结构体列表 + 错误
 func GetNameInfo(mailStr string) (*string, []*model.MailInfo, error) {
 	if mailStr == "" {
 		return nil, nil, nil
