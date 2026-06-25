@@ -48,6 +48,7 @@ func SetupRouter(r *gin.Engine) {
 			mailAuth := mail.Use(middleware.JWTAuth())
 			{
 				mailAuth.POST("/list", controller.MailList)
+				mailAuth.POST("/star-list", controller.StarMailList)
 				mailAuth.POST("/detail", controller.MailDetail)
 				mailAuth.POST("/status", controller.MarkFlag)
 				mailAuth.POST("/download", controller.DownloadAttachment)

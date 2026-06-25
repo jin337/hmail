@@ -367,7 +367,7 @@ func DownloadAttachment(email, pwd string, folder string, uid int64, partID stri
 }
 
 // MoveMail 移动邮件
-func MoveMail(email, pwd string, fromFolder string, toFolder string, uids []int64) error {
+func MoveMail(email, pwd string, folder string, toFolder string, uids []int64) error {
 	imapClient, err := utils.DialIMAPClient(email, pwd)
 	if err != nil {
 		return err
@@ -375,9 +375,9 @@ func MoveMail(email, pwd string, fromFolder string, toFolder string, uids []int6
 	defer imapClient.Logout()
 
 	// 选择文件夹
-	_, err = imapClient.Select(fromFolder, false)
+	_, err = imapClient.Select(folder, false)
 	if err != nil {
-		return fmt.Errorf("选择文件夹 %s 失败: %w", fromFolder, err)
+		return fmt.Errorf("选择文件夹 %s 失败: %w", folder, err)
 	}
 
 	// 构建UID集合

@@ -9,7 +9,6 @@ const (
 	FolderDrafts  = "Drafts"
 	FolderDeleted = "Deleted"
 	FolderJunk    = "Junk"
-	FolderArchive = "Archive"
 )
 
 // 默认文件夹 - 登录时验证
@@ -19,7 +18,6 @@ var DefaultFolders = []string{
 	FolderDrafts,
 	FolderDeleted,
 	FolderJunk,
-	FolderArchive,
 }
 
 func Init() {

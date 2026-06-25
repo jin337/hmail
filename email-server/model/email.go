@@ -114,6 +114,9 @@ type MailListReq struct {
 	Size    int64  `json:"size"`                      // 每页数量
 	Keyword string `json:"keyword"`                   // 关键字
 }
+type MailStarListReq struct {
+	Keyword string `json:"keyword"`                   // 关键字
+}
 
 // 邮件详情请求
 type MailDetailReq struct {

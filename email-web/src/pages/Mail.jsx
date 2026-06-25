@@ -26,7 +26,7 @@ import {
   IconSearch,
   IconSend,
   IconStar,
-  IconToBottom
+  IconToBottom,
 } from '@arco-design/web-react/icon'
 
 import request from 'src/api/request'
@@ -53,11 +53,11 @@ import { getFileType, throttle } from 'src/utils/index'
 
 // 左侧文件夹
 const menuList = [
-  { key: 'inbox', folder: 'INBOX', title: '收件箱', icon: <IconEmail /> },
-  { key: 'archive', folder: 'Archive', title: '星标邮件', icon: <IconStar /> },
-  { key: 'sent', folder: 'Sent', title: '已发送', icon: <IconSend /> },
-  { key: 'drafts', folder: 'Drafts', title: '草稿箱', icon: <IconFile /> },
-  { key: 'delete', folder: 'Deleted', title: '垃圾箱', icon: <IconDelete /> },
+  { key: 'inbox', folder: 'INBOX', title: '收件箱', icon: <IconEmail className='text-lg!' /> },
+  { key: 'archive', folder: 'Archive', title: '星标邮件', icon: <IconStar className='text-lg!' /> },
+  { key: 'sent', folder: 'Sent', title: '已发送', icon: <IconSend className='text-lg!' /> },
+  { key: 'drafts', folder: 'Drafts', title: '草稿箱', icon: <IconFile className='text-lg!' /> },
+  { key: 'delete', folder: 'Deleted', title: '垃圾箱', icon: <IconDelete className='text-lg!' /> },
 ]
 
 const MailLayout = () => {
@@ -117,7 +117,7 @@ const MailLayout = () => {
       return Message.warning('写邮件页已打开，请先关闭')
     }
 
-    let composeItem = { key: 'compose', folder: 'DRAFTS', title: '草稿', icon: <IconFile /> }
+    let composeItem = { key: 'compose', folder: 'DRAFTS', title: '草稿', icon: <IconFile className='text-lg!' /> }
     if (key !== 'new') {
       composeItem.title = mailData?.subject
       setWriteMail(mailData)
@@ -649,13 +649,13 @@ const MailLayout = () => {
           selectedKeys={[currentFolder?.key || '']}
           onClickMenuItem={(key) => loadMailList(key)}>
           {folderList.map((item) => (
-            <Menu.Item key={item.key}>
-              <span>
+            <Menu.Item key={item.key} className='leading-8!'>
+              <div className='flex items-center'>
                 {item.icon}
                 <span className='inline-block w-27 overflow-hidden align-middle text-ellipsis whitespace-nowrap'>
                   {item.title}
                 </span>
-              </span>
+              </div>
               {item?.key === 'inbox' && item?.total > 0 && <span className='font-medium text-blue-600'>{item.total}</span>}
               {item?.key === 'compose' && <IconClose className='m-0!' onClick={() => onClickCompose('inbox')} />}
             </Menu.Item>
@@ -710,6 +710,7 @@ const MailLayout = () => {
             width={isTable ? (currentMail ? 0 : '100%') : 360}
             className={`box-shadow-none z-10 flex-1`}>
             <Table
+              size='middle'
               loading={loading}
               scroll={{ y: 'calc(100vh - 116px)' }}
               className={`email-list h-full ${isTable ? 'email-table' : ''}`}

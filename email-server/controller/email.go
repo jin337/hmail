@@ -67,6 +67,24 @@ func MailList(c *gin.Context) {
 	})
 }
 
+// StarMailList 获取星标邮件列表
+func StarMailList(c *gin.Context) {
+	var req model.MailStarListReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(200, gin.H{"code": 400, "msg": "参数错误"})
+		return
+	}
+
+	c.JSON(200, gin.H{
+		"code": 200,
+		"msg":  "success",
+		"data": gin.H{
+			"list":  nil,
+			"total": 0,
+		},
+	})
+}
+
 // MailDetail 获取邮件详情
 func MailDetail(c *gin.Context) {
 	email, _ := c.Get("userEmail")
