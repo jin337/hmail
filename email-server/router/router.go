@@ -52,6 +52,7 @@ func SetupRouter(r *gin.Engine) {
 				mailAuth.POST("/detail", controller.MailDetail)
 				mailAuth.POST("/status", controller.MarkFlag)
 				mailAuth.POST("/download", controller.DownloadAttachment)
+				mailAuth.GET("/inline", controller.InlineImage)
 				mailAuth.POST("/move", controller.MoveMail)
 				mailAuth.POST("/delete", controller.DeleteMail)
 				mailAuth.POST("/save-draft", controller.SaveDraft)

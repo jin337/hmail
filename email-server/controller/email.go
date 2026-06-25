@@ -184,6 +184,42 @@ func DownloadAttachment(c *gin.Context) {
 	c.Data(200, "application/octet-stream", fileBytes)
 }
 
+// InlineImage 显示内联图片
+func InlineImage(c *gin.Context) {
+	email, _ := c.Get("userEmail")
+	pwd, _ := c.Get("userPwd")
+
+	folder := c.Query("folder")
+	uidStr := c.Query("uid")
+	partID := c.Query("part_id")
+
+	// 验证必传参数
+	if folder == "" || uidStr == "" || partID == "" {
+		c.JSON(200, gin.H{"code": 400, "msg": "缺少必要参数: folder, uid, part_id"})
+		return
+	}
+
+	// 解析 UID
+	var uid int64
+	if _, err := fmt.Sscanf(uidStr, "%d", &uid); err != nil {
+		c.JSON(200, gin.H{"code": 400, "msg": "无效的 UID 格式"})
+		return
+	}
+
+	fileName, fileBytes, err := service.InlineImage(email.(string), pwd.(string), folder, uid, partID)
+	if err != nil {
+		c.JSON(200, gin.H{"code": 500, "msg": "下载失败: " + err.Error()})
+		return
+	}
+
+	// URL 编码文件名以支持中文和特殊字符
+	encodedFileName := url.QueryEscape(fileName)
+	c.Header("Content-Disposition", fmt.Sprintf("inline; filename*=UTF-8''%s; filename=%s", encodedFileName, encodedFileName))
+	c.Header("Content-Type", "image/*")                // 浏览器会直接显示图片
+	c.Header("Cache-Control", "public, max-age=86400") // 缓存一天
+	c.Data(200, "image/*", fileBytes)
+}
+
 // MoveMail 移动邮件
 func MoveMail(c *gin.Context) {
 	email, _ := c.Get("userEmail")

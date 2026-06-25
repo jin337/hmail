@@ -9,6 +9,7 @@ import (
 	"mime"
 	"mime/multipart"
 	"net/textproto"
+	"net/url"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -224,9 +225,33 @@ func MailDetail(email, pwd string, folder string, uid int64) (*model.MailDetail,
 		})
 	}
 
+	// 获取邮件正文
 	content := env.HTML
 	if content == "" {
 		content = env.Text
+	}
+
+	// 处理内联图片：将 cid:xxx 替换为图片接口地址
+	if content != "" && len(env.Inlines) > 0 {
+		// 构建 CID 到 PartID 的映射
+		cidMap := make(map[string]string)
+		for _, inline := range env.Inlines {
+			// Content-ID 通常格式为 <xxx>，去掉尖括号
+			contentID := strings.Trim(inline.Header.Get("Content-Id"), "<>")
+			if contentID != "" {
+				cidMap[contentID] = inline.PartID
+			}
+		}
+
+		// 批量替换 HTML 中的 cid: 引用
+		for cid, partID := range cidMap {
+			// 对 partID 进行 URL 编码
+			encodedPartID := url.QueryEscape(partID)
+			// 构建图片接口地址
+			imageUrl := fmt.Sprintf("/api/mail/inline?folder=%s&uid=%d&part_id=%s", folder, uid, encodedPartID)
+			// 替换所有 cid:xxx 引用
+			content = strings.ReplaceAll(content, "cid:"+cid, imageUrl)
+		}
 	}
 
 	var totalSize uint32
@@ -359,6 +384,84 @@ func DownloadAttachment(email, pwd string, folder string, uid int64, partID stri
 			fmt.Println("Found attachment:", att.FileName)
 			fileName = att.FileName
 			fileData = att.Content
+		}
+	}
+
+	return fileName, fileData, nil
+}
+
+// InlineImage 下载内联图片
+func InlineImage(email, pwd string, folder string, uid int64, partID string) (string, []byte, error) {
+	imapClient, err := utils.DialIMAPClient(email, pwd)
+	if err != nil {
+		return "", nil, err
+	}
+	defer imapClient.Logout()
+
+	// 选择文件夹
+	_, err = imapClient.Select(folder, false)
+	if err != nil {
+		return "", nil, fmt.Errorf("选择文件夹 %s 失败: %w", folder, err)
+	}
+
+	uidSet := new(imap.SeqSet)
+	uidSet.AddNum(uint32(uid))
+
+	bodyMail := make(chan *imap.Message, 1)
+	done := make(chan error, 1)
+
+	go func() {
+		done <- imapClient.UidFetch(uidSet, []imap.FetchItem{
+			imap.FetchRFC822,
+			imap.FetchUid,
+		}, bodyMail)
+	}()
+
+	// 从channel中获取邮件消息
+	msg, ok := <-bodyMail
+	if !ok {
+		if err := <-done; err != nil {
+			return "", nil, fmt.Errorf("获取邮件失败: %w", err)
+		}
+		return "", nil, fmt.Errorf("未找到内联图片 PartID: %s", partID)
+	}
+
+	section := &imap.BodySectionName{}
+	r := msg.GetBody(section)
+	if r == nil {
+		return "", nil, fmt.Errorf("无法获取邮件内容")
+	}
+	env, err := enmime.ReadEnvelope(r)
+	if err != nil {
+		return "", nil, fmt.Errorf("解析邮件失败: %w", err)
+	}
+
+	var fileName string
+	var fileData []byte
+	var contentType string
+	for _, inline := range env.Inlines {
+		if inline.PartID == partID {
+			fileName = inline.FileName
+			fileData = inline.Content
+			contentType = inline.ContentType
+			break
+		}
+	}
+
+	if fileData == nil {
+		return "", nil, fmt.Errorf("未找到内联图片 PartID: %s", partID)
+	}
+
+	// 如果没有文件名，使用默认名称
+	if fileName == "" {
+		fileName = "image.png"
+	}
+
+	// 如果没有 Content-Type，根据文件扩展名推断
+	if contentType == "" {
+		contentType = mime.TypeByExtension(filepath.Ext(fileName))
+		if contentType == "" {
+			contentType = "application/octet-stream"
 		}
 	}
 
