@@ -720,3 +720,132 @@ func UpdateDraft(email, pwd, folder string, raw []byte, uid int64) error {
 
 	return nil
 }
+
+// StarMailList 星标邮件
+func StarMailList(email, pwd string, keyword string) ([]*model.MailItem, int64, error) {
+	// 验证用户
+	imapClient, err := utils.DialIMAPClient(email, pwd)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer imapClient.Logout()
+
+	var total int64
+	var list []*model.MailItem
+
+	// 遍历所有文件夹config.DefaultFolders
+	for _, folder := range config.DefaultFolders {
+		// 选择文件夹
+		_, err = imapClient.Select(folder, false)
+		if err != nil {
+			fmt.Printf("选择文件夹 %s 失败: %v\n", folder, err)
+			continue
+		}
+
+		// 搜索星标邮件
+		searchCrit := &imap.SearchCriteria{}
+		searchCrit.WithFlags = []string{imap.FlaggedFlag}
+		if keyword != "" {
+			searchCrit.Text = []string{keyword}
+		}
+
+		ids, err := imapClient.Search(searchCrit)
+		if err != nil {
+			fmt.Printf("在文件夹 %s 中搜索星标邮件失败: %v\n", folder, err)
+			continue
+		}
+
+		if len(ids) == 0 {
+			continue
+		}
+
+		total += int64(len(ids))
+
+		// 构建序列号
+		seqSet := new(imap.SeqSet)
+		for _, id := range ids {
+			seqSet.AddNum(id)
+		}
+
+		// 获取完整原始邮件
+		mailMsg := make(chan *imap.Message, len(ids))
+		done := make(chan error, 1)
+		go func() {
+			done <- imapClient.Fetch(seqSet, []imap.FetchItem{
+				imap.FetchItem("BODY.PEEK[]"), // 邮件内容,不标记已读
+				imap.FetchUid,
+				imap.FetchFlags,
+				imap.FetchEnvelope,
+				imap.FetchRFC822Size,
+			}, mailMsg)
+		}()
+
+		// 获取邮件列表
+		for msg := range mailMsg {
+			// 获取邮件体
+			section := &imap.BodySectionName{}
+			r := msg.GetBody(section)
+			if r == nil {
+				continue
+			}
+
+			env, err := enmime.ReadEnvelope(r)
+			if err != nil {
+				fmt.Printf("解析邮件失败: %v\n", err)
+				continue
+			}
+
+			// 处理邮件正文（精简显示）
+			showText := strings.TrimSpace(env.Text)
+			showText = reg.ReplaceAllString(showText, "")
+			showText = strings.ReplaceAll(showText, "*", "")
+
+			fromMail, formInfo, _ := utils.GetNameInfo(env.GetHeader("From"))
+			toMail, toInfo, _ := utils.GetNameInfo(env.GetHeader("To"))
+			ccMail, ccInfo, _ := utils.GetNameInfo(env.GetHeader("Cc"))
+
+			inReplyToVal := env.GetHeader("In-Reply-To")
+			referencesVal := env.GetHeader("References")
+
+			var flags []string
+			for _, flag := range msg.Flags {
+				// 以 \ 开头的系统标记，截取后面文本
+				if strings.HasPrefix(flag, "\\") {
+					flags = append(flags, flag[1:])
+				}
+			}
+
+			item := &model.MailItem{
+				Uid:        int64(msg.Uid),
+				MessageId:  env.GetHeader("Message-Id"),
+				ReplyTo:    &inReplyToVal,
+				References: &referencesVal,
+				From:       fromMail,
+				FromInfo:   formInfo[0],
+				To:         toMail,
+				ToInfo:     toInfo,
+				Cc:         ccMail,
+				CcInfo:     ccInfo,
+				Subject:    env.GetHeader("Subject"),
+				SendTime:   utils.ParseMailDate(env.GetHeader("Date")),
+				Text:       showText,
+				HasAttach:  len(env.Attachments) > 0,
+				Folder:     folder,
+				Size:       utils.FormatFileSize(msg.Size),
+				Flags:      flags,
+			}
+			list = append(list, item)
+		}
+
+		if err := <-done; err != nil {
+			fmt.Printf("获取文件夹 %s 的邮件失败: %v\n", folder, err)
+		}
+	}
+
+	// 按照uid倒序
+	sort.Slice(list, func(i, j int) bool {
+		return list[i].Uid > list[j].Uid
+	})
+
+	return list, total, nil
+}

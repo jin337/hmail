@@ -435,7 +435,7 @@ const MailLayout = () => {
     const type = item?.flags?.includes('Flagged') ? 2 : 1 // 1:添加星标 2:取消星标
     const params = {
       uid: item.uid,
-      folder: currentFolder.folder,
+      folder: item.folder,
       status: 'Flagged',
       type,
     }
@@ -475,7 +475,7 @@ const MailLayout = () => {
     if (isRead) return
     const params = {
       uid: item.uid,
-      folder: currentFolder.folder,
+      folder: item.folder,
       status: 'Seen',
       type: 1,
     }
