@@ -54,7 +54,7 @@ import { getFileType, throttle } from 'src/utils/index'
 // 左侧文件夹
 const menuList = [
   { key: 'inbox', folder: 'INBOX', title: '收件箱', icon: <IconEmail className='text-lg!' /> },
-  { key: 'archive', folder: 'Archive', title: '星标邮件', icon: <IconStar className='text-lg!' /> },
+  { key: 'star', folder: 'Star', title: '星标邮件', icon: <IconStar className='text-lg!' /> },
   { key: 'sent', folder: 'Sent', title: '已发送', icon: <IconSend className='text-lg!' /> },
   { key: 'drafts', folder: 'Drafts', title: '草稿箱', icon: <IconFile className='text-lg!' /> },
   { key: 'delete', folder: 'Deleted', title: '垃圾箱', icon: <IconDelete className='text-lg!' /> },
@@ -211,7 +211,7 @@ const MailLayout = () => {
     document.body.removeChild(link)
   }
 
-  // 选中邮件查看详情
+  // 获取邮件详情
   const onSelectMail = async (item, e) => {
     // 排除干扰点击
     const targetElement = e?.target
@@ -228,7 +228,7 @@ const MailLayout = () => {
     setCurrentLoading(true)
     const params = {
       uid: item.uid,
-      folder: currentFolder.folder,
+      folder: item.folder,
     }
 
     const { code, data, msg } = await request.post('/api/mail/detail', params)
@@ -241,7 +241,7 @@ const MailLayout = () => {
         })),
       }
       setCurrentMail({ ...item, detail: newData })
-      if (currentFolder.key === 'drafts') {
+      if (item.key === 'drafts') {
         const newItem = {
           ...item,
           detail: newData,
@@ -270,8 +270,9 @@ const MailLayout = () => {
   const getMailData = async (folder, keyword = '', page = 1, isRefresh) => {
     // 加载邮件列表
     setLoading(true)
+    const url = folder === 'Star' ? '/api/mail/star-list' : '/api/mail/list'
     const params = { page, size: pageSize, folder, keyword }
-    let { code, data, msg } = await request.post('/api/mail/list', params)
+    let { code, data, msg } = await request.post(url, params)
     if (code === 200) {
       const list = (data?.list || []).map((e) => {
         const to_reply = e?.to_info?.map((t) => t.name + ' &lt;' + t.email + '&gt;').join(', ')
