@@ -131,6 +131,13 @@ type DownloadAttachReq struct {
 	PartID string `json:"part_id" binding:"required"` // 附件ID
 }
 
+// 邮件图片请求
+type MailImageReq struct {
+	Folder string `json:"folder" form:"folder" binding:"required"`
+	Uid    int64  `json:"uid" form:"uid" binding:"required"`
+	PartID string `json:"part_id" form:"part_id" binding:"required"`
+}
+
 // 邮件移动请求
 type MoveMailReq struct {
 	FromFolder string  `json:"from_folder" binding:"required"` // 源文件夹

@@ -97,6 +97,7 @@ func StarMailList(c *gin.Context) {
 func MailDetail(c *gin.Context) {
 	email, _ := c.Get("userEmail")
 	pwd, _ := c.Get("userPwd")
+	tokenStr := c.GetHeader("Authorization")
 
 	var req model.MailDetailReq
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -110,7 +111,7 @@ func MailDetail(c *gin.Context) {
 		return
 	}
 
-	mailItem, err := service.MailDetail(email.(string), pwd.(string), req.Folder, req.Uid)
+	mailItem, err := service.MailDetail(email.(string), pwd.(string),tokenStr, req.Folder, req.Uid)
 	if err != nil {
 		c.JSON(200, gin.H{"code": 500, "msg": "获取邮件详情失败: " + err.Error()})
 		return
@@ -189,26 +190,21 @@ func InlineImage(c *gin.Context) {
 	email, _ := c.Get("userEmail")
 	pwd, _ := c.Get("userPwd")
 
-	folder := c.Query("folder")
-	uidStr := c.Query("uid")
-	partID := c.Query("part_id")
+	var req model.MailImageReq
+	if err := c.ShouldBindQuery(&req); err != nil {
+		c.JSON(200, gin.H{"code": 400, "msg": "参数错误"})
+		return
+	}
 
 	// 验证必传参数
-	if folder == "" || uidStr == "" || partID == "" {
-		c.JSON(200, gin.H{"code": 400, "msg": "缺少必要参数: folder, uid, part_id"})
+	if err := utils.ValidateRequiredParams([]string{"Uid", "Folder", "PartID"}, req); err != nil {
+		c.JSON(200, gin.H{"code": 400, "msg": err.Error()})
 		return
 	}
 
-	// 解析 UID
-	var uid int64
-	if _, err := fmt.Sscanf(uidStr, "%d", &uid); err != nil {
-		c.JSON(200, gin.H{"code": 400, "msg": "无效的 UID 格式"})
-		return
-	}
-
-	fileName, fileBytes, err := service.InlineImage(email.(string), pwd.(string), folder, uid, partID)
+	fileName, fileBytes, err := service.InlineImage(email.(string), pwd.(string), req.Folder, req.Uid, req.PartID)
 	if err != nil {
-		c.JSON(200, gin.H{"code": 500, "msg": "下载失败: " + err.Error()})
+		c.JSON(200, gin.H{"code": 500, "msg": "显示内联图片失败: " + err.Error()})
 		return
 	}
 

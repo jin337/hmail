@@ -172,7 +172,7 @@ func MailList(email, pwd, folder string, page, size int64, keyword string) ([]*m
 }
 
 // MailDetail 获取邮件详情
-func MailDetail(email, pwd string, folder string, uid int64) (*model.MailDetail, error) {
+func MailDetail(email, pwd string, token string, folder string, uid int64) (*model.MailDetail, error) {
 	// 验证用户
 	imapClient, err := utils.DialIMAPClient(email, pwd)
 	if err != nil {
@@ -241,26 +241,27 @@ func MailDetail(email, pwd string, folder string, uid int64) (*model.MailDetail,
 	if content == "" {
 		content = env.Text
 	}
-
 	// 处理内联图片：将 cid:xxx 替换为图片接口地址
 	if content != "" && len(env.Inlines) > 0 {
-		// 构建 CID 到 PartID 的映射
 		cidMap := make(map[string]string)
 		for _, inline := range env.Inlines {
-			// Content-ID 通常格式为 <xxx>，去掉尖括号
 			contentID := strings.Trim(inline.Header.Get("Content-Id"), "<>")
 			if contentID != "" {
 				cidMap[contentID] = inline.PartID
 			}
 		}
 
+		// 获取后端服务器地址
+		serverHost := config.GetConfig("mail.server.host")
+		serverPort := config.GetConfig("mail.server.port")
+		baseUrl := fmt.Sprintf("http://%s:%s", serverHost, serverPort)
+
 		// 批量替换 HTML 中的 cid: 引用
 		for cid, partID := range cidMap {
-			// 对 partID 进行 URL 编码
 			encodedPartID := url.QueryEscape(partID)
-			// 构建图片接口地址
-			imageUrl := fmt.Sprintf("/api/mail/inline?folder=%s&uid=%d&part_id=%s", folder, uid, encodedPartID)
-			// 替换所有 cid:xxx 引用
+			encodedToken := url.QueryEscape(token)
+			// 构建图片接口地址（使用完整的后端URL）
+			imageUrl := fmt.Sprintf("%s/api/mail/inline?folder=%s&uid=%d&part_id=%s&Authorization=%s", baseUrl, folder, uid, encodedPartID, encodedToken)
 			content = strings.ReplaceAll(content, "cid:"+cid, imageUrl)
 		}
 	}
@@ -401,7 +402,7 @@ func DownloadAttachment(email, pwd string, folder string, uid int64, partID stri
 	return fileName, fileData, nil
 }
 
-// InlineImage 下载内联图片
+// InlineImage 显示内联图片
 func InlineImage(email, pwd string, folder string, uid int64, partID string) (string, []byte, error) {
 	imapClient, err := utils.DialIMAPClient(email, pwd)
 	if err != nil {

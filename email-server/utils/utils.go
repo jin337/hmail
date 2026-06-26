@@ -353,17 +353,17 @@ func ParseMailDateToUnix(dateStr string) int64 {
 	// RFC1123Z
 	t, err := time.Parse(time.RFC1123Z, dateStr)
 	if err == nil {
-		return t.Unix()
+		return t.UnixMilli()
 	}
 	// RFC1123
 	t, err = time.Parse(time.RFC1123, dateStr)
 	if err == nil {
-		return t.Unix()
+		return t.UnixMilli()
 	}
 	// 兼容老式RFC822格式
 	t, err = time.Parse("02 Jan 06 15:04 -0700", dateStr)
 	if err == nil {
-		return t.Unix()
+		return t.UnixMilli()
 	}
 	// 解析失败返回0
 	return 0

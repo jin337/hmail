@@ -270,8 +270,17 @@ const MailLayout = () => {
   const getMailData = async (folder, keyword = '', page = 1, isRefresh) => {
     // 加载邮件列表
     setLoading(true)
-    const url = folder === 'Star' ? '/api/mail/star-list' : '/api/mail/list'
-    const params = { page, size: pageSize, folder, keyword }
+    let url = '/api/mail/list'
+    let params = {
+      page,
+      size: pageSize,
+      folder,
+      keyword,
+    }
+    if (folder === 'Star') {
+      url = '/api/mail/star-list'
+      params = { keyword }
+    }
     let { code, data, msg } = await request.post(url, params)
     if (code === 200) {
       const list = (data?.list || []).map((e) => {

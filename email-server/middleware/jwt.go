@@ -15,6 +15,10 @@ func JWTAuth() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		tokenStr := c.GetHeader("Authorization")
 		if tokenStr == "" {
+			tokenStr = c.Query("Authorization")
+		}
+
+		if tokenStr == "" {
 			c.JSON(401, gin.H{"code": 401, "msg": "未登录，请先登录获取Token"})
 			c.Abort()
 			return
