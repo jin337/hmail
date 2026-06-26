@@ -21,6 +21,8 @@ func SetupRouter(r *gin.Engine) {
 		gin.SetMode(gin.ReleaseMode)
 	}
 
+	r.Static("/static", "./static")
+
 	// 创建路由组
 	public := r.Group(apiPrefix)
 

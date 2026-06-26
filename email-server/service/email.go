@@ -9,7 +9,7 @@ import (
 	"mime"
 	"mime/multipart"
 	"net/textproto"
-	"net/url"
+	"os"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -20,7 +20,6 @@ import (
 	"email-server/model"
 	"email-server/utils"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/emersion/go-imap"
 	"github.com/google/uuid"
 	"github.com/jhillyerd/enmime"
@@ -29,7 +28,7 @@ import (
 // MailList 获取邮件列表
 var reg = regexp.MustCompile(`\s+`)
 
-func MailList(email, pwd, folder string, page, size int64, keyword string) ([]*model.MailItem, int, error) {
+func MailList(email, pwd, folder string, page, size int64, keyword string) ([]*model.MailItem, int64, error) {
 	// 验证用户
 	imapClient, err := utils.DialIMAPClient(email, pwd)
 	if err != nil {
@@ -54,19 +53,20 @@ func MailList(email, pwd, folder string, page, size int64, keyword string) ([]*m
 		return nil, 0, err
 	}
 
-	total := len(ids)
+	// 获取总数
+	total := int64(len(ids))
 	if total == 0 {
 		return nil, 0, nil
 	}
 
 	// 分页
-	startIdx := int64(total) - page*size
-	endIdx := int64(total) - (page-1)*size
+	startIdx := total - page*size
+	endIdx := total - (page-1)*size
 	if startIdx < 0 {
 		startIdx = 0
 	}
-	if endIdx > int64(total) {
-		endIdx = int64(total)
+	if endIdx > total {
+		endIdx = total
 	}
 	// 反转索引以获取正确的分页范围
 	pageIdx := ids[startIdx:endIdx]
@@ -90,11 +90,6 @@ func MailList(email, pwd, folder string, page, size int64, keyword string) ([]*m
 		}, mailMsg)
 	}()
 
-	// 时间戳
-	type timeStamp struct {
-		timeStamp int64
-	}
-	var tmpList []timeStamp
 	// 获取邮件列表
 	var list []*model.MailItem
 	for msg := range mailMsg {
@@ -112,7 +107,7 @@ func MailList(email, pwd, folder string, page, size int64, keyword string) ([]*m
 			continue
 		}
 
-		// 处理邮件正文（精简显示）
+		// 处理邮件正文
 		showText := strings.TrimSpace(env.Text)
 		showText = reg.ReplaceAllString(showText, "")
 		showText = strings.ReplaceAll(showText, "*", "")
@@ -121,7 +116,7 @@ func MailList(email, pwd, folder string, page, size int64, keyword string) ([]*m
 		toMail, toInfo, _ := utils.GetNameInfo(env.GetHeader("To"))
 		ccMail, ccInfo, _ := utils.GetNameInfo(env.GetHeader("Cc"))
 
-		sendTime, sendTimeUnix := utils.ParseMailTime(env.GetHeader("Date"))
+		sendTime, _ := utils.ParseMailDate(env.GetHeader("Date"))
 
 		inReplyToVal := env.GetHeader("In-Reply-To")
 		referencesVal := env.GetHeader("References")
@@ -153,9 +148,6 @@ func MailList(email, pwd, folder string, page, size int64, keyword string) ([]*m
 			Size:       utils.FormatFileSize(msg.Size),
 			Flags:      flags,
 		}
-		tmpList = append(tmpList, timeStamp{
-			timeStamp: sendTimeUnix,
-		})
 		list = append(list, item)
 	}
 
@@ -165,7 +157,7 @@ func MailList(email, pwd, folder string, page, size int64, keyword string) ([]*m
 
 	// 按照时间倒序
 	sort.Slice(list, func(i, j int) bool {
-		return tmpList[i].timeStamp > tmpList[j].timeStamp
+		return list[i].SendTime.After(list[j].SendTime)
 	})
 
 	return list, total, nil
@@ -241,28 +233,62 @@ func MailDetail(email, pwd string, token string, folder string, uid int64) (*mod
 	if content == "" {
 		content = env.Text
 	}
-	// 处理内联图片：将 cid:xxx 替换为图片接口地址
+	// 处理内联图片
 	if content != "" && len(env.Inlines) > 0 {
 		cidMap := make(map[string]string)
-		for _, inline := range env.Inlines {
+
+		for idx, inline := range env.Inlines {
 			contentID := strings.Trim(inline.Header.Get("Content-Id"), "<>")
-			if contentID != "" {
-				cidMap[contentID] = inline.PartID
+			if contentID != "" && len(inline.Content) > 0 {
+				// 生成本地文件路径
+				fileName := inline.FileName
+				if fileName == "" {
+					ext := ".png"
+					if inline.ContentType != "" {
+						switch inline.ContentType {
+						case "image/jpeg":
+							ext = ".jpg"
+						case "image/gif":
+							ext = ".gif"
+						case "image/webp":
+							ext = ".webp"
+						}
+					}
+					// 使用索引确保唯一性
+					fileName = fmt.Sprintf("image_%d%s", idx, ext)
+				} else {
+					// 如果原文件名存在，添加索引前缀避免重名
+					ext := filepath.Ext(fileName)
+					nameWithoutExt := strings.TrimSuffix(fileName, ext)
+					fileName = fmt.Sprintf("%s_%d%s", nameWithoutExt, idx, ext)
+				}
+
+				// 保存到静态资源目录
+				staticDir := filepath.Join("static", "images", email, folder, fmt.Sprint(uid))
+				if err := os.MkdirAll(staticDir, 0755); err != nil {
+					fmt.Printf("创建静态目录失败: %v\n", err)
+					continue
+				}
+
+				localPath := filepath.Join(staticDir, fileName)
+				if err := os.WriteFile(localPath, inline.Content, 0644); err != nil {
+					fmt.Printf("保存内联图片失败: %v\n", err)
+					continue
+				}
+
+				// 构建 HTTP 访问 URL
+				serverHost := config.GetConfig("mail.server.host")
+				serverPort := config.GetConfig("mail.server.port")
+				imageURL := fmt.Sprintf("http://%s:%s/static/images/%s/%s/%d/%s",
+					serverHost, serverPort, email, folder, uid, fileName)
+
+				cidMap[contentID] = imageURL
 			}
 		}
 
-		// 获取后端服务器地址
-		serverHost := config.GetConfig("mail.server.host")
-		serverPort := config.GetConfig("mail.server.port")
-		baseUrl := fmt.Sprintf("http://%s:%s", serverHost, serverPort)
-
 		// 批量替换 HTML 中的 cid: 引用
-		for cid, partID := range cidMap {
-			encodedPartID := url.QueryEscape(partID)
-			encodedToken := url.QueryEscape(token)
-			// 构建图片接口地址（使用完整的后端URL）
-			imageUrl := fmt.Sprintf("%s/api/mail/inline?folder=%s&uid=%d&part_id=%s&Authorization=%s", baseUrl, folder, uid, encodedPartID, encodedToken)
-			content = strings.ReplaceAll(content, "cid:"+cid, imageUrl)
+		for cid, imageURL := range cidMap {
+			content = strings.ReplaceAll(content, "cid:"+cid, imageURL)
 		}
 	}
 
@@ -845,12 +871,6 @@ func StarMailList(email, pwd string, keyword string) ([]*model.MailItem, int64, 
 	}
 	defer imapClient.Logout()
 
-	// 时间戳
-	type timeStamp struct {
-		timeStamp int64
-	}
-	var tmpList []timeStamp
-
 	var total int64
 	var list []*model.MailItem
 
@@ -916,7 +936,7 @@ func StarMailList(email, pwd string, keyword string) ([]*model.MailItem, int64, 
 				continue
 			}
 
-			// 处理邮件正文（精简显示）
+			// 处理邮件正文
 			showText := strings.TrimSpace(env.Text)
 			showText = reg.ReplaceAllString(showText, "")
 			showText = strings.ReplaceAll(showText, "*", "")
@@ -925,7 +945,7 @@ func StarMailList(email, pwd string, keyword string) ([]*model.MailItem, int64, 
 			toMail, toInfo, _ := utils.GetNameInfo(env.GetHeader("To"))
 			ccMail, ccInfo, _ := utils.GetNameInfo(env.GetHeader("Cc"))
 
-			sendTime, sendTimeUnix := utils.ParseMailTime(env.GetHeader("Date"))
+			sendTime, _ := utils.ParseMailDate(env.GetHeader("Date"))
 
 			inReplyToVal := env.GetHeader("In-Reply-To")
 			referencesVal := env.GetHeader("References")
@@ -957,9 +977,6 @@ func StarMailList(email, pwd string, keyword string) ([]*model.MailItem, int64, 
 				Size:       utils.FormatFileSize(msg.Size),
 				Flags:      flags,
 			}
-			tmpList = append(tmpList, timeStamp{
-				timeStamp: sendTimeUnix,
-			})
 			list = append(list, item)
 		}
 
@@ -970,8 +987,7 @@ func StarMailList(email, pwd string, keyword string) ([]*model.MailItem, int64, 
 
 	// 按照时间倒序
 	sort.Slice(list, func(i, j int) bool {
-		spew.Dump(tmpList[i], tmpList[j])
-		return tmpList[i].timeStamp > tmpList[j].timeStamp
+		return list[i].SendTime.After(list[j].SendTime)
 	})
 
 	return list, total, nil

@@ -1,10 +1,12 @@
 package utils
 
 import (
+	"crypto/rand"
 	"email-server/config"
 	"email-server/constant"
 	"email-server/model"
 	"fmt"
+	"math/big"
 	"mime"
 	"net"
 	"net/mail"
@@ -58,7 +60,6 @@ func DialIMAPClient(email, password string) (*client.Client, error) {
 	port := config.GetConfig(constant.ImapPort)
 	// 使用 net.JoinHostPort 处理 IPv4/IPv6 地址
 	address := net.JoinHostPort(host, port)
-	fmt.Println(address)
 	imapClient, err := client.Dial(address)
 	if err != nil {
 		return nil, fmt.Errorf("连接IMAP失败: %v", err)
@@ -345,54 +346,35 @@ func GetNameInfo(mailStr string) (*string, []*model.MailInfo, error) {
 	return &str, infoList, nil
 }
 
-// ParseMailDateToUnix 将邮件Date字符串转为Unix时间戳(秒)
-func ParseMailDateToUnix(dateStr string) int64 {
+// parseMailDate 解析时间，格式化为 2006-01-02 15:04:05
+func ParseMailDate(dateStr string) (time.Time, error) {
 	if dateStr == "" {
-		return 0
+		return time.Time{}, fmt.Errorf("时间为空")
 	}
-	// RFC1123Z
-	t, err := time.Parse(time.RFC1123Z, dateStr)
-	if err == nil {
-		return t.UnixMilli()
+
+	if t, err := time.Parse(time.RFC1123Z, dateStr); err == nil {
+		return t.Local(), nil
 	}
-	// RFC1123
-	t, err = time.Parse(time.RFC1123, dateStr)
-	if err == nil {
-		return t.UnixMilli()
+
+	if t, err := time.Parse(time.RFC1123, dateStr); err == nil {
+		return t.Local(), nil
 	}
-	// 兼容老式RFC822格式
-	t, err = time.Parse("02 Jan 06 15:04 -0700", dateStr)
-	if err == nil {
-		return t.UnixMilli()
-	}
-	// 解析失败返回0
-	return 0
+
+	return time.Time{}, fmt.Errorf("不支持的日期格式: %s", dateStr)
 }
 
-// parseMailDate 解析时间，格式化为 2006-01-02 15:04:05
-func ParseMailDate(dateStr string) string {
-	if dateStr == "" {
-		return ""
-	}
-	// 优先标准 RFC1123Z
-	t, err := time.Parse(time.RFC1123Z, dateStr)
-	if err == nil {
-		return t.Local().Format("2006-01-02 15:04:05")
-	}
-	// 兼容不带时区的 RFC1123
-	t, err = time.Parse(time.RFC1123, dateStr)
-	if err == nil {
-		return t.Local().Format("2006-01-02 15:04:05")
-	}
+const shortChars = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+const shortLength = 6
 
-	// 解析失败返回原值
-	return dateStr
-}
-
-// parseMailDate 解析时间，格式化为 2006-01-02 15:04:05
-func ParseMailTime(dateStr string) (string, int64) {
-	date := ParseMailDate(dateStr)
-	unix := ParseMailDateToUnix(dateStr)
-	// 解析失败返回原值
-	return date, unix
+// 生成短链接
+func GenerateShortCode() (string, error) {
+	b := make([]byte, shortLength)
+	for i := range b {
+		n, err := rand.Int(rand.Reader, big.NewInt(int64(len(shortChars))))
+		if err != nil {
+			return "", err
+		}
+		b[i] = shortChars[n.Int64()]
+	}
+	return string(b), nil
 }

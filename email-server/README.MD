@@ -37,7 +37,12 @@ air
 ## 5. 打包项目
 
 ```bash
-go build -o email-server.exe
-go build -trimpath -ldflags="-s -w" -o email-server.exe .
-go build -ldflags="-s -w -buildmode=exe" -o email-server.exe .; .\upx.exe --lzma -9 email-server.exe
+# 编译
+go build -trimpath -ldflags="-s -w" -o email-server.exe main.go
+
+# UPX压缩
+upx --lzma -9 email-server.exe
+
+# 校验
+upx -t email-server.exe
 ```

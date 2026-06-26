@@ -240,6 +240,9 @@ const MailLayout = () => {
           file_type: getFileType(e.file_type),
         })),
       }
+
+      newData.content = transHtml(newData.content)
+
       setCurrentMail({ ...item, detail: newData })
       if (item.key === 'drafts') {
         const newItem = {
@@ -254,6 +257,25 @@ const MailLayout = () => {
       Message.error(msg)
     }
     setCurrentLoading(false)
+  }
+
+  // 转换HTML内容
+  const transHtml = (html) => {
+    const parser = new DOMParser()
+    const doc = parser.parseFromString(html, 'text/html')
+    const divs = doc.body.querySelectorAll('div')
+
+    divs.forEach((div) => {
+      const p = document.createElement('p')
+      for (let attr of div.attributes) {
+        p.setAttribute(attr.name, attr.value)
+      }
+      while (div.firstChild) {
+        p.appendChild(div.firstChild)
+      }
+      div.parentNode.replaceChild(p, div)
+    })
+    return doc.body.innerHTML
   }
 
   // 搜索邮件

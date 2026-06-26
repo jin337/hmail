@@ -1,6 +1,8 @@
 package model
 
 import (
+	"time"
+
 	"github.com/golang-jwt/jwt/v5"
 )
 
@@ -45,7 +47,7 @@ type MailItem struct {
 	Cc         *string     `json:"cc"`         // 抄送人
 	CcInfo     []*MailInfo `json:"cc_info"`    // 抄送人信息
 	Subject    string      `json:"subject"`    // 主题
-	SendTime   string      `json:"send_time"`  // 发送时间
+	SendTime   time.Time   `json:"send_time"`  // 发送时间
 	HasAttach  bool        `json:"has_attach"` // 是否有附件
 	Text       string      `json:"text"`       // 邮件内容
 	Size       string      `json:"size"`       // 邮件大小
