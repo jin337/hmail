@@ -111,7 +111,7 @@ func MailDetail(c *gin.Context) {
 		return
 	}
 
-	mailItem, err := service.MailDetail(email.(string), pwd.(string),tokenStr, req.Folder, req.Uid)
+	mailItem, err := service.MailDetail(email.(string), pwd.(string), tokenStr, req.Folder, req.Uid)
 	if err != nil {
 		c.JSON(200, gin.H{"code": 500, "msg": "获取邮件详情失败: " + err.Error()})
 		return
@@ -183,37 +183,6 @@ func DownloadAttachment(c *gin.Context) {
 	c.Header("Content-Type", "application/octet-stream")
 	c.Header("Content-Length", fmt.Sprintf("%d", len(fileBytes)))
 	c.Data(200, "application/octet-stream", fileBytes)
-}
-
-// InlineImage 显示内联图片
-func InlineImage(c *gin.Context) {
-	email, _ := c.Get("userEmail")
-	pwd, _ := c.Get("userPwd")
-
-	var req model.MailImageReq
-	if err := c.ShouldBindQuery(&req); err != nil {
-		c.JSON(200, gin.H{"code": 400, "msg": "参数错误"})
-		return
-	}
-
-	// 验证必传参数
-	if err := utils.ValidateRequiredParams([]string{"Uid", "Folder", "PartID"}, req); err != nil {
-		c.JSON(200, gin.H{"code": 400, "msg": err.Error()})
-		return
-	}
-
-	fileName, fileBytes, err := service.InlineImage(email.(string), pwd.(string), req.Folder, req.Uid, req.PartID)
-	if err != nil {
-		c.JSON(200, gin.H{"code": 500, "msg": "显示内联图片失败: " + err.Error()})
-		return
-	}
-
-	// URL 编码文件名以支持中文和特殊字符
-	encodedFileName := url.QueryEscape(fileName)
-	c.Header("Content-Disposition", fmt.Sprintf("inline; filename*=UTF-8''%s; filename=%s", encodedFileName, encodedFileName))
-	c.Header("Content-Type", "image/*")                // 浏览器会直接显示图片
-	c.Header("Cache-Control", "public, max-age=86400") // 缓存一天
-	c.Data(200, "image/*", fileBytes)
 }
 
 // MoveMail 移动邮件
