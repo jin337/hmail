@@ -242,26 +242,9 @@ func MailDetail(email, pwd string, token string, folder string, uid int64) (*mod
 			if contentID != "" && len(inline.Content) > 0 {
 				// 生成本地文件路径
 				fileName := inline.FileName
-				if fileName == "" {
-					ext := ".png"
-					if inline.ContentType != "" {
-						switch inline.ContentType {
-						case "image/jpeg":
-							ext = ".jpg"
-						case "image/gif":
-							ext = ".gif"
-						case "image/webp":
-							ext = ".webp"
-						}
-					}
-					// 使用索引确保唯一性
-					fileName = fmt.Sprintf("image_%d%s", idx, ext)
-				} else {
-					// 如果原文件名存在，添加索引前缀避免重名
-					ext := filepath.Ext(fileName)
-					nameWithoutExt := strings.TrimSuffix(fileName, ext)
-					fileName = fmt.Sprintf("%s_%d%s", nameWithoutExt, idx, ext)
-				}
+				ext := filepath.Ext(fileName)
+				nameWithoutExt := strings.TrimSuffix(fileName, ext)
+				fileName = fmt.Sprintf("%s_%d%s", nameWithoutExt, idx, ext)
 
 				// 保存到静态资源目录
 				staticDir := filepath.Join("static", "images", email, folder, fmt.Sprint(uid))
