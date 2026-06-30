@@ -3,10 +3,11 @@ package service
 import (
 	"email-server/constant"
 	"fmt"
-	"github.com/gogf/gf/v2/util/gconv"
 	"runtime"
 	"strings"
 	"time"
+
+	"github.com/gogf/gf/v2/util/gconv"
 
 	"email-server/config"
 	"email-server/model"
@@ -256,7 +257,7 @@ func CreateUser(Folders []string, adminPassword, email, password, firstName, las
 }
 
 // UserList 获取用户列表
-func UserList(adminPassword, email string) ([]*model.UserList, int, error) {
+func UserList(adminPassword, email string) ([]*model.UserList, int64, error) {
 	// 获取 hMailServer Application 对象
 	app, err := utils.InitHmailApp(adminPassword)
 	if err != nil {
@@ -291,7 +292,7 @@ func UserList(adminPassword, email string) ([]*model.UserList, int, error) {
 	domainCount := int(countResult.Val)
 
 	var userList []*model.UserList
-	total := 0
+	var total int64
 	var targetDomainObj *ole.IDispatch
 
 	// 2. 只查找匹配的目标域名
@@ -474,4 +475,43 @@ func UpdatePassword(adminPassword, email, oldPwd, newPassword string) error {
 	}
 
 	return nil
+}
+
+// ContactList 联系人列表
+func ContactList(email string) ([]*model.Contact, int64, error) {
+	contactEmails, err := utils.ListUserContacts(email)
+	if err != nil {
+		return nil, 0, fmt.Errorf("读取联系人失败: %w", err)
+	}
+
+	var contactList []*model.Contact
+	for _, c := range contactEmails {
+		item := &model.Contact{
+			Email: c.Email,
+			Name:  c.Name,
+		}
+		contactList = append(contactList, item)
+	}
+	total := int64(len(contactList))
+
+	return contactList, total, nil
+}
+
+// SaveContact 保存联系人
+func SaveContact(email, to, name string) error {
+	// 不能自己保存自己
+	if email == to {
+		return nil
+	}
+	return utils.AddSentContact(email, to, name)
+}
+
+// DeleteContact 删除单个联系人
+func DeleteContact(email string, to string) error {
+	return utils.DelContact(email, to)
+}
+
+// ClearContact 清空所有联系人
+func ClearContact(email string) error {
+	return utils.ClearAllContact(email)
 }

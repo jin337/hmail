@@ -72,6 +72,16 @@ strong {
 .jv-toolbar-btn--fullscreen {
   display: none !important;
 }
-.pptx-preview-wrapper{
+.pptx-preview-wrapper {
   height: 100% !important;
+}
+.mail-contacts .arco-tree-node-title {
+  color: var(--color-text-1);
+}
+.mail-contacts .arco-tree-node-title:hover {
+  background-color: var(--color-fill-2);
+  color: var(--color-text-1);
+}
+.mail-contacts .arco-tree-node-title-text span{
+  display: block;
 }

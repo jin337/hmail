@@ -33,6 +33,12 @@ type UserList struct {
 	LastLogonTime   string `json:"last_logon_time"`   // 最后登录时间
 }
 
+// 联系人信息
+type Contact struct {
+	Email string `json:"email"` // 邮箱账号
+	Name  string `json:"name"`  // 姓名
+}
+
 // 邮件信息
 type MailItem struct {
 	Uid        int64       `json:"uid"`        // 邮件ID

@@ -369,5 +369,10 @@ func SendEmail(c *gin.Context) {
 		}
 	}
 
+	// 保存对方邮箱
+	for _, to := range toList {
+		_ = service.SaveContact(email.(string), to, "")
+	}
+
 	c.JSON(200, gin.H{"code": 200, "msg": "发送成功"})
 }

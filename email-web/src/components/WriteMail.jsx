@@ -1,13 +1,48 @@
 import { useEffect, useRef, useState } from 'react'
 
-import { Button, Card, Form, Input, InputTag, Layout, Space, Upload } from '@arco-design/web-react'
-import { IconClose, IconFile, IconPlus, IconSend, IconUpload } from '@arco-design/web-react/icon'
+import {
+  Avatar,
+  Button,
+  Card,
+  Form,
+  Input,
+  InputTag,
+  Layout,
+  Modal,
+  Popover,
+  Space,
+  Tree,
+  Typography,
+  Upload,
+} from '@arco-design/web-react'
+import { IconClose, IconDelete, IconEdit, IconFile, IconPlus, IconSend, IconUpload } from '@arco-design/web-react/icon'
 
 // 引入 wangEditor
 import { Editor, Toolbar } from '@wangeditor/editor-for-react'
 
-export default function WriteMail({ detail, userList = [], onClose, onChange, onSend }) {
+// 公共事件
+import { isSvg } from 'src/utils'
+
+// detail 邮件详情
+// userList 用户列表
+// recentlyContact 最近联系人
+// onClose 关闭回调
+// onChange 数据变化回调
+// onSend 发送邮件回调
+// onEditContact 编辑联系人回调
+export default function WriteMail({
+  detail,
+  userList = [],
+  recentlyContact = [],
+  onClose,
+  onChange,
+  onSend,
+  onEditContact,
+  onDelete,
+  onClear,
+}) {
   const [form] = Form.useForm()
+  const [formContact] = Form.useForm()
   const [loading, setLoading] = useState(false)
 
   const [addCC, setAddCC] = useState(false)
@@ -21,10 +56,16 @@ export default function WriteMail({ detail, userList = [], onClose, onChange, on
   const [lastFocus, setLastFocus] = useState(null) // 缓存最后一次焦点
 
   // 选择用户
-  const handleSelectUser = (item) => {
+  const onSelectUser = (ids, extra) => {
+    const { e } = extra
+    if (isSvg(e)) return
+
+    const key = ids[0]
+    const item = [...userList, ...recentlyContact].find((e) => e?.email === key)
+    if (!item) return
     const targetEmail = {
-      label: item.full_name,
-      value: item.email,
+      label: item?.full_name,
+      value: item?.email,
     }
 
     // 优先使用缓存的最后焦点
@@ -126,6 +167,78 @@ export default function WriteMail({ detail, userList = [], onClose, onChange, on
     onChange(newValues)
   }
 
+  // 编辑联系人
+  const editContact = (e) => {
+    Modal.confirm({
+      title: '编辑联系人',
+      okText: '保存',
+      icon: null,
+      content: (
+        <Form autoComplete='off' form={formContact} initialValues={e}>
+          <Form.Item label='昵称' field='name' required>
+            <Input placeholder='昵称' />
+          </Form.Item>
+          <Form.Item label='邮箱' field='email'>
+            <Input placeholder='邮箱' />
+          </Form.Item>
+        </Form>
+      ),
+      onOk: async () => {
+        const values = await formContact.validate()
+        onEditContact(values)
+      },
+    })
+  }
+
+  // 联系人-生成树节点
+  const generatorTreeNodes = (data) => {
+    return data.map((item) => {
+      const { children, key, ...rest } = item
+      rest.title = children ? (
+        item.full_name
+      ) : (
+        <Popover
+          position='tr'
+          trigger='hover'
+          key={key}
+          content={
+            <div className='flex gap-2'>
+              <Avatar className={'min-w-10!'} style={{ backgroundColor: '#FFEDD8', color: '#FF8800' }}>
+                {item?.full_name?.slice(0, 1).toUpperCase()}
+              </Avatar>
+              <div>
+                <div className='flex items-center gap-2 font-bold'>
+                  {item?.full_name}
+                  {!item.id && <IconEdit className='cursor-pointer' onClick={() => editContact(item)} />}
+                </div>
+                <Typography.Text copyable>{item?.email}</Typography.Text>
+              </div>
+            </div>
+          }>
+          <div className='group flex items-center justify-between gap-2 leading-6'>
+            {item.full_name}
+            {!item.id && (
+              <Button
+                type='text'
+                status='danger'
+                size='mini'
+                className='hidden! group-hover:block!'
+                onClick={() => onDelete(item)}>
+                <IconDelete />
+              </Button>
+            )}
+          </div>
+        </Popover>
+      )
+
+      return (
+        <Tree.Node key={rest?.email} {...rest} dataRef={item}>
+          {children ? generatorTreeNodes(item.children) : null}
+        </Tree.Node>
+      )
+    })
+  }
+
   return (
     <Layout className='h-full'>
       <Layout.Header className='flex h-15 items-center justify-between border-b border-gray-300 px-6'>
@@ -220,13 +333,34 @@ export default function WriteMail({ detail, userList = [], onClose, onChange, on
             </Form.Item>
           </Form>
           <Card title='联系人' className='h-full w-60 border-t-0!' bodyStyle={{ overflowY: 'auto', height: 'calc(100% - 50px)' }}>
-            <div className='flex flex-col gap-2'>
-              {userList?.map((item) => (
-                <div key={item?.id} className='cursor-pointer' onClick={() => handleSelectUser(item)}>
-                  {item?.full_name} <span>{item.email}</span>
-                </div>
-              ))}
-            </div>
+            <Tree className='mail-contacts h-full' checkStrictly blockNode onSelect={(e, extra) => onSelectUser(e, extra)}>
+              {generatorTreeNodes([
+                {
+                  full_name: (
+                    <div className='group flex justify-between leading-6'>
+                      <span>最近联系人</span>
+                      <Button
+                        type='text'
+                        status='danger'
+                        size='mini'
+                        className='hidden! group-hover:block!'
+                        onClick={() => onClear()}>
+                        清空
+                      </Button>
+                    </div>
+                  ),
+                  email: '0-0',
+                  selectable: false,
+                  children: recentlyContact,
+                },
+                {
+                  full_name: '邮箱联系人',
+                  email: '0-1',
+                  selectable: false,
+                  children: userList,
+                },
+              ])}
+            </Tree>
           </Card>
         </div>
       </Layout.Content>

@@ -68,7 +68,6 @@ export function getFileType(contentType) {
   // pdf
   const pdfExts = ['pdf']
 
-
   if (imageExts.includes(type)) return 'image'
   if (videoExts.includes(type)) return 'video'
   if (audioExts.includes(type)) return 'audio'
@@ -80,4 +79,28 @@ export function getFileType(contentType) {
 
   // 默认为文本
   return 'text'
+}
+
+// 是否是svg
+export function isSvg(e) {
+  if (!e) return false
+
+  // 获取target真实DOM
+  let el = e.target ?? e
+
+  // DOM Element
+  if (typeof el.tagName === 'string') {
+    const tag = el.tagName.toLowerCase()
+    const svgTags = ['svg', 'path', 'circle', 'rect', 'line', 'g']
+    return svgTags.includes(tag)
+  }
+
+  // 虚拟DOM元素 { type: 'svg' }
+  if (typeof el.type === 'string') {
+    const svgTags = ['svg', 'path', 'circle', 'rect', 'line', 'g']
+    return svgTags.includes(el.type)
+  }
+
+  // 都不匹配
+  return false
 }

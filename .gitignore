@@ -2,3 +2,5 @@
 /email-web/pnpm-lock.yaml
 /email-server/tmp
 /email-server/email-server.exe
+/email-server/cache
+/email-server/static

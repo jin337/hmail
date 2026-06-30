@@ -519,7 +519,6 @@ func BuildRawEmail(email, pwd, folder string, uid int64, partIDs string, from, t
 		var ccAddrs []string
 		for _, email := range cc {
 			name := utils.FormatMailAddr(config.GetConfig(constant.AdminPassword), email)
-			fmt.Printf("ccName:%s\n", name)
 			ccAddrs = append(ccAddrs, name)
 		}
 		headers["Cc"] = strings.Join(ccAddrs, ", ")

@@ -61,28 +61,29 @@ const menuList = [
 ]
 
 const MailLayout = () => {
-  const [userList, setUserList] = useState({})
+  const [userList, setUserList] = useState({}) // 用户列表
+  const [recentlyContact, setRecentlyContact] = useState([]) // 最近联系人
 
-  const [folderList, setFolderList] = useState(menuList)
-  const [currentFolder, setCurrentFolder] = useState({})
-  const [searchWord, setSearchWord] = useState('')
+  const [folderList, setFolderList] = useState(menuList) // 文件夹
+  const [currentFolder, setCurrentFolder] = useState({}) // 当前文件夹
+  const [searchWord, setSearchWord] = useState('') // 搜索
 
-  const [loading, setLoading] = useState(false)
-  const [mailList, setMailList] = useState([])
-  const [total, setTotal] = useState(0)
-  const [selectedRowKeys, setSelectedRowKeys] = useState([])
+  const [loading, setLoading] = useState(false) // 加载中
+  const [mailList, setMailList] = useState([]) // 邮件列表
+  const [total, setTotal] = useState(0) // 邮件总数
+  const [selectedRowKeys, setSelectedRowKeys] = useState([]) // 选中的邮件
 
-  const [currentLoading, setCurrentLoading] = useState(false)
-  const [currentMail, setCurrentMail] = useState(null)
-  const [writeMail, setWriteMail] = useState(null)
-  const [newWriteMail, setNewWriteMail] = useState(null)
-  const [isTable, setIsTable] = useState(false)
+  const [currentLoading, setCurrentLoading] = useState(false) // 当前邮件加载中
+  const [currentMail, setCurrentMail] = useState(null) // 当前邮件
+  const [writeMail, setWriteMail] = useState(null) // 写邮件
+  const [newWriteMail, setNewWriteMail] = useState(null) // 新的写邮件
+  const [isTable, setIsTable] = useState(false) // 表格模式
 
-  const [_, setRefreshCount] = useState(0)
-  const timerRef = useRef(null)
-  const tableRef = useRef(null)
-  const pageSize = 20
-  const totalPages = Math.ceil(total / pageSize)
+  const [_, setRefreshCount] = useState(0) // 刷新次数
+  const timerRef = useRef(null) // 定时器
+  const tableRef = useRef(null) // 表格
+  const pageSize = 25 // 每页显示的邮件数(不能低于22，否则滚动条不出现，无法实现滚动加载更多)
+  const totalPages = Math.ceil(total / pageSize) // 总页数
 
   // 切换选中邮件
   const onCutMail = (record, key) => {
@@ -106,8 +107,19 @@ const MailLayout = () => {
     }, 300)
   }
 
+  // 获取最近联系人
+  const getRecentlyContact = async () => {
+    const { code, data, message } = await request.post('/api/user/contact/list')
+    if (code == 200) {
+      const list = (data.list || []).map((e) => ({ ...e, full_name: e.name }))
+      setRecentlyContact(list)
+    } else {
+      Message.error(message)
+    }
+  }
+
   // 写邮件
-  const onWriteMail = (key, mailData) => {
+  const onWriteMail = async (key, mailData) => {
     setWriteMail(null)
     setNewWriteMail(null)
     // 草稿页已打开
@@ -116,6 +128,8 @@ const MailLayout = () => {
       setCurrentFolder(folderList.find((item) => item.key === 'compose'))
       return Message.warning('写邮件页已打开，请先关闭')
     }
+
+    getRecentlyContact()
 
     let composeItem = { key: 'compose', folder: 'DRAFTS', title: '草稿', icon: <IconFile className='text-lg!' /> }
     if (key !== 'new') {
@@ -537,6 +551,33 @@ const MailLayout = () => {
     }
   }
 
+  // 清空联系人
+  const onClearContact = async () => {
+    const { code, msg } = await request.post('/api/user/contact/clear')
+    if (code === 200) {
+      Message.success(msg)
+      getRecentlyContact()
+    }
+  }
+
+  // 删除联系人
+  const onDeleteContact = async (item) => {
+    const { code, msg } = await request.post('/api/user/contact/delete', { email: item.email })
+    if (code === 200) {
+      Message.success(msg)
+      getRecentlyContact()
+    }
+  }
+
+  // 添加编辑联系人
+  const onEditContact = async (params) => {
+    const { code, msg } = await request.post('/api/user/contact/save', params)
+    if (code === 200) {
+      Message.success(msg)
+      getRecentlyContact()
+    }
+  }
+
   // 发送邮件&草稿
   const onSend = async (type, form, html, fileList, detail, setLoading) => {
     const values = form.getFieldsValue()
@@ -707,9 +748,13 @@ const MailLayout = () => {
             key={writeMail?.uid || '0'}
             detail={writeMail}
             userList={userList?.list || []}
+            recentlyContact={recentlyContact}
             onChange={setNewWriteMail}
             onClose={onClickCompose}
-            onSend={onSend} // 传递邮件发送函数
+            onSend={onSend} // 发邮件或存草稿
+            onEditContact={onEditContact} // 添加编辑联系人
+            onDelete={onDeleteContact} // 删除联系人
+            onClear={onClearContact} // 清空联系人
           />
         </Spin>
       )}

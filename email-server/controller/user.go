@@ -157,3 +157,91 @@ func UpdateUser(c *gin.Context) {
 		"msg":  "更新用户成功",
 	})
 }
+
+// ContactList 获取联系人列表
+func ContactList(c *gin.Context) {
+	email, _ := c.Get("userEmail")
+	list, total, err := service.ContactList(email.(string))
+	if err != nil {
+		c.JSON(200, gin.H{"code": 500, "msg": "获取联系人列表失败: " + err.Error()})
+		return
+	}
+	c.JSON(200, gin.H{
+		"code": 200,
+		"msg":  "success",
+		"data": gin.H{
+			"list":  list,
+			"total": total,
+		},
+	})
+}
+
+// SaveContact	保存联系人
+func SaveContact(c *gin.Context) {
+	email, _ := c.Get("userEmail")
+	var req model.Contact
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(200, gin.H{"code": 400, "msg": "参数错误"})
+		return
+	}
+
+	// 验证必传参数
+	if err := utils.ValidateRequiredParams([]string{"Email", "Name"}, req); err != nil {
+		c.JSON(200, gin.H{"code": 400, "msg": err.Error()})
+		return
+	}
+
+	err := service.SaveContact(email.(string), req.Email, req.Name)
+	if err != nil {
+		c.JSON(200, gin.H{"code": 500, "msg": "保存联系人失败: " + err.Error()})
+		return
+	}
+
+	c.JSON(200, gin.H{
+		"code": 200,
+		"msg":  "保存成功",
+	})
+}
+
+// DeleteContact 删除联系人
+func DeleteContact(c *gin.Context) {
+	email, _ := c.Get("userEmail")
+	var req model.Contact
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(200, gin.H{"code": 400, "msg": "参数错误"})
+		return
+	}
+
+	// 验证必传参数
+	if err := utils.ValidateRequiredParams([]string{"Email"}, req); err != nil {
+		c.JSON(200, gin.H{"code": 400, "msg": err.Error()})
+		return
+	}
+
+	err := service.DeleteContact(email.(string), req.Email)
+	if err != nil {
+		c.JSON(200, gin.H{"code": 500, "msg": "删除联系人失败: " + err.Error()})
+		return
+	}
+
+	c.JSON(200, gin.H{
+		"code": 200,
+		"msg":  "删除成功",
+	})
+}
+
+// ClearContact 清空联系人
+func ClearContact(c *gin.Context) {
+	email, _ := c.Get("userEmail")
+
+	err := service.ClearContact(email.(string))
+	if err != nil {
+		c.JSON(200, gin.H{"code": 500, "msg": "清空联系人失败: " + err.Error()})
+		return
+	}
+
+	c.JSON(200, gin.H{
+		"code": 200,
+		"msg":  "删除成功",
+	})
+}

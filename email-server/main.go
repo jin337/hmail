@@ -4,6 +4,7 @@ import (
 	"email-server/config"
 	"email-server/constant"
 	"email-server/router"
+	"email-server/utils"
 	"fmt"
 	"time"
 
@@ -30,6 +31,13 @@ func main() {
 
 	// 设置路由
 	router.SetupRouter(r)
+
+	// 初始化yiyidb，数据存放目录
+	err := utils.InitYiyiDB("./cache/contact_db")
+	if err != nil {
+		panic("数据库初始化失败:" + err.Error())
+	}
+	defer utils.CloseDB()
 
 	// 启动服务
 	r.Run(fmt.Sprintf(":%s", config.GetConfig(constant.MailServerPort)))
