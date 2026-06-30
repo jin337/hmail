@@ -1,12 +1,10 @@
 package utils
 
 import (
-	"crypto/rand"
 	"email-server/config"
 	"email-server/constant"
 	"email-server/model"
 	"fmt"
-	"math/big"
 	"mime"
 	"net"
 	"net/mail"
@@ -312,6 +310,48 @@ func FormatMailAddr(adminPwd, email string) string {
 	return fmt.Sprintf(`%s <%s>`, encodedName, email)
 }
 
+// FormatMailName 获取邮箱对应的用户显示名称与邮箱
+func FormatMailName(adminPwd, email string) (string, string, error) {
+	if email == "" {
+		return "", "", fmt.Errorf("邮箱不能为空")
+	}
+
+	// 获取账号COM对象
+	account, err := GetHmailAccount(adminPwd, email)
+	if err != nil {
+		return "", email, fmt.Errorf("获取账号失败: %w", err)
+	}
+
+	// COM资源统一释放
+	defer func() {
+		account.Release()
+		ole.CoUninitialize()
+		runtime.UnlockOSThread()
+	}()
+
+	// 分别获取名、姓，分开捕获错误，不覆盖
+	firstNameVar, err1 := oleutil.GetProperty(account, "PersonFirstName")
+	lastNameVar, err2 := oleutil.GetProperty(account, "PersonLastName")
+	if err1 != nil {
+		return "", email, fmt.Errorf("读取FirstName失败: %w", err1)
+	}
+	if err2 != nil {
+		return "", email, fmt.Errorf("读取LastName失败: %w", err2)
+	}
+
+	firstName := firstNameVar.ToString()
+	lastName := lastNameVar.ToString()
+	fullName := strings.TrimSpace(firstName + lastName)
+
+	// 姓名为空直接返回原邮箱，不做编码
+	if fullName == "" {
+		return "", email, nil
+	}
+
+	// 中文B编码，兼容邮件头显示
+	return fullName, email, nil
+}
+
 // GetNameInfo 解析邮箱
 func GetNameInfo(mailStr string) (*string, []*model.MailInfo, error) {
 	if mailStr == "" {
@@ -361,20 +401,4 @@ func ParseMailDate(dateStr string) (time.Time, error) {
 	}
 
 	return time.Time{}, fmt.Errorf("不支持的日期格式: %s", dateStr)
-}
-
-const shortChars = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
-const shortLength = 6
-
-// 生成短链接
-func GenerateShortCode() (string, error) {
-	b := make([]byte, shortLength)
-	for i := range b {
-		n, err := rand.Int(rand.Reader, big.NewInt(int64(len(shortChars))))
-		if err != nil {
-			return "", err
-		}
-		b[i] = shortChars[n.Int64()]
-	}
-	return string(b), nil
 }

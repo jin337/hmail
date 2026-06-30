@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import {
   Avatar,
@@ -61,8 +61,9 @@ export default function WriteMail({
     if (isSvg(e)) return
 
     const key = ids[0]
-    const item = [...userList, ...recentlyContact].find((e) => e?.email === key)
+    const item = [...recentlyContact, ...userList].find((e) => e?.email === key)
     if (!item) return
+
     const targetEmail = {
       label: item?.full_name,
       value: item?.email,
@@ -167,6 +168,49 @@ export default function WriteMail({
     onChange(newValues)
   }
 
+  // 清空联系人
+  const onClearContact = useCallback(() => {
+    Modal.confirm({
+      title: '提示',
+      okText: '清空',
+      className: 'simpleModal',
+      content: '确定要清空最近联系人吗？',
+      onOk: async () => {
+        onClear()
+      },
+    })
+  }, [onClear])
+
+  // 联系人数据
+  const treeData = useMemo(() => {
+    const baseNodes = [
+      {
+        full_name: '邮箱联系人',
+        key: '0-1',
+        selectable: false,
+        children: userList?.map((e) => ({ ...e, key: '0-1-' + e.email })),
+      },
+    ]
+
+    // 有最近联系人则前置插入分组
+    if (recentlyContact.length > 0) {
+      baseNodes.unshift({
+        full_name: (
+          <div className='group flex justify-between leading-6'>
+            <span>最近联系人</span>
+            <Button type='text' status='danger' size='mini' className='hidden! group-hover:block!' onClick={onClearContact}>
+              清空
+            </Button>
+          </div>
+        ),
+        key: '0-0',
+        selectable: false,
+        children: recentlyContact?.map((e) => ({ ...e, key: '0-0-' + e.email })),
+      })
+    }
+    return baseNodes
+  }, [recentlyContact, userList, onClearContact])
+
   // 编辑联系人
   const editContact = (e) => {
     Modal.confirm({
@@ -191,16 +235,19 @@ export default function WriteMail({
   }
 
   // 联系人-生成树节点
-  const generatorTreeNodes = (data) => {
-    return data.map((item) => {
-      const { children, key, ...rest } = item
+  const generatorTreeNodes = (data = []) => {
+    if (!Array.isArray(data) || data.length === 0) return []
+
+    return data?.map((item) => {
+      const { children, ...rest } = item
+
       rest.title = children ? (
         item.full_name
       ) : (
         <Popover
           position='tr'
           trigger='hover'
-          key={key}
+          key={item.email}
           content={
             <div className='flex gap-2'>
               <Avatar className={'min-w-10!'} style={{ backgroundColor: '#FFEDD8', color: '#FF8800' }}>
@@ -230,14 +277,16 @@ export default function WriteMail({
           </div>
         </Popover>
       )
-
       return (
-        <Tree.Node key={rest?.email} {...rest} dataRef={item}>
+        <Tree.Node {...rest} key={item?.key} dataRef={item}>
           {children ? generatorTreeNodes(item.children) : null}
         </Tree.Node>
       )
     })
   }
+  const treeNodes = useMemo(() => {
+    return generatorTreeNodes(treeData)
+  }, [treeData, generatorTreeNodes])
 
   return (
     <Layout className='h-full'>
@@ -333,33 +382,13 @@ export default function WriteMail({
             </Form.Item>
           </Form>
           <Card title='联系人' className='h-full w-60 border-t-0!' bodyStyle={{ overflowY: 'auto', height: 'calc(100% - 50px)' }}>
-            <Tree className='mail-contacts h-full' checkStrictly blockNode onSelect={(e, extra) => onSelectUser(e, extra)}>
-              {generatorTreeNodes([
-                {
-                  full_name: (
-                    <div className='group flex justify-between leading-6'>
-                      <span>最近联系人</span>
-                      <Button
-                        type='text'
-                        status='danger'
-                        size='mini'
-                        className='hidden! group-hover:block!'
-                        onClick={() => onClear()}>
-                        清空
-                      </Button>
-                    </div>
-                  ),
-                  email: '0-0',
-                  selectable: false,
-                  children: recentlyContact,
-                },
-                {
-                  full_name: '邮箱联系人',
-                  email: '0-1',
-                  selectable: false,
-                  children: userList,
-                },
-              ])}
+            <Tree
+              blockNode
+              autoExpandParent
+              className='mail-contacts h-full'
+              key={treeData.map((item) => item.key).join(',')}
+              onSelect={(e, extra) => onSelectUser(e, extra)}>
+              {treeNodes}
             </Tree>
           </Card>
         </div>

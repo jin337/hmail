@@ -2,6 +2,7 @@ package controller
 
 import (
 	"email-server/config"
+	"email-server/constant"
 	"email-server/model"
 	"email-server/service"
 	"email-server/utils"
@@ -287,6 +288,15 @@ func SaveDraft(c *gin.Context) {
 		return
 	}
 
+	// 保存联系人
+	for _, to := range toList {
+		name, mail, err := utils.FormatMailName(config.GetConfig(constant.AdminPassword), to)
+		if err != nil {
+			fmt.Println("获取发件人名称失败:", err)
+		}
+		_ = service.SaveContact(email.(string), mail, name)
+	}
+
 	// 更新草稿
 	if uidStr != "" {
 		err := service.UpdateDraft(email.(string), pwd.(string), config.FolderDrafts, raw, int64(uid))
@@ -369,9 +379,13 @@ func SendEmail(c *gin.Context) {
 		}
 	}
 
-	// 保存对方邮箱
+	// 保存联系人
 	for _, to := range toList {
-		_ = service.SaveContact(email.(string), to, "")
+		name, mail, err := utils.FormatMailName(config.GetConfig(constant.AdminPassword), to)
+		if err != nil {
+			fmt.Println("获取发件人名称失败:", err)
+		}
+		_ = service.SaveContact(email.(string), mail, name)
 	}
 
 	c.JSON(200, gin.H{"code": 200, "msg": "发送成功"})

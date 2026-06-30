@@ -47,12 +47,29 @@ func AddSentContact(userEmail, contactEmail, name string) error {
 	db := GetDB()
 	key := []byte(fmt.Sprintf("%s%s:%s", prefixUserSent, userEmail, contactEmail))
 
-	// 昵称为空时默认用邮箱
-	if name == "" {
-		addname := strings.Split(contactEmail, "@")
-		name = addname[0]
+	// 昵称不为空时，保存昵称
+	if name != "" {
+		val, err := json.Marshal(ContactItem{Name: name})
+		if err != nil {
+			return err
+		}
+		return db.Put(key, val, 0, nil)
 	}
-	val, _ := json.Marshal(ContactItem{Name: name})
+
+	// 获取旧数据
+	oldVal, err := db.Get(key, nil)
+	if err == nil && len(oldVal) > 0 {
+		// 存在旧记录，直接不执行写入，保留原有数据
+		return nil
+	}
+
+	// 昵称为空时，使用邮箱前缀作为昵称
+	addname := strings.Split(contactEmail, "@")
+	name = addname[0]
+	val, err := json.Marshal(ContactItem{Name: name})
+	if err != nil {
+		return err
+	}
 	return db.Put(key, val, 0, nil)
 }
 
@@ -82,13 +99,19 @@ func ClearAllContact(userEmail string) error {
 	var items []yiyidb.BatItem
 	for iter.Seek(prefix); iter.Valid(); iter.Next() {
 		items = append(items, yiyidb.BatItem{
+			Op:    "del",
+			Ttl:   0,
 			Key:   iter.Key(),
 			Value: nil, // nil表示删除
 		})
 	}
 
 	if len(items) > 0 {
-		return db.BatPutOrDel(&items, tran)
+		err = db.BatPutOrDel(&items, tran)
+		if err != nil {
+			return err
+		}
+		return db.Commit(tran)
 	}
 	return nil
 }

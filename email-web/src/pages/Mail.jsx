@@ -556,7 +556,7 @@ const MailLayout = () => {
     const { code, msg } = await request.post('/api/user/contact/clear')
     if (code === 200) {
       Message.success(msg)
-      getRecentlyContact()
+      setRecentlyContact([])
     }
   }
 
