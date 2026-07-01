@@ -30,6 +30,7 @@ import { isSvg } from 'src/utils'
 // onChange 数据变化回调
 // onSend 发送邮件回调
 // onEditContact 编辑联系人回调
+
 export default function WriteMail({
   detail,
   userList = [],
@@ -41,6 +42,7 @@ export default function WriteMail({
   onDelete,
   onClear,
 }) {
+  const separator = '#_#'
   const [form] = Form.useForm()
   const [formContact] = Form.useForm()
   const [loading, setLoading] = useState(false)
@@ -58,9 +60,14 @@ export default function WriteMail({
   // 选择用户
   const onSelectUser = (ids, extra) => {
     const { e } = extra
-    if (isSvg(e)) return
+    // 忽略svg点击
+    if (isSvg(e)) {
+      e.preventDefault()
+      e.stopPropagation()
+      return
+    }
 
-    const key = ids[0]
+    const key = ids[0]?.split(separator).pop()
     const item = [...recentlyContact, ...userList].find((e) => e?.email === key)
     if (!item) return
 
@@ -96,9 +103,10 @@ export default function WriteMail({
 
   // 自动回填
   useEffect(() => {
-    if (detail?.uid) {
-      form.setFieldsValue(detail)
+    if (!detail?.uid) return
 
+    const init = async () => {
+      form.setFieldsValue(detail)
       setAddCC(detail?.cc_email?.length > 0)
 
       const list = (detail?.detail?.attachments || []).map((e) => ({
@@ -113,6 +121,7 @@ export default function WriteMail({
         editor?.focus() //获取焦点
       }
     }
+    init()
   }, [detail, form, editor])
 
   // 销毁编辑器
@@ -156,15 +165,37 @@ export default function WriteMail({
     }
   }
 
+  function getEmailPrefix(str) {
+    if (!str) return str
+    const emailReg = /^[\w.-]+@[\w.-]+\.\w+$/
+    if (emailReg.test(str)) {
+      return str.split('@')[0]
+    }
+    return str
+  }
+
   // 监控数据变化
   const onChangeMail = (_, values) => {
+    const newToInfo = values?.to_info?.map((e) => ({ ...e, label: getEmailPrefix(e.label) }))
+    if (newToInfo !== values?.to_info) {
+      form.setFieldValue('to_info', newToInfo)
+    }
+
+    const newCcInfo = values?.cc_info?.map((e) => ({ ...e, label: getEmailPrefix(e.label) }))
+    if (newCcInfo !== values?.cc_info) {
+      form.setFieldValue('cc_info', newCcInfo)
+    }
+
     const newValues = {
       ...values,
+      to_info: newToInfo,
+      cc_info: newCcInfo,
       detail: {
         content: html || detail?.detail?.content,
         attachments: values?.files || fileList?.length > 0 ? fileList : detail?.detail?.attachments,
       },
     }
+
     onChange(newValues)
   }
 
@@ -188,7 +219,7 @@ export default function WriteMail({
         full_name: '邮箱联系人',
         key: '0-1',
         selectable: false,
-        children: userList?.map((e) => ({ ...e, key: '0-1-' + e.email })),
+        children: userList?.map((e) => ({ ...e, key: '0-1' + separator + e.email })),
       },
     ]
 
@@ -205,7 +236,7 @@ export default function WriteMail({
         ),
         key: '0-0',
         selectable: false,
-        children: recentlyContact?.map((e) => ({ ...e, key: '0-0-' + e.email })),
+        children: recentlyContact?.map((e) => ({ ...e, key: '0-0' + separator + e.email })),
       })
     }
     return baseNodes
@@ -222,7 +253,7 @@ export default function WriteMail({
           <Form.Item label='昵称' field='name' required>
             <Input placeholder='昵称' />
           </Form.Item>
-          <Form.Item label='邮箱' field='email'>
+          <Form.Item label='邮箱' field='email' disabled>
             <Input placeholder='邮箱' />
           </Form.Item>
         </Form>
@@ -245,9 +276,10 @@ export default function WriteMail({
         item.full_name
       ) : (
         <Popover
-          position='tr'
+          position='lb'
           trigger='hover'
           key={item.email}
+          triggerProps={{ mouseEnterDelay: 500, showArrow: false }}
           content={
             <div className='flex gap-2'>
               <Avatar className={'min-w-10!'} style={{ backgroundColor: '#FFEDD8', color: '#FF8800' }}>

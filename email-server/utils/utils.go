@@ -319,7 +319,7 @@ func FormatMailName(adminPwd, email string) (string, string, error) {
 	// 获取账号COM对象
 	account, err := GetHmailAccount(adminPwd, email)
 	if err != nil {
-		return "", email, fmt.Errorf("获取账号失败: %w", err)
+		return "", email, fmt.Errorf("当前域名下此账号不存在")
 	}
 
 	// COM资源统一释放
@@ -348,7 +348,6 @@ func FormatMailName(adminPwd, email string) (string, string, error) {
 		return "", email, nil
 	}
 
-	// 中文B编码，兼容邮件头显示
 	return fullName, email, nil
 }
 

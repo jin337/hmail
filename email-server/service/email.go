@@ -121,12 +121,20 @@ func MailList(email, pwd, folder string, page, size int64, keyword string) ([]*m
 		inReplyToVal := env.GetHeader("In-Reply-To")
 		referencesVal := env.GetHeader("References")
 
-		var flags []string
+		// 标签处理
+		var flagMap = make(map[string]struct{})
 		for _, flag := range msg.Flags {
-			// 以 \ 开头的系统标记，截取后面文本
 			if strings.HasPrefix(flag, "\\") {
-				flags = append(flags, flag[1:])
+				short := flag[1:]
+				flagMap[short] = struct{}{}
 			}
+		}
+		if folder != "INBOX" {
+			flagMap["Seen"] = struct{}{}
+		}
+		var flags []string
+		for f := range flagMap {
+			flags = append(flags, f)
 		}
 
 		item := &model.MailItem{
@@ -854,12 +862,20 @@ func StarMailList(email, pwd string, keyword string) ([]*model.MailItem, int64, 
 			inReplyToVal := env.GetHeader("In-Reply-To")
 			referencesVal := env.GetHeader("References")
 
-			var flags []string
+			// 标签处理
+			var flagMap = make(map[string]struct{})
 			for _, flag := range msg.Flags {
-				// 以 \ 开头的系统标记，截取后面文本
 				if strings.HasPrefix(flag, "\\") {
-					flags = append(flags, flag[1:])
+					short := flag[1:]
+					flagMap[short] = struct{}{}
 				}
+			}
+			if folder != "INBOX" {
+				flagMap["Seen"] = struct{}{}
+			}
+			var flags []string
+			for f := range flagMap {
+				flags = append(flags, f)
 			}
 
 			item := &model.MailItem{

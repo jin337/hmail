@@ -61,6 +61,7 @@ const menuList = [
 ]
 
 const MailLayout = () => {
+   const [collapse, setCollapse] = useState(false);
   const [userList, setUserList] = useState({}) // 用户列表
   const [recentlyContact, setRecentlyContact] = useState([]) // 最近联系人
 
@@ -77,13 +78,21 @@ const MailLayout = () => {
   const [currentMail, setCurrentMail] = useState(null) // 当前邮件
   const [writeMail, setWriteMail] = useState(null) // 写邮件
   const [newWriteMail, setNewWriteMail] = useState(null) // 新的写邮件
-  const [isTable, setIsTable] = useState(false) // 表格模式
+  const [isTable, setIsTable] = useState(() => localStorage.getItem('isTable') === 'true') // 表格模式
 
   const [_, setRefreshCount] = useState(0) // 刷新次数
   const timerRef = useRef(null) // 定时器
   const tableRef = useRef(null) // 表格
   const pageSize = 25 // 每页显示的邮件数(不能低于22，否则滚动条不出现，无法实现滚动加载更多)
   const totalPages = Math.ceil(total / pageSize) // 总页数
+
+  // 切换表格模式
+  const onChangeMode = () => {
+    setIsTable(!isTable)
+    setCurrentMail(null)
+
+    localStorage.setItem('isTable', !isTable)
+  }
 
   // 切换选中邮件
   const onCutMail = (record, key) => {
@@ -156,7 +165,6 @@ const MailLayout = () => {
     // 当前文件夹
     const item = folderList.find((item) => item.key === key)
     setCurrentFolder(item)
-
     // 草稿页
     if (key === 'compose') {
       setWriteMail(newWriteMail || writeMail)
@@ -236,7 +244,7 @@ const MailLayout = () => {
         targetElement?.closest('.arco-checkbox')
       : false
 
-    // 排除复选框的点击
+    // 排除非跳转项
     if (isCheckboxClick) return
 
     setCurrentLoading(true)
@@ -258,7 +266,7 @@ const MailLayout = () => {
       newData.content = transHtml(newData.content)
 
       setCurrentMail({ ...item, detail: newData })
-      if (item.key === 'drafts') {
+      if (item.folder === 'Drafts') {
         const newItem = {
           ...item,
           detail: newData,
@@ -651,7 +659,10 @@ const MailLayout = () => {
   }
   // 初始加载邮件列表
   useEffect(() => {
-    getUserList()
+    const init = async () => {
+      await getUserList()
+    }
+    init()
   }, [])
 
   //   滚动到顶部
@@ -749,8 +760,8 @@ const MailLayout = () => {
             detail={writeMail}
             userList={userList?.list || []}
             recentlyContact={recentlyContact}
-            onChange={setNewWriteMail}
-            onClose={onClickCompose}
+            onChange={setNewWriteMail} // 监控邮件内容变化
+            onClose={onClickCompose} // 关闭写邮件页
             onSend={onSend} // 发邮件或存草稿
             onEditContact={onEditContact} // 添加编辑联系人
             onDelete={onDeleteContact} // 删除联系人
@@ -764,13 +775,7 @@ const MailLayout = () => {
           {/* 切换模式按钮 */}
           {!(isTable && currentMail) && (
             <div className={`absolute top-4 right-4 z-20`}>
-              <Button
-                size='small'
-                onClick={() => {
-                  setIsTable(!isTable)
-                  setCurrentMail(null)
-                }}
-                icon={isTable ? <IconLayout /> : <IconMenu />}></Button>
+              <Button size='small' onClick={() => onChangeMode()} icon={isTable ? <IconLayout /> : <IconMenu />}></Button>
             </div>
           )}
           {/* 搜索框 */}
@@ -869,9 +874,9 @@ const MailLayout = () => {
                           {isTable && (
                             <>
                               {record?.flags?.includes('Flagged') ? (
-                                <IconStarSelect data-no-click className='cursor-pointer text-xl!' />
+                                <IconStarSelect className='text-xl!' />
                               ) : (
-                                <IconStarUnselect data-no-click className='cursor-pointer text-xl!' />
+                                <IconStarUnselect className='text-xl!' />
                               )}
                             </>
                           )}
@@ -956,11 +961,13 @@ const MailLayout = () => {
                   {/* 邮件头部信息 */}
                   <div className='mb-4 flex items-center gap-2'>
                     <span className='text-lg font-bold'>{currentMail.subject}</span>
-                    {currentMail?.flags?.includes('Flagged') ? (
-                      <IconStarSelect className='cursor-pointer text-xl!' onClick={() => onStar(currentMail)} />
-                    ) : (
-                      <IconStarUnselect className='cursor-pointer text-xl!' onClick={() => onStar(currentMail)} />
-                    )}
+                    <Button size='mini' type='text' onClick={() => onStar(currentMail)}>
+                      {currentMail?.flags?.includes('Flagged') ? (
+                        <IconStarSelect className='text-xl!' />
+                      ) : (
+                        <IconStarUnselect className='text-xl!' />
+                      )}
+                    </Button>
                   </div>
                   <div className='mb-4 flex items-start gap-3'>
                     <Avatar className={'min-w-10!'} style={{ backgroundColor: '#FFEDD8', color: '#FF8800' }}>

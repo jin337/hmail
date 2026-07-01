@@ -292,7 +292,7 @@ func SaveDraft(c *gin.Context) {
 	for _, to := range toList {
 		name, mail, err := utils.FormatMailName(config.GetConfig(constant.AdminPassword), to)
 		if err != nil {
-			fmt.Println("获取发件人名称失败:", err)
+			fmt.Printf("获取联系人名称失败: %v，使用邮箱前缀作为默认名称\n", err)
 		}
 		_ = service.SaveContact(email.(string), mail, name)
 	}
@@ -383,7 +383,7 @@ func SendEmail(c *gin.Context) {
 	for _, to := range toList {
 		name, mail, err := utils.FormatMailName(config.GetConfig(constant.AdminPassword), to)
 		if err != nil {
-			fmt.Println("获取发件人名称失败:", err)
+			fmt.Printf("获取联系人名称失败: %v，使用邮箱前缀作为默认名称\n", err)
 		}
 		_ = service.SaveContact(email.(string), mail, name)
 	}

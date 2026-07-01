@@ -13,8 +13,15 @@ import (
 )
 
 func main() {
-	// // 配置注册
+	// 配置注册
 	config.Init()
+
+	// 初始化yiyidb，数据存放目录
+	err := utils.InitYiyiDB("./cache/contact_db")
+	if err != nil {
+		fmt.Printf("数据库初始化失败: %v\n", err)
+	}
+	defer utils.CloseDB()
 
 	r := gin.Default()
 	r.Use(cors.New(cors.Config{
@@ -31,13 +38,6 @@ func main() {
 
 	// 设置路由
 	router.SetupRouter(r)
-
-	// 初始化yiyidb，数据存放目录
-	err := utils.InitYiyiDB("./cache/contact_db")
-	if err != nil {
-		panic("数据库初始化失败:" + err.Error())
-	}
-	defer utils.CloseDB()
 
 	// 启动服务
 	r.Run(fmt.Sprintf(":%s", config.GetConfig(constant.MailServerPort)))

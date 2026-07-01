@@ -133,10 +133,17 @@ const UserPage = () => {
   }
 
   useEffect(() => {
-    window.addEventListener('resize', getPageHeight())
-    getPageHeight()
+    window.addEventListener('resize', getPageHeight)
+    const init = async () => {
+      getPageHeight()
+      await getUserList()
+    }
+    init()
 
-    getUserList()
+    // 销毁
+    return () => {
+      window.removeEventListener('resize', getPageHeight)
+    }
   }, [])
 
   return (
