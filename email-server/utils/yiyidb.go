@@ -39,11 +39,11 @@ type ContactItem struct {
 	Name string `json:"name"`
 }
 
-// AddSentContact 新增/更新联系人（自动覆盖，可修改昵称）
+// SaveSentContact 新增/更新联系人（自动覆盖，可修改昵称）
 // userEmail: 当前登录用户邮箱
 // contactEmail: 对方邮箱
 // name: 联系人昵称，空则默认等于邮箱
-func AddSentContact(userEmail, contactEmail, name string) error {
+func SaveSentContact(userEmail, contactEmail, name string) error {
 	db := GetDB()
 	key := []byte(fmt.Sprintf("%s%s:%s", prefixUserSent, userEmail, contactEmail))
 
@@ -102,7 +102,7 @@ func ClearAllContact(userEmail string) error {
 			Op:    "del",
 			Ttl:   0,
 			Key:   iter.Key(),
-			Value: nil, // nil表示删除
+			Value: nil,
 		})
 	}
 

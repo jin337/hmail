@@ -112,11 +112,11 @@ func MailList(email, pwd, folder string, page, size int64, keyword string) ([]*m
 		showText = reg.ReplaceAllString(showText, "")
 		showText = strings.ReplaceAll(showText, "*", "")
 
-		fromMail, formInfo, _ := utils.GetNameInfo(env.GetHeader("From"))
-		toMail, toInfo, _ := utils.GetNameInfo(env.GetHeader("To"))
-		ccMail, ccInfo, _ := utils.GetNameInfo(env.GetHeader("Cc"))
+		fromMail, formInfo, _ := utils.FormatMailName(env.GetHeader("From"))
+		toMail, toInfo, _ := utils.FormatMailName(env.GetHeader("To"))
+		ccMail, ccInfo, _ := utils.FormatMailName(env.GetHeader("Cc"))
 
-		sendTime, _ := utils.ParseMailDate(env.GetHeader("Date"))
+		sendTime, _ := utils.FormatDate(env.GetHeader("Date"))
 
 		inReplyToVal := env.GetHeader("In-Reply-To")
 		referencesVal := env.GetHeader("References")
@@ -153,7 +153,7 @@ func MailList(email, pwd, folder string, page, size int64, keyword string) ([]*m
 			Text:       showText,
 			HasAttach:  len(env.Attachments) > 0,
 			Folder:     folder,
-			Size:       utils.FormatFileSize(msg.Size),
+			Size:       utils.FormatSize(msg.Size),
 			Flags:      flags,
 		}
 		list = append(list, item)
@@ -232,7 +232,7 @@ func MailDetail(email, pwd string, token string, folder string, uid int64) (*mod
 			FileName:    att.FileName,
 			ContentType: att.ContentType,
 			FileType:    strings.ToLower(filetype),
-			Size:        utils.FormatFileSize(size),
+			Size:        utils.FormatSize(size),
 		})
 	}
 
@@ -294,7 +294,7 @@ func MailDetail(email, pwd string, token string, folder string, uid int64) (*mod
 	detail := &model.MailDetail{
 		Content:     content,
 		Attachments: attachments,
-		AttachSize:  utils.FormatFileSize(totalSize),
+		AttachSize:  utils.FormatSize(totalSize),
 	}
 
 	return detail, nil
@@ -853,11 +853,11 @@ func StarMailList(email, pwd string, keyword string) ([]*model.MailItem, int64, 
 			showText = reg.ReplaceAllString(showText, "")
 			showText = strings.ReplaceAll(showText, "*", "")
 
-			fromMail, formInfo, _ := utils.GetNameInfo(env.GetHeader("From"))
-			toMail, toInfo, _ := utils.GetNameInfo(env.GetHeader("To"))
-			ccMail, ccInfo, _ := utils.GetNameInfo(env.GetHeader("Cc"))
+			fromMail, formInfo, _ := utils.FormatMailName(env.GetHeader("From"))
+			toMail, toInfo, _ := utils.FormatMailName(env.GetHeader("To"))
+			ccMail, ccInfo, _ := utils.FormatMailName(env.GetHeader("Cc"))
 
-			sendTime, _ := utils.ParseMailDate(env.GetHeader("Date"))
+			sendTime, _ := utils.FormatDate(env.GetHeader("Date"))
 
 			inReplyToVal := env.GetHeader("In-Reply-To")
 			referencesVal := env.GetHeader("References")
@@ -894,7 +894,7 @@ func StarMailList(email, pwd string, keyword string) ([]*model.MailItem, int64, 
 				Text:       showText,
 				HasAttach:  len(env.Attachments) > 0,
 				Folder:     folder,
-				Size:       utils.FormatFileSize(msg.Size),
+				Size:       utils.FormatSize(msg.Size),
 				Flags:      flags,
 			}
 			list = append(list, item)

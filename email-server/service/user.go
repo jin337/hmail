@@ -503,7 +503,7 @@ func SaveContact(email, to, name string) error {
 	if email == to {
 		return nil
 	}
-	return utils.AddSentContact(email, to, name)
+	return utils.SaveSentContact(email, to, name)
 }
 
 // DeleteContact 删除单个联系人
