@@ -59,9 +59,14 @@ const menuList = [
   { key: 'drafts', folder: 'Drafts', title: '草稿箱', icon: <IconFile className='text-lg!' /> },
   { key: 'delete', folder: 'Deleted', title: '垃圾箱', icon: <IconDelete className='text-lg!' /> },
 ]
+// 移动文件夹
+const moveList = [
+  { key: 'inbox', folder: 'INBOX', title: '收件箱', icon: <IconEmail className='text-lg!' /> },
+  { key: 'sent', folder: 'Sent', title: '已发送', icon: <IconSend className='text-lg!' /> },
+  { key: 'delete', folder: 'Deleted', title: '垃圾箱', icon: <IconDelete className='text-lg!' /> },
+]
 
 const MailLayout = () => {
-   const [collapse, setCollapse] = useState(false);
   const [userList, setUserList] = useState({}) // 用户列表
   const [recentlyContact, setRecentlyContact] = useState([]) // 最近联系人
 
@@ -924,10 +929,12 @@ const MailLayout = () => {
                       trigger='click'
                       droplist={
                         <Menu onClickMenuItem={confirmMoveMail}>
-                          {folderList
+                          {moveList
                             .filter((e) => ![currentFolder.folder].includes(e.folder))
                             .map((e) => (
-                              <Menu.Item key={e.folder}>{e.title}</Menu.Item>
+                              <Menu.Item key={e.folder}>
+                                {e.title}
+                              </Menu.Item>
                             ))}
                         </Menu>
                       }>
