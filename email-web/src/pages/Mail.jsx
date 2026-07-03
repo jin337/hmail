@@ -8,8 +8,10 @@ dayjs.locale('zh-cn')
 
 import { Avatar, Button, Card, Divider, Dropdown, Input, Layout, Menu, Message, Space, Spin, Table } from '@arco-design/web-react'
 import {
+  IconAlignCenter,
   IconArrowLeft,
   IconAttachment,
+  IconCheck,
   IconClose,
   IconDelete,
   IconDown,
@@ -49,7 +51,7 @@ import IconSent from 'src/assets/mail_sent.svg'
 import IconStarUnselect from 'src/assets/mail_star.svg'
 import IconStarSelect from 'src/assets/mail_star_open.svg'
 
-import { getFileType, throttle } from 'src/utils/index'
+import { flatTree, getFileType, throttle } from 'src/utils/index'
 
 // 左侧文件夹
 const menuList = [
@@ -64,6 +66,65 @@ const moveList = [
   { key: 'inbox', folder: 'INBOX', title: '收件箱', icon: <IconEmail className='text-lg!' /> },
   { key: 'sent', folder: 'Sent', title: '已发送', icon: <IconSend className='text-lg!' /> },
   { key: 'delete', folder: 'Deleted', title: '垃圾箱', icon: <IconDelete className='text-lg!' /> },
+]
+
+// 筛选
+const filterList = [
+  {
+    label: '筛选',
+    children: [
+      {
+        label: '全部',
+        value: 'all',
+        key: 0,
+      },
+      {
+        label: '未读',
+        value: 'unread',
+        key: 0,
+      },
+      {
+        label: '包含附件',
+        value: 'has_attach',
+        key: 0,
+      },
+    ],
+  },
+  {
+    label: '排序方式',
+    children: [
+      {
+        label: '按日期',
+        children: [
+          {
+            label: '由新到旧',
+            value: 'date_asc',
+            key: 1,
+          },
+          {
+            label: '由旧到新',
+            value: 'date_desc',
+            key: 1,
+          },
+        ],
+      },
+      {
+        label: '按大小',
+        children: [
+          {
+            label: '由大到小',
+            value: 'size_asc',
+            key: 1,
+          },
+          {
+            label: '由小到大',
+            value: 'size_desc',
+            key: 1,
+          },
+        ],
+      },
+    ],
+  },
 ]
 
 const MailLayout = () => {
@@ -85,11 +146,57 @@ const MailLayout = () => {
   const [newWriteMail, setNewWriteMail] = useState(null) // 新的写邮件
   const [isTable, setIsTable] = useState(() => localStorage.getItem('isTable') === 'true') // 表格模式
 
+  const [filterKeys, setFilterKeys] = useState(['all', 'date_asc']) // 已筛选参数
+
   const [_, setRefreshCount] = useState(0) // 刷新次数
   const timerRef = useRef(null) // 定时器
   const tableRef = useRef(null) // 表格
   const pageSize = 25 // 每页显示的邮件数(不能低于22，否则滚动条不出现，无法实现滚动加载更多)
   const totalPages = Math.ceil(total / pageSize) // 总页数
+
+  const onSelectFilter = (key) => {
+    const item = flatTree(filterList).find((e) => e.value === key)
+    setFilterKeys((prev) => {
+      prev[item.key] = item.value
+      return prev
+    })
+  }
+
+  const filterMenu = (
+    <Menu onClickMenuItem={onSelectFilter}>
+      {filterList.map((group, groupIdx) => (
+        <Menu.ItemGroup key={groupIdx} title={group.label}>
+          {group.children?.map((menuItem, itemIdx) => {
+            const selectedChild = menuItem.children?.find((child) => filterKeys.includes(child.value))
+            const currentSelectLabel = selectedChild?.label ?? ''
+
+            return menuItem.children?.length ? (
+              <Menu.SubMenu
+                key={itemIdx}
+                title={
+                  <div className='flex flex-1 items-center justify-between'>
+                    <span>{menuItem.label}</span>
+                    <span className='text-gray-400'>{currentSelectLabel}</span>
+                  </div>
+                }>
+                {menuItem.children.map((subItem) => (
+                  <Menu.Item key={subItem.value} className='flex items-center justify-between'>
+                    {subItem.label}
+                    {filterKeys.includes(subItem.value) && <IconCheck />}
+                  </Menu.Item>
+                ))}
+              </Menu.SubMenu>
+            ) : (
+              <Menu.Item key={menuItem.value} className='flex items-center justify-between'>
+                {menuItem.label}
+                {filterKeys.includes(menuItem.value) && <IconCheck />}
+              </Menu.Item>
+            )
+          })}
+        </Menu.ItemGroup>
+      ))}
+    </Menu>
+  )
 
   // 切换表格模式
   const onChangeMode = () => {
@@ -831,7 +938,19 @@ const MailLayout = () => {
                 {
                   title: (
                     <div className='flex items-center justify-between'>
-                      <span className={'text-base font-bold'}>{currentFolder?.title}</span>
+                      <div>
+                        <span className={'mr-2 text-base font-bold'}>{currentFolder?.title}</span>
+                        <Dropdown
+                          trigger='click'
+                          triggerProps={{
+                            popupStyle: { maxHeight: '400px', width: '200px' },
+                          }}
+                          droplist={filterMenu}>
+                          <Button size='small' type='text'>
+                            <IconAlignCenter className='text-base! text-neutral-500!' />
+                          </Button>
+                        </Dropdown>
+                      </div>
                       <Space>
                         {selectedRowKeys.length > 0 && (
                           <Button size='mini' icon={<IconDelete />} onClick={() => onDelMail(selectedRowKeys)}>
@@ -932,9 +1051,7 @@ const MailLayout = () => {
                           {moveList
                             .filter((e) => ![currentFolder.folder].includes(e.folder))
                             .map((e) => (
-                              <Menu.Item key={e.folder}>
-                                {e.title}
-                              </Menu.Item>
+                              <Menu.Item key={e.folder}>{e.title}</Menu.Item>
                             ))}
                         </Menu>
                       }>

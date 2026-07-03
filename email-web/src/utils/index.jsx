@@ -1,9 +1,4 @@
-/**
- * 节流函数
- * @param {Function} fn 需要被节流的函数
- * @param {Number} delay 延迟的时间（毫秒）
- * @returns {Function} 返回一个带有 cancel 方法的函数
- */
+// 节流函数
 export function throttle(fn, delay) {
   let timer = null // 用于存储定时器
   let lastTime = 0 // 记录上一次执行的时间
@@ -103,4 +98,16 @@ export function isSvg(e) {
 
   // 都不匹配
   return false
+}
+
+// 扁平化树结构
+export function flatTree(treeList) {
+  const result = []
+  for (const item of treeList) {
+    result.push(item)
+    if (Array.isArray(item.children) && item.children.length > 0) {
+      result.push(...flatTree(item.children))
+    }
+  }
+  return result
 }
