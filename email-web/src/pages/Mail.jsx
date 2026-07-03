@@ -83,11 +83,6 @@ const filterList = [
         value: 'unread',
         key: 0,
       },
-      {
-        label: '包含附件',
-        value: 'has_attach',
-        key: 0,
-      },
     ],
   },
   {
@@ -98,12 +93,12 @@ const filterList = [
         children: [
           {
             label: '由新到旧',
-            value: 'date_asc',
+            value: 'date_desc',
             key: 1,
           },
           {
             label: '由旧到新',
-            value: 'date_desc',
+            value: 'date_asc',
             key: 1,
           },
         ],
@@ -113,12 +108,12 @@ const filterList = [
         children: [
           {
             label: '由大到小',
-            value: 'size_asc',
+            value: 'size_desc',
             key: 1,
           },
           {
             label: '由小到大',
-            value: 'size_desc',
+            value: 'size_asc',
             key: 1,
           },
         ],
@@ -146,57 +141,22 @@ const MailLayout = () => {
   const [newWriteMail, setNewWriteMail] = useState(null) // 新的写邮件
   const [isTable, setIsTable] = useState(() => localStorage.getItem('isTable') === 'true') // 表格模式
 
-  const [filterKeys, setFilterKeys] = useState(['all', 'date_asc']) // 已筛选参数
+  const [filterKeys, setFilterKeys] = useState(['all', 'date_desc']) // 已筛选参数
 
   const [_, setRefreshCount] = useState(0) // 刷新次数
   const timerRef = useRef(null) // 定时器
   const tableRef = useRef(null) // 表格
   const pageSize = 25 // 每页显示的邮件数(不能低于22，否则滚动条不出现，无法实现滚动加载更多)
   const totalPages = Math.ceil(total / pageSize) // 总页数
-
-  const onSelectFilter = (key) => {
-    const item = flatTree(filterList).find((e) => e.value === key)
-    setFilterKeys((prev) => {
-      prev[item.key] = item.value
-      return prev
+  // 筛选后展示的名称
+  const filterNames = filterKeys
+    .map((key) => {
+      const item = flatTree(filterList)
+        .filter((item) => !['all', 'date_desc'].includes(item.value))
+        .find((e) => e.value === key)
+      return item?.label
     })
-  }
-
-  const filterMenu = (
-    <Menu onClickMenuItem={onSelectFilter}>
-      {filterList.map((group, groupIdx) => (
-        <Menu.ItemGroup key={groupIdx} title={group.label}>
-          {group.children?.map((menuItem, itemIdx) => {
-            const selectedChild = menuItem.children?.find((child) => filterKeys.includes(child.value))
-            const currentSelectLabel = selectedChild?.label ?? ''
-
-            return menuItem.children?.length ? (
-              <Menu.SubMenu
-                key={itemIdx}
-                title={
-                  <div className='flex flex-1 items-center justify-between'>
-                    <span>{menuItem.label}</span>
-                    <span className='text-gray-400'>{currentSelectLabel}</span>
-                  </div>
-                }>
-                {menuItem.children.map((subItem) => (
-                  <Menu.Item key={subItem.value} className='flex items-center justify-between'>
-                    {subItem.label}
-                    {filterKeys.includes(subItem.value) && <IconCheck />}
-                  </Menu.Item>
-                ))}
-              </Menu.SubMenu>
-            ) : (
-              <Menu.Item key={menuItem.value} className='flex items-center justify-between'>
-                {menuItem.label}
-                {filterKeys.includes(menuItem.value) && <IconCheck />}
-              </Menu.Item>
-            )
-          })}
-        </Menu.ItemGroup>
-      ))}
-    </Menu>
-  )
+    .filter(Boolean)
 
   // 切换表格模式
   const onChangeMode = () => {
@@ -273,6 +233,7 @@ const MailLayout = () => {
     setTotal(0)
     setCurrentMail(null)
     setSearchWord('')
+    setFilterKeys(['all', 'date_desc'])
 
     // 当前文件夹
     const item = folderList.find((item) => item.key === key)
@@ -284,7 +245,13 @@ const MailLayout = () => {
     }
 
     // 加载邮件列表
-    getMailData(item.folder)
+    getMailData({
+      folder: item.folder,
+      keyword: '',
+      page: 1,
+      filter: ['all', 'date_desc'],
+      isRefresh: false,
+    })
     InboxRefresh()
   }
 
@@ -303,7 +270,13 @@ const MailLayout = () => {
       if (timerRef.current) clearTimeout(timerRef.current)
 
       timerRef.current = setTimeout(async () => {
-        await getMailData('INBOX', '', 1, 1) //收件箱，无关键字，第一页，刷新
+        await getMailData({
+          folder: 'INBOX',
+          keyword: '',
+          page: 1,
+          filter: filterKeys,
+          isRefresh: true,
+        })
         //本次请求完成，再开启下一轮计时
         setRefreshCount((prev) => prev + 1)
         InboxRefresh()
@@ -417,25 +390,33 @@ const MailLayout = () => {
     setCurrentMail(null)
     setSelectedRowKeys([])
 
-    getMailData(currentFolder.folder, val)
+    getMailData({
+      folder: currentFolder.folder,
+      keyword: val,
+      page: 1,
+      filter: filterKeys,
+      isRefresh: false,
+    })
 
     scrollToTop()
   }
 
   // 获取邮件数据
-  const getMailData = async (folder, keyword = '', page = 1, isRefresh) => {
+  const getMailData = async (keys) => {
+    const { isRefresh, ...item } = keys
     // 加载邮件列表
     setLoading(true)
     let url = '/api/mail/list'
     let params = {
-      page,
+      ...item,
       size: pageSize,
-      folder,
-      keyword,
     }
-    if (folder === 'Star') {
+    if (item.folder === 'Star') {
       url = '/api/mail/star-list'
-      params = { keyword }
+      params = {
+        filter: item.filter,
+        keyword: item.keyword,
+      }
     }
     let { code, data, msg } = await request.post(url, params)
     if (code === 200) {
@@ -450,11 +431,11 @@ const MailLayout = () => {
         }
       })
 
-      if (folder === 'INBOX') {
+      if (item.folder === 'INBOX') {
         let inbox = list.filter((item) => !item?.flags?.includes('Seen'))?.length || 0
         setFolderList((prev) =>
           prev.map((item) => {
-            if (item.folder === folder) {
+            if (item.folder === item.folder) {
               return { ...item, total: inbox }
             }
             return item
@@ -463,7 +444,7 @@ const MailLayout = () => {
       }
       // 刷新
       if (!isRefresh) {
-        if (page === 1) {
+        if (item.page === 1) {
           setMailList(list)
         } else {
           setMailList([...mailList, ...list])
@@ -799,7 +780,13 @@ const MailLayout = () => {
         if (distanceToBottom <= 300 && !loading) {
           let currentPage = Math.ceil(mailList.length / pageSize)
           if (currentPage < totalPages) {
-            getMailData(currentFolder.folder, searchWord, currentPage + 1)
+            getMailData({
+              folder: currentFolder.folder,
+              keyword: searchWord,
+              page: currentPage + 1,
+              filter: filterKeys,
+              isRefresh: false,
+            })
           }
         }
       }, 500),
@@ -835,6 +822,60 @@ const MailLayout = () => {
       if (timerRef.current) clearTimeout(timerRef.current)
     }
   }, [])
+
+  // 选中筛选
+  const onSelectFilter = (key) => {
+    const item = flatTree(filterList).find((e) => e.value === key)
+    let filter = [...filterKeys]
+    filter[item.key] = item.value
+
+    setFilterKeys(filter)
+
+    getMailData({
+      folder: currentFolder.folder,
+      keyword: searchWord,
+      page: 1,
+      filter: filter,
+      isRefresh: false,
+    })
+  }
+
+  // 筛选菜单
+  const filterMenu = (
+    <Menu onClickMenuItem={onSelectFilter}>
+      {filterList.map((group, groupIdx) => (
+        <Menu.ItemGroup key={groupIdx} title={group.label}>
+          {group.children?.map((menuItem, itemIdx) => {
+            const selectedChild = menuItem.children?.find((child) => filterKeys.includes(child.value))
+            const currentSelectLabel = selectedChild?.label ?? ''
+
+            return menuItem.children?.length ? (
+              <Menu.SubMenu
+                key={itemIdx}
+                title={
+                  <div className='flex flex-1 items-center justify-between'>
+                    <span>{menuItem.label}</span>
+                    <span className='text-gray-400'>{currentSelectLabel}</span>
+                  </div>
+                }>
+                {menuItem.children.map((subItem) => (
+                  <Menu.Item key={subItem.value} className='flex items-center justify-between'>
+                    {subItem.label}
+                    {filterKeys.includes(subItem.value) && <IconCheck />}
+                  </Menu.Item>
+                ))}
+              </Menu.SubMenu>
+            ) : (
+              <Menu.Item key={menuItem.value} className='flex items-center justify-between'>
+                {menuItem.label}
+                {filterKeys.includes(menuItem.value) && <IconCheck />}
+              </Menu.Item>
+            )
+          })}
+        </Menu.ItemGroup>
+      ))}
+    </Menu>
+  )
 
   return (
     <Layout className='flex-1'>
@@ -946,8 +987,19 @@ const MailLayout = () => {
                             popupStyle: { maxHeight: '400px', width: '200px' },
                           }}
                           droplist={filterMenu}>
-                          <Button size='small' type='text'>
-                            <IconAlignCenter className='text-base! text-neutral-500!' />
+                          <Button className='items-centers flex' size='small' type={filterNames.length > 0 ? 'secondary' : 'text'}>
+                            <IconAlignCenter className={`text-base! ${filterNames.length > 0 ? '' : 'text-neutral-500!'}`} />
+                            {filterNames.length > 0 && (
+                              <>
+                                <span>{filterNames.join('; ')}</span>
+                                <IconClose
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    setFilterKeys(['all', 'date_desc'])
+                                  }}
+                                />
+                              </>
+                            )}
                           </Button>
                         </Dropdown>
                       </div>

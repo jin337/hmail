@@ -51,7 +51,7 @@ func MailList(c *gin.Context) {
 		req.Size = 10
 	}
 
-	list, total, err := service.MailList(email.(string), pwd.(string), req.Folder, req.Page, req.Size, req.Keyword)
+	list, total, err := service.MailList(email.(string), pwd.(string), req.Folder, req.Page, req.Size, req.Keyword, req.Filter)
 	if err != nil {
 		c.JSON(200, gin.H{"code": 500, "msg": "获取邮件列表失败: " + err.Error()})
 		return
@@ -79,7 +79,7 @@ func StarMailList(c *gin.Context) {
 		return
 	}
 
-	list, total, err := service.StarMailList(email.(string), pwd.(string), req.Keyword)
+	list, total, err := service.StarMailList(email.(string), pwd.(string), req.Page, req.Size, req.Keyword, req.Filter)
 	if err != nil {
 		c.JSON(200, gin.H{"code": 500, "msg": "获取邮件列表失败: " + err.Error()})
 		return

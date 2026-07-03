@@ -117,13 +117,27 @@ type PasswordReq struct {
 
 // 邮件列表请求
 type MailListReq struct {
-	Folder  string `json:"folder" binding:"required"` // 文件夹
-	Page    int64  `json:"page"`                      // 页码
-	Size    int64  `json:"size"`                      // 每页数量
-	Keyword string `json:"keyword"`                   // 关键字
+	Folder  string   `json:"folder" binding:"required"` // 文件夹
+	Page    int64    `json:"page"`                      // 页码
+	Size    int64    `json:"size"`                      // 每页数量
+	Keyword string   `json:"keyword"`                   // 关键字
+	Filter  []string `json:"filter"`                    // 筛选条件
 }
 type MailStarListReq struct {
-	Keyword string `json:"keyword"` // 关键字
+	Page    int64    `json:"page"`    // 页码
+	Size    int64    `json:"size"`    // 每页数量
+	Keyword string   `json:"keyword"` // 关键字
+	Filter  []string `json:"filter"`  // 筛选条件
+}
+
+// 邮件筛选条件
+type MailFilter struct {
+	All      bool // 全部
+	Unread   bool // 未读
+	DateAsc  bool // 按时间升序
+	DateDesc bool // 按时间降序
+	SizeAsc  bool // 按大小升序
+	SizeDesc bool // 按大小降序
 }
 
 // 邮件详情请求

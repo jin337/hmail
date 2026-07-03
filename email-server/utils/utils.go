@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"net/mail"
 	"reflect"
+	"regexp"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -76,8 +78,8 @@ func FormatMailName(mailStr string) (*string, []*model.MailInfo, error) {
 	return &str, infoList, nil
 }
 
-// FormatSize 字节 转为 友好单位 B/KB/MB/GB
-func FormatSize(size uint32) string {
+// FormatUnitSize 字节 转为 友好单位 B/KB/MB/GB
+func FormatUnitSize(size int64) string {
 	if size < 1024 {
 		return fmt.Sprintf("%dB", size)
 	} else if size < 1024*1024 {
@@ -87,6 +89,40 @@ func FormatSize(size uint32) string {
 	} else {
 		return fmt.Sprintf("%.1fGB", float64(size)/1024/1024/1024)
 	}
+}
+
+// Formatize 反向：可读字符串转字节总数
+func Formatize(size string) int64 {
+	// 正则匹配数字+单位
+	re := regexp.MustCompile(`^([0-9.]+)(B|KB|MB|GB)$`)
+	match := re.FindStringSubmatch(strings.TrimSpace(size))
+	if len(match) != 3 {
+		return 0
+	}
+
+	numStr, unit := match[1], match[2]
+	val, err := strconv.ParseFloat(numStr, 64)
+	if err != nil {
+		return 0
+	}
+	if val < 0 {
+		return 0
+	}
+
+	var bytes int64
+	switch unit {
+	case "B":
+		bytes = int64(val)
+	case "KB":
+		bytes = int64(val * 1024)
+	case "MB":
+		bytes = int64(val * 1024 * 1024)
+	case "GB":
+		bytes = int64(val * 1024 * 1024 * 1024)
+	default:
+		return 0
+	}
+	return bytes
 }
 
 // FormatDate 解析时间，格式化为 2006-01-02 15:04:05
