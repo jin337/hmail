@@ -25,24 +25,8 @@ import (
 	"github.com/jhillyerd/enmime"
 )
 
-// MailList 获取邮件列表
-var reg = regexp.MustCompile(`\s+`)
-
-func MailList(email, pwd, folder string, page, size int64, keyword string, filter []string) ([]*model.MailItem, int64, error) {
-	// 验证用户
-	imapClient, err := utils.DialIMAPClient(email, pwd)
-	if err != nil {
-		return nil, 0, err
-	}
-	defer imapClient.Logout()
-
-	// 选择文件夹
-	_, err = imapClient.Select(folder, false)
-	if err != nil {
-		return nil, 0, fmt.Errorf("选择文件夹 %s 失败: %w", folder, err)
-	}
-
-	// 处理筛选条件
+// FormatFilter 将字符串数组转换为 MailFilter 结构体
+func FormatFilter(filter []string) model.MailFilter {
 	mailFilter := model.MailFilter{}
 	for _, f := range filter {
 		switch f {
@@ -58,6 +42,62 @@ func MailList(email, pwd, folder string, page, size int64, keyword string, filte
 			mailFilter.SizeDesc = true
 		}
 	}
+	return mailFilter
+}
+
+// sortMailList 根据 MailFilter 对邮件列表进行排序
+func sortMailList(list []*model.MailItem, mailFilter model.MailFilter) {
+	if len(list) <= 1 {
+		return
+	}
+
+	// 按时间升序
+	if mailFilter.DateAsc {
+		sort.Slice(list, func(i, j int) bool {
+			return list[i].SendTime.Before(list[j].SendTime)
+		})
+	} else if mailFilter.DateDesc {
+		// 按时间降序
+		sort.Slice(list, func(i, j int) bool {
+			return list[i].SendTime.After(list[j].SendTime)
+		})
+	} else if mailFilter.SizeAsc {
+		// 按大小升序
+		sort.Slice(list, func(i, j int) bool {
+			sizeI := utils.Formatize(list[i].Size)
+			sizeJ := utils.Formatize(list[j].Size)
+			return sizeI < sizeJ
+		})
+	} else if mailFilter.SizeDesc {
+		// 按大小降序
+		sort.Slice(list, func(i, j int) bool {
+			sizeI := utils.Formatize(list[i].Size)
+			sizeJ := utils.Formatize(list[j].Size)
+			return sizeI > sizeJ
+		})
+	}
+}
+
+// MailList 获取邮件列表
+func MailList(email, pwd, folder string, page, size int64, keyword string, filter []string) ([]*model.MailItem, int64, error) {
+	// 验证用户
+	imapClient, err := utils.DialIMAPClient(email, pwd)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer imapClient.Logout()
+
+	// 选择文件夹
+	_, err = imapClient.Select(folder, false)
+	if err != nil {
+		return nil, 0, fmt.Errorf("选择文件夹 %s 失败: %w", folder, err)
+	}
+
+	var total int64
+	var list []*model.MailItem
+
+	// 处理筛选条件
+	mailFilter := FormatFilter(filter)
 
 	// 搜索邮件
 	searchCrit := &imap.SearchCriteria{}
@@ -75,7 +115,7 @@ func MailList(email, pwd, folder string, page, size int64, keyword string, filte
 	}
 
 	// 获取总数
-	total := int64(len(ids))
+	total = int64(len(ids))
 	if total == 0 {
 		return nil, 0, nil
 	}
@@ -112,7 +152,6 @@ func MailList(email, pwd, folder string, page, size int64, keyword string, filte
 	}()
 
 	// 获取邮件列表
-	var list []*model.MailItem
 	for msg := range mailMsg {
 
 		// 获取邮件体
@@ -130,7 +169,7 @@ func MailList(email, pwd, folder string, page, size int64, keyword string, filte
 
 		// 处理邮件正文
 		showText := strings.TrimSpace(env.Text)
-		showText = reg.ReplaceAllString(showText, "")
+		showText = regexp.MustCompile(`\s+`).ReplaceAllString(showText, "")
 		showText = strings.ReplaceAll(showText, "*", "")
 
 		fromMail, formInfo, _ := utils.FormatMailName(env.GetHeader("From"))
@@ -149,9 +188,6 @@ func MailList(email, pwd, folder string, page, size int64, keyword string, filte
 				short := flag[1:]
 				flagMap[short] = struct{}{}
 			}
-		}
-		if folder != "INBOX" {
-			flagMap["Seen"] = struct{}{}
 		}
 		var flags []string
 		for f := range flagMap {
@@ -184,31 +220,8 @@ func MailList(email, pwd, folder string, page, size int64, keyword string, filte
 		return nil, 0, fmt.Errorf("获取邮件失败: %v", err)
 	}
 
-	// 按时间升序
-	if mailFilter.DateAsc {
-		sort.Slice(list, func(i, j int) bool {
-			return list[i].SendTime.Before(list[j].SendTime)
-		})
-	} else if mailFilter.DateDesc {
-		// 按时间降序
-		sort.Slice(list, func(i, j int) bool {
-			return list[i].SendTime.After(list[j].SendTime)
-		})
-	} else if mailFilter.SizeAsc {
-		// 按大小升序
-		sort.Slice(list, func(i, j int) bool {
-			sizeI := utils.Formatize(list[i].Size)
-			sizeJ := utils.Formatize(list[j].Size)
-			return sizeI < sizeJ
-		})
-	} else if mailFilter.SizeDesc {
-		// 按大小降序
-		sort.Slice(list, func(i, j int) bool {
-			sizeI := utils.Formatize(list[i].Size)
-			sizeJ := utils.Formatize(list[j].Size)
-			return sizeI > sizeJ
-		})
-	}
+	// 排序
+	sortMailList(list, mailFilter)
 
 	return list, total, nil
 }
@@ -224,22 +237,9 @@ func StarMailList(email, pwd string, page, size int64, keyword string, filter []
 
 	var total int64
 	var list []*model.MailItem
+
 	// 处理筛选条件
-	mailFilter := model.MailFilter{}
-	for _, f := range filter {
-		switch f {
-		case "unread":
-			mailFilter.Unread = true
-		case "date_asc":
-			mailFilter.DateAsc = true
-		case "date_desc":
-			mailFilter.DateDesc = true
-		case "size_asc":
-			mailFilter.SizeAsc = true
-		case "size_desc":
-			mailFilter.SizeDesc = true
-		}
-	}
+	mailFilter := FormatFilter(filter)
 
 	// 遍历所有文件夹config.DefaultFolders
 	for _, folder := range config.DefaultFolders {
@@ -309,7 +309,7 @@ func StarMailList(email, pwd string, page, size int64, keyword string, filter []
 
 			// 处理邮件正文
 			showText := strings.TrimSpace(env.Text)
-			showText = reg.ReplaceAllString(showText, "")
+			showText = regexp.MustCompile(`\s+`).ReplaceAllString(showText, "")
 			showText = strings.ReplaceAll(showText, "*", "")
 
 			fromMail, formInfo, _ := utils.FormatMailName(env.GetHeader("From"))
@@ -364,31 +364,8 @@ func StarMailList(email, pwd string, page, size int64, keyword string, filter []
 		}
 	}
 
-	// 按时间升序
-	if mailFilter.DateAsc {
-		sort.Slice(list, func(i, j int) bool {
-			return list[i].SendTime.Before(list[j].SendTime)
-		})
-	} else if mailFilter.DateDesc {
-		// 按时间降序
-		sort.Slice(list, func(i, j int) bool {
-			return list[i].SendTime.After(list[j].SendTime)
-		})
-	} else if mailFilter.SizeAsc {
-		// 按大小升序
-		sort.Slice(list, func(i, j int) bool {
-			sizeI := utils.Formatize(list[i].Size)
-			sizeJ := utils.Formatize(list[j].Size)
-			return sizeI < sizeJ
-		})
-	} else if mailFilter.SizeDesc {
-		// 按大小降序
-		sort.Slice(list, func(i, j int) bool {
-			sizeI := utils.Formatize(list[i].Size)
-			sizeJ := utils.Formatize(list[j].Size)
-			return sizeI > sizeJ
-		})
-	}
+	// 排序
+	sortMailList(list, mailFilter)
 
 	return list, total, nil
 }

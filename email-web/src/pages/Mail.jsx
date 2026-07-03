@@ -6,7 +6,21 @@ import relativeTime from 'dayjs/plugin/relativeTime'
 dayjs.extend(relativeTime)
 dayjs.locale('zh-cn')
 
-import { Avatar, Button, Card, Divider, Dropdown, Input, Layout, Menu, Message, Space, Spin, Table } from '@arco-design/web-react'
+import {
+  Avatar,
+  Button,
+  Card,
+  Divider,
+  Dropdown,
+  Input,
+  Layout,
+  Menu,
+  Message,
+  Modal,
+  Space,
+  Spin,
+  Table,
+} from '@arco-design/web-react'
 import {
   IconAlignCenter,
   IconArrowLeft,
@@ -460,26 +474,33 @@ const MailLayout = () => {
 
   // 删除邮件
   const onDelMail = async (ids) => {
-    setSelectedRowKeys([])
+    Modal.confirm({
+      title: '提示',
+      content: '是否确定删除?',
+      className: 'simpleModal',
+      onOk: async () => {
+        setSelectedRowKeys([])
 
-    if (currentFolder.folder === 'Deleted') {
-      const { code } = await request.post('/api/mail/delete', { folder: 'Deleted', uids: ids })
-      if (code === 200) {
-        Message.success('邮件已彻底删除')
-      }
-    } else {
-      // 其他文件夹：移动到垃圾箱
-      const { code } = await request.post('/api/mail/move', {
-        uids: ids,
-        from_folder: currentFolder.folder,
-        to_folder: 'Deleted',
-      })
-      if (code === 200) {
-        Message.success('已移入垃圾箱')
-      }
-    }
-    setCurrentMail(null)
-    loadMailList(currentFolder.key)
+        if (currentFolder.folder === 'Deleted') {
+          const { code } = await request.post('/api/mail/delete', { folder: 'Deleted', uids: ids })
+          if (code === 200) {
+            Message.success('邮件已彻底删除')
+          }
+        } else {
+          // 其他文件夹：移动到垃圾箱
+          const { code } = await request.post('/api/mail/move', {
+            uids: ids,
+            from_folder: currentFolder.folder,
+            to_folder: 'Deleted',
+          })
+          if (code === 200) {
+            Message.success('已移入垃圾箱')
+          }
+        }
+        setCurrentMail(null)
+        loadMailList(currentFolder.key)
+      },
+    })
   }
 
   // 移动邮件
@@ -952,7 +973,7 @@ const MailLayout = () => {
             <Table
               size='middle'
               loading={loading}
-              scroll={{ y: 'calc(100vh - 116px)' }}
+              scroll={{ y: 'calc(100vh - 120px)' }}
               className={`email-list h-full ${isTable ? 'email-table' : ''}`}
               rowKey='uid'
               pagination={false}
@@ -987,7 +1008,10 @@ const MailLayout = () => {
                             popupStyle: { maxHeight: '400px', width: '200px' },
                           }}
                           droplist={filterMenu}>
-                          <Button className='items-centers flex' size='small' type={filterNames.length > 0 ? 'secondary' : 'text'}>
+                          <Button
+                            className='items-centers flex'
+                            size='small'
+                            type={filterNames.length > 0 ? 'secondary' : 'text'}>
                             <IconAlignCenter className={`text-base! ${filterNames.length > 0 ? '' : 'text-neutral-500!'}`} />
                             {filterNames.length > 0 && (
                               <>
@@ -1015,7 +1039,9 @@ const MailLayout = () => {
                   ),
                   dataIndex: 'date',
                   render: (text, record) => (
-                    <div className={record?.flags?.includes('Seen') ? '' : 'font-bold'} onClick={() => onRead(record)}>
+                    <div
+                      className={record.folder === 'INBOX' ? (record?.flags?.includes('Seen') ? '' : 'font-bold') : ''}
+                      onClick={() => onRead(record)}>
                       <div className={`flex items-center justify-between gap-2 ${!isTable ? 'mb-1' : ''}`}>
                         <div className={` ${isTable ? 'flex' : ''}`}>
                           <div className={`flex items-center gap-1.5 ${isTable ? 'w-60!' : ''}`}>

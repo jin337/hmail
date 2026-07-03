@@ -45,4 +45,7 @@ upx --lzma -9 email-server.exe
 
 # 校验
 upx -t email-server.exe
+
+# 一键
+go build -trimpath -ldflags="-s -w" -o email-server.exe main.go && upx --lzma -9 email-server.exe && upx -t email-server.exe
 ```

@@ -94,8 +94,8 @@ const Home = () => {
                 </Menu.Item>
               </Menu>
             }>
-            <Button size='small' type='text'>
-              <IconSettings />
+            <Button size='small' type='text' className='text-gray-500!' icon={<IconSettings />}>
+              设置
             </Button>
           </Dropdown>
         </Space>
