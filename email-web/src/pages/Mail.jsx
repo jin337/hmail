@@ -22,7 +22,6 @@ import {
   Table,
 } from '@arco-design/web-react'
 import {
-  IconAlignCenter,
   IconArrowLeft,
   IconAttachment,
   IconCheck,
@@ -41,6 +40,7 @@ import {
   IconRight,
   IconSearch,
   IconSend,
+  IconSort,
   IconStar,
   IconToBottom,
 } from '@arco-design/web-react/icon'
@@ -59,8 +59,8 @@ import IconVideo from 'src/assets/file_video.svg'
 import IconWord from 'src/assets/file_word.svg'
 import IconZip from 'src/assets/file_zip.svg'
 
-import IconMail from 'src/assets/mail.svg'
 import IconMoveFolder from 'src/assets/mail_move_folder.svg'
+import IconMailNormal from 'src/assets/mail_normal.svg'
 import IconMailOpen from 'src/assets/mail_open.svg'
 import IconSent from 'src/assets/mail_sent.svg'
 import IconStarUnselect from 'src/assets/mail_star.svg'
@@ -1057,7 +1057,7 @@ const MailLayout = () => {
                           }}
                           droplist={filterMenu}>
                           <Button className='flex items-center' size='small' type={filterNames.length > 0 ? 'secondary' : 'text'}>
-                            <IconAlignCenter className={`text-base! ${filterNames.length > 0 ? '' : 'text-neutral-500!'}`} />
+                            <IconSort className={`text-base! ${filterNames.length > 0 ? '' : 'text-neutral-600!'}`} />
                             {filterNames.length > 0 && (
                               <>
                                 <span>{filterNames.join('; ')}</span>
@@ -1083,7 +1083,7 @@ const MailLayout = () => {
                       <div className={`flex items-center justify-between gap-2 ${!isTable ? 'mb-1' : ''}`}>
                         <div className={` ${isTable ? 'flex' : ''}`}>
                           <div className={`flex items-center gap-1.5 ${isTable ? 'w-60!' : ''}`}>
-                            {record?.flags?.includes('Seen') ? <IconMailOpen /> : <IconMail />}
+                            {record?.flags?.includes('Seen') ? <IconMailOpen /> : <IconMailNormal />}
                             {currentFolder?.key === 'sent' ? (
                               <>
                                 <IconSent />
@@ -1140,7 +1140,7 @@ const MailLayout = () => {
           </Layout.Sider>
 
           {/* 右列：邮件详情 + 顶部操作按钮栏 */}
-          <Layout.Content className={`relative h-full min-w-130 flex-1 bg-white ${isTable && currentMail ? ' z-10 w-full' : ''}`}>
+          <Layout.Content className={`relative h-full  flex-1 bg-white ${isTable && currentMail ? ' z-10 w-full' : ''}`}>
             {currentMail && (
               <Spin block loading={currentLoading}>
                 {/* 邮件操作工具栏 */}
