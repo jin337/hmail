@@ -60,6 +60,7 @@ import IconWord from 'src/assets/file_word.svg'
 import IconZip from 'src/assets/file_zip.svg'
 
 import IconMail from 'src/assets/mail.svg'
+import IconMoveFolder from 'src/assets/mail_move_folder.svg'
 import IconMailOpen from 'src/assets/mail_open.svg'
 import IconSent from 'src/assets/mail_sent.svg'
 import IconStarUnselect from 'src/assets/mail_star.svg'
@@ -136,6 +137,20 @@ const filterList = [
   },
 ]
 
+// 标记
+const FlagList = (flags) => {
+  // 1:添加 2:取消
+  const list = [
+    { flag: 'Seen', key: 2, title: '未读邮件' },
+    { flag: 'Flagged', key: 2, title: '取消星标' },
+  ]
+  if (!flags?.includes('Flagged')) {
+    list[1].title = '星标邮件'
+    list[1].key = 1
+  }
+  return list.map((e) => <Menu.Item key={e.flag + '_' + e.key}>{e.title}</Menu.Item>)
+}
+
 const MailLayout = () => {
   const [userList, setUserList] = useState({}) // 用户列表
   const [recentlyContact, setRecentlyContact] = useState([]) // 最近联系人
@@ -184,9 +199,9 @@ const MailLayout = () => {
   const onCutMail = (record, key) => {
     const index = mailList.findIndex((e) => e.uid === record.uid)
     if (key === 'prev') {
-      onSelectMail(mailList[index - 1])
+      onMailDetail(mailList[index - 1])
     } else if (key === 'next') {
-      onSelectMail(mailList[index + 1])
+      onMailDetail(mailList[index + 1])
     }
   }
 
@@ -247,7 +262,6 @@ const MailLayout = () => {
     setTotal(0)
     setCurrentMail(null)
     setSearchWord('')
-    setFilterKeys(['all', 'date_desc'])
 
     // 当前文件夹
     const item = folderList.find((item) => item.key === key)
@@ -259,7 +273,7 @@ const MailLayout = () => {
     }
 
     // 加载邮件列表
-    getMailData({
+    getMailList({
       folder: item.folder,
       keyword: '',
       page: 1,
@@ -284,7 +298,7 @@ const MailLayout = () => {
       if (timerRef.current) clearTimeout(timerRef.current)
 
       timerRef.current = setTimeout(async () => {
-        await getMailData({
+        await getMailList({
           folder: 'INBOX',
           keyword: '',
           page: 1,
@@ -333,7 +347,7 @@ const MailLayout = () => {
   }
 
   // 获取邮件详情
-  const onSelectMail = async (item, e) => {
+  const onMailDetail = async (item, e) => {
     // 排除干扰点击
     const targetElement = e?.target
 
@@ -369,10 +383,15 @@ const MailLayout = () => {
         const newItem = {
           ...item,
           detail: newData,
-          to_info: item.to_info.map((e) => ({ label: e.name, value: e.email })),
+          to_info: item?.to_info?.map((e) => ({ label: e.name, value: e.email })),
           cc_info: item?.cc_info?.map((e) => ({ label: e.name, value: e.email })) || [],
         }
         onWriteMail('rewrite', newItem)
+      }
+
+      // 标记已读
+      if (!item?.flags || !item.flags.includes('Seen')) {
+        onRead(item, 1)
       }
     } else {
       Message.error(msg)
@@ -404,7 +423,7 @@ const MailLayout = () => {
     setCurrentMail(null)
     setSelectedRowKeys([])
 
-    getMailData({
+    getMailList({
       folder: currentFolder.folder,
       keyword: val,
       page: 1,
@@ -416,8 +435,10 @@ const MailLayout = () => {
   }
 
   // 获取邮件数据
-  const getMailData = async (keys) => {
+  const getMailList = async (keys) => {
     const { isRefresh, ...item } = keys
+
+    setFilterKeys(keys.filter)
     // 加载邮件列表
     setLoading(true)
     let url = '/api/mail/list'
@@ -446,13 +467,13 @@ const MailLayout = () => {
       })
 
       if (item.folder === 'INBOX') {
-        let inbox = list.filter((item) => !item?.flags?.includes('Seen'))?.length || 0
+        let inbox = list.filter((e) => !e?.flags?.includes('Seen'))?.length || 0
         setFolderList((prev) =>
-          prev.map((item) => {
-            if (item.folder === item.folder) {
-              return { ...item, total: inbox }
+          prev.map((e) => {
+            if (e.folder === item.folder) {
+              return { ...e, total: inbox }
             }
-            return item
+            return e
           })
         )
       }
@@ -504,7 +525,7 @@ const MailLayout = () => {
   }
 
   // 移动邮件
-  const confirmMoveMail = async (e) => {
+  const onMoveMail = async (e) => {
     const { code } = await request.post('/api/mail/move', {
       from_folder: currentFolder.folder,
       to_folder: e,
@@ -517,6 +538,18 @@ const MailLayout = () => {
     Message.success('移动成功')
     loadMailList(currentFolder.key)
     setCurrentMail(null)
+  }
+
+  // 标记邮件
+  const onFlagMail = async (e) => {
+    const key = e.split('_')
+    if (key[0] === 'Seen') {
+      onRead(currentMail, Number(key[1]))
+    }
+
+    if (key[0] === 'Flagged') {
+      onStar(currentMail)
+    }
   }
 
   // 邮件原内容
@@ -597,9 +630,9 @@ const MailLayout = () => {
     onWriteMail('forward', newMail)
   }
 
-  // 星标邮件
+  // 标记星标邮件
   const onStar = async (item) => {
-    const type = item?.flags?.includes('Flagged') ? 2 : 1 // 1:添加星标 2:取消星标
+    const type = item?.flags?.includes('Flagged') ? 2 : 1 // 1:添加 2:取消
     const params = {
       uid: item.uid,
       folder: item.folder,
@@ -642,14 +675,12 @@ const MailLayout = () => {
   }
 
   // 标记已读
-  const onRead = async (item) => {
-    const isRead = item?.flags?.includes('Seen')
-    if (isRead) return
+  const onRead = async (item, type = 1) => {
     const params = {
       uid: item.uid,
       folder: item.folder,
       status: 'Seen',
-      type: 1,
+      type,
     }
     const { code } = await request.post('/api/mail/status', params)
     if (code === 200) {
@@ -657,7 +688,12 @@ const MailLayout = () => {
         const newList = [...prev]
         const index = newList.findIndex((item) => item.uid === params.uid)
         let flags = newList[index]?.flags || []
-        flags.push('Seen')
+        if (type === 1) {
+          flags.push('Seen')
+        }
+        if (type === 2) {
+          flags = flags?.filter((item) => item !== 'Seen')
+        }
         newList[index].flags = flags
         return newList
       })
@@ -801,7 +837,7 @@ const MailLayout = () => {
         if (distanceToBottom <= 300 && !loading) {
           let currentPage = Math.ceil(mailList.length / pageSize)
           if (currentPage < totalPages) {
-            getMailData({
+            getMailList({
               folder: currentFolder.folder,
               keyword: searchWord,
               page: currentPage + 1,
@@ -851,8 +887,9 @@ const MailLayout = () => {
     filter[item.key] = item.value
 
     setFilterKeys(filter)
+    setCurrentMail(null)
 
-    getMailData({
+    getMailList({
       folder: currentFolder.folder,
       keyword: searchWord,
       page: 1,
@@ -897,6 +934,17 @@ const MailLayout = () => {
       ))}
     </Menu>
   )
+
+  const onClearFilter = (e) => {
+    e.stopPropagation()
+    getMailList({
+      folder: currentFolder.folder,
+      keyword: searchWord,
+      page: 1,
+      filter: ['all', 'date_desc'],
+      isRefresh: false,
+    })
+  }
 
   return (
     <Layout className='flex-1'>
@@ -992,7 +1040,7 @@ const MailLayout = () => {
               onRow={(record) => {
                 return {
                   onClick: (e) => {
-                    onSelectMail(record, e)
+                    onMailDetail(record, e)
                   },
                 }
               }}
@@ -1008,20 +1056,12 @@ const MailLayout = () => {
                             popupStyle: { maxHeight: '400px', width: '200px' },
                           }}
                           droplist={filterMenu}>
-                          <Button
-                            className='items-centers flex'
-                            size='small'
-                            type={filterNames.length > 0 ? 'secondary' : 'text'}>
+                          <Button className='flex items-center' size='small' type={filterNames.length > 0 ? 'secondary' : 'text'}>
                             <IconAlignCenter className={`text-base! ${filterNames.length > 0 ? '' : 'text-neutral-500!'}`} />
                             {filterNames.length > 0 && (
                               <>
                                 <span>{filterNames.join('; ')}</span>
-                                <IconClose
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    setFilterKeys(['all', 'date_desc'])
-                                  }}
-                                />
+                                <IconClose onClick={(e) => onClearFilter(e)} />
                               </>
                             )}
                           </Button>
@@ -1039,9 +1079,7 @@ const MailLayout = () => {
                   ),
                   dataIndex: 'date',
                   render: (text, record) => (
-                    <div
-                      className={record.folder === 'INBOX' ? (record?.flags?.includes('Seen') ? '' : 'font-bold') : ''}
-                      onClick={() => onRead(record)}>
+                    <div className={record.folder === 'INBOX' ? (record?.flags?.includes('Seen') ? '' : 'font-bold') : ''}>
                       <div className={`flex items-center justify-between gap-2 ${!isTable ? 'mb-1' : ''}`}>
                         <div className={` ${isTable ? 'flex' : ''}`}>
                           <div className={`flex items-center gap-1.5 ${isTable ? 'w-60!' : ''}`}>
@@ -1122,10 +1160,19 @@ const MailLayout = () => {
                     <Button size='small' icon={<IconRedo />} onClick={onForward}>
                       转发
                     </Button>
+                    <Dropdown trigger='click' droplist={<Menu onClickMenuItem={onFlagMail}>{FlagList(currentMail?.flags)}</Menu>}>
+                      <Button size='small'>
+                        <div className='flex items-center gap-2'>
+                          <IconStar />
+                          标记为
+                          <IconDown />
+                        </div>
+                      </Button>
+                    </Dropdown>
                     <Dropdown
                       trigger='click'
                       droplist={
-                        <Menu onClickMenuItem={confirmMoveMail}>
+                        <Menu onClickMenuItem={onMoveMail}>
                           {moveList
                             .filter((e) => ![currentFolder.folder].includes(e.folder))
                             .map((e) => (
@@ -1134,8 +1181,11 @@ const MailLayout = () => {
                         </Menu>
                       }>
                       <Button size='small'>
-                        移动
-                        <IconDown />
+                        <div className='flex items-center gap-2'>
+                          <IconMoveFolder />
+                          移动到
+                          <IconDown />
+                        </div>
                       </Button>
                     </Dropdown>
                   </div>
