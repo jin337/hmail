@@ -219,7 +219,14 @@ export default function WriteMail({
   const handleSend = async (type) => {
     // 调用父组件传递的发送函数
     if (onSend) {
-      onSend(type, form, html, fileList, detail, customTime, setLoading)
+      let time = ''
+      if (customTime) {
+        let str = customTime?.date + ' ' + customTime?.time
+        const pureTime = str.replace(/\s.+?(\d{2}:\d{2})$/, ' $1')
+        time = dayjs(pureTime, 'YYYY-MM-DD HH:mm').format('YYYY-MM-DD HH:mm:ss')
+      }
+
+      onSend(type, form, html, fileList, detail, time, setLoading)
     }
   }
 
@@ -425,7 +432,7 @@ export default function WriteMail({
             autoComplete='off'
             layout='vertical'
             onChange={onChangeMail}>
-            <Form.Item className={'text-gray-500'} hidden={!customTime?.time}>
+            <Form.Item className={'text-[13px] text-gray-500'} hidden={!customTime?.time}>
               发送后，邮件将于
               <span className='mx-2 cursor-pointer text-blue-500' onClick={() => onTimeCustom('custom')}>
                 {customTime?.date}&nbsp;
