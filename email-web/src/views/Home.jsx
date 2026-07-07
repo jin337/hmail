@@ -62,7 +62,7 @@ const Home = () => {
   }, [currentAccountId, userToken, navigate])
 
   return (
-    <Layout className='h-screen w-full overflow-hidden'>
+    <Layout className='h-screen w-screen'>
       <Layout.Header className='z-10 flex h-14 items-center justify-between pr-6'>
         {/* Logo */}
         <div className='flex h-full w-55 cursor-pointer items-center justify-center'>

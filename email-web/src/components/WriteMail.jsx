@@ -4,21 +4,39 @@ import {
   Avatar,
   Button,
   Card,
+  DatePicker,
+  Dropdown,
   Form,
   Input,
   InputTag,
   Layout,
+  Menu,
   Modal,
   Popover,
   Space,
+  TimePicker,
   Tree,
   Typography,
   Upload,
 } from '@arco-design/web-react'
-import { IconClose, IconDelete, IconEdit, IconFile, IconPlus, IconSend, IconUpload } from '@arco-design/web-react/icon'
+import {
+  IconCalendar,
+  IconClose,
+  IconDelete,
+  IconDown,
+  IconEdit,
+  IconFile,
+  IconPlus,
+  IconSend,
+  IconSettings,
+  IconUpload,
+} from '@arco-design/web-react/icon'
 
 // 引入 wangEditor
 import { Editor, Toolbar } from '@wangeditor/editor-for-react'
+
+// 时间处理
+import dayjs from 'dayjs'
 
 // 公共事件
 import { isSvg } from 'src/utils'
@@ -53,9 +71,49 @@ export default function WriteMail({
   const [editor, setEditor] = useState(null)
   const [html, setHtml] = useState('')
 
+  const [customTimeVisible, setCustomTimeVisible] = useState(false)
+  const [customTime, setCustomTime] = useState(null)
+
   const toRef = useRef(null)
   const ccRef = useRef(null)
   const [lastFocus, setLastFocus] = useState(null) // 缓存最后一次焦点
+
+  const timeList = [
+    {
+      key: '9',
+      title: '明天上午9:00发送',
+    },
+    {
+      key: 'custom',
+      title: '自定义时间发送...',
+    },
+  ]
+
+  // 格式化时间
+  const onFormatTime = () => {
+    setCustomTime(customTimeVisible)
+    setCustomTimeVisible(false)
+  }
+  // 时间选择
+  const onTimeCustom = (e) => {
+    if (!customTime) {
+      let target = dayjs().add(1, 'day').hour(9).minute(0).second(0)
+      if (e === 'custom') {
+        target = dayjs()
+        setCustomTimeVisible({
+          date: target.format('YYYY-MM-DD ddd'),
+          time: target.format('HH:mm'),
+        })
+      } else {
+        setCustomTime({
+          date: target.format('YYYY-MM-DD ddd'),
+          time: target.format('HH:mm'),
+        })
+      }
+    } else {
+      setCustomTimeVisible({ ...customTime })
+    }
+  }
 
   // 选择用户
   const onSelectUser = (ids, extra) => {
@@ -161,7 +219,7 @@ export default function WriteMail({
   const handleSend = async (type) => {
     // 调用父组件传递的发送函数
     if (onSend) {
-      onSend(type, form, html, fileList, detail, setLoading)
+      onSend(type, form, html, fileList, detail, customTime, setLoading)
     }
   }
 
@@ -327,9 +385,28 @@ export default function WriteMail({
           <Button type='primary' icon={<IconSend />} loading={loading} onClick={() => handleSend('Sent')}>
             发送邮件
           </Button>
-          <Button type='secondary' icon={<IconFile />} loading={loading} onClick={() => handleSend('Drafts')}>
+          <Button
+            type='secondary'
+            icon={<IconFile />}
+            disabled={customTime?.date}
+            loading={loading}
+            onClick={() => handleSend('Drafts')}>
             存草稿
           </Button>
+          <Dropdown
+            trigger='click'
+            droplist={
+              <Menu onClickMenuItem={onTimeCustom}>
+                {timeList.map((e) => (
+                  <Menu.Item key={e.key}>{e.title}</Menu.Item>
+                ))}
+              </Menu>
+            }>
+            <Button type='secondary' icon={<IconSettings />} loading={loading}>
+              发信设置
+              <IconDown />
+            </Button>
+          </Dropdown>
         </Space>
         <Space>
           {!addCC && (
@@ -348,6 +425,24 @@ export default function WriteMail({
             autoComplete='off'
             layout='vertical'
             onChange={onChangeMail}>
+            <Form.Item className={'text-gray-500'} hidden={!customTime?.time}>
+              发送后，邮件将于
+              <span className='mx-2 cursor-pointer text-blue-500' onClick={() => onTimeCustom('custom')}>
+                {customTime?.date}&nbsp;
+                {customTime?.time}
+              </span>
+              发出
+              <Button
+                status='danger'
+                type='text'
+                size='mini'
+                className='ml-2!'
+                onClick={() => {
+                  setCustomTime(null)
+                }}>
+                <IconClose />
+              </Button>
+            </Form.Item>
             <Form.Item field='to_info' rules={[{ required: true, message: '请输入收件人' }, { validator: validateEmails }]}>
               <InputTag
                 labelInValue
@@ -425,6 +520,29 @@ export default function WriteMail({
           </Card>
         </div>
       </Layout.Content>
+
+      <Modal
+        title='自定义发送时间'
+        className={'w-110!'}
+        visible={customTimeVisible}
+        onCancel={() => setCustomTimeVisible(false)}
+        onOk={onFormatTime}>
+        <div className='mb-2 flex items-center gap-2'>
+          <Input prefix={<IconCalendar />} value={customTimeVisible?.date} />
+          <TimePicker
+            format='HH:mm'
+            className={'w-40'}
+            value={customTimeVisible?.time}
+            onChange={(e) => setCustomTimeVisible((prev) => ({ ...prev, time: e }))}
+          />
+        </div>
+        <DatePicker
+          className={'no-footer w-69'}
+          format='YYYY-MM-DD ddd'
+          triggerElement={null}
+          onChange={(_, date) => setCustomTimeVisible((prev) => ({ ...prev, date: date.format('YYYY-MM-DD ddd') }))}
+        />
+      </Modal>
     </Layout>
   )
 }

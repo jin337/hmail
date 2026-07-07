@@ -737,7 +737,7 @@ const MailLayout = () => {
   }
 
   // 发送邮件&草稿
-  const onSend = async (type, form, html, fileList, detail, setLoading) => {
+  const onSend = async (type, form, html, fileList, detail, customTime, setLoading) => {
     const values = form.getFieldsValue()
     if (!values.to_info || !values.subject) {
       Message.warning('请填写收件人和主题')
@@ -754,6 +754,9 @@ const MailLayout = () => {
     formData.append('content', html)
     if (detail?.uid) {
       formData.append('uid', detail.uid)
+    }
+    if (customTime) {
+      formData.append('customTime', customTime)
     }
 
     // 回复
@@ -947,7 +950,7 @@ const MailLayout = () => {
   }
 
   return (
-    <Layout className='flex-1'>
+    <Layout className='h-[calc(100vh-64px)] w-full flex-1 overflow-hidden'>
       {/* 左列：文件夹导航 */}
       <Layout.Sider width={220} theme='light' className='mail-menu box-shadow-none bg-transparent!'>
         <div className='p-4'>
@@ -1001,7 +1004,7 @@ const MailLayout = () => {
             </div>
           )}
           {/* 搜索框 */}
-          <div className='fixed top-0 z-10 w-125 py-3'>
+          <div className='fixed top-0 z-10 w-90 py-3'>
             <Input.Search
               prefix={<IconSearch />}
               placeholder='搜索主题/发件人'
@@ -1140,7 +1143,7 @@ const MailLayout = () => {
           </Layout.Sider>
 
           {/* 右列：邮件详情 + 顶部操作按钮栏 */}
-          <Layout.Content className={`relative h-full  flex-1 bg-white ${isTable && currentMail ? ' z-10 w-full' : ''}`}>
+          <Layout.Content className={`relative h-full flex-1 bg-white ${isTable && currentMail ? ' z-10 w-full' : ''}`}>
             {currentMail && (
               <Spin block loading={currentLoading}>
                 {/* 邮件操作工具栏 */}

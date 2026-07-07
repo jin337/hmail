@@ -82,6 +82,9 @@ strong {
   background-color: var(--color-fill-2);
   color: var(--color-text-1);
 }
-.mail-contacts .arco-tree-node-title-text span{
+.mail-contacts .arco-tree-node-title-text span {
   display: block;
+}
+.no-footer .arco-picker-footer {
+  display: none;
 }
