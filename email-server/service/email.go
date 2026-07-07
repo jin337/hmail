@@ -877,6 +877,103 @@ func BuildRawEmail(email, pwd, folder string, uid int64, partIDs string, from, t
 	return buf.Bytes(), nil
 }
 
+// ScheduleSendEmail 定时发送邮件
+func ScheduleSendEmail(email, pwd string, to []string, cc []string, raw []byte, customTime string) error {
+	// 如果没有定时时间，立即发送
+	if customTime == "" {
+		return SmtpSendEmail(email, pwd, to, cc, raw)
+	}
+
+	// 解析定时时间
+	targetTime, err := time.Parse("2006-01-02 15:04:05", customTime)
+	if err != nil {
+		return fmt.Errorf("解析定时时间失败: %w", err)
+	}
+
+	// 计算需要等待的时长
+	now := time.Now()
+	duration := targetTime.Sub(now)
+
+	// 如果时间已过，立即发送
+	if duration <= 0 {
+		return SmtpSendEmail(email, pwd, to, cc, raw)
+	}
+
+	// 提取 Message-ID 用于后续查找
+	messageID := extractMessageID(raw)
+
+	// 启动一个独立的协程去休眠并发送，不阻塞主程序
+	go func() {
+		time.Sleep(duration)
+		fmt.Printf("⏰ 时间到，开始发送邮件...\n")
+
+		// 发送邮件
+		if err := SmtpSendEmail(email, pwd, to, cc, raw); err != nil {
+			fmt.Printf("定时发送邮件失败 [%s]: %v\n", customTime, err)
+			return
+		}
+
+		fmt.Printf("定时邮件发送成功 [%s]\n", customTime)
+
+		// 发送成功后，将邮件从草稿箱移动到已发送文件夹
+		if messageID != "" {
+			if err := afterScheduledSend(email, pwd, messageID); err != nil {
+				fmt.Printf("移动定时邮件到已发送文件夹失败: %v\n", err)
+			}
+		}
+	}()
+
+	return nil
+}
+
+// extractMessageID 从原始邮件中提取 Message-ID
+func extractMessageID(raw []byte) string {
+	rawStr := string(raw)
+	lines := strings.Split(rawStr, "\r\n")
+	for _, line := range lines {
+		if strings.HasPrefix(line, "Message-ID:") {
+			return strings.TrimSpace(strings.TrimPrefix(line, "Message-ID:"))
+		}
+	}
+	return ""
+}
+
+// afterScheduledSend 定时发送后将草稿移动到已发送
+func afterScheduledSend(email, pwd, messageID string) error {
+	imapClient, err := utils.DialIMAPClient(email, pwd)
+	if err != nil {
+		return fmt.Errorf("连接IMAP服务器失败: %w", err)
+	}
+	defer imapClient.Logout()
+
+	// 选择草稿箱
+	_, err = imapClient.Select(config.FolderDrafts, false)
+	if err != nil {
+		return fmt.Errorf("选择草稿箱失败: %w", err)
+	}
+
+	// 搜索包含该 Message-ID 的邮件
+	searchCrit := &imap.SearchCriteria{}
+	searchCrit.Header.Add("Message-Id", messageID)
+
+	ids, err := imapClient.Search(searchCrit)
+	if err != nil {
+		return fmt.Errorf("搜索草稿邮件失败: %w", err)
+	}
+
+	if len(ids) == 0 {
+		return fmt.Errorf("未找到对应的草稿邮件")
+	}
+
+	// 使用现有的 MoveMail 函数移动邮件
+	var uids []int64
+	for _, id := range ids {
+		uids = append(uids, int64(id))
+	}
+
+	return MoveMail(email, pwd, config.FolderDrafts, config.FolderSent, uids)
+}
+
 // SmtpSendEmail 发送邮件
 func SmtpSendEmail(email, pwd string, to []string, cc []string, raw []byte) error {
 	smtpClient, err := utils.DialSMTPClient(email, pwd)

@@ -330,9 +330,12 @@ func SendEmail(c *gin.Context) {
 	partIds := c.PostForm("part_ids")
 
 	// in-reply-to
-	inReplyTo := c.PostForm("in-reply-to")
+	inReplyTo := c.PostForm("in_reply_to")
 	// references
 	references := c.PostForm("references")
+
+	// 定时
+	customTime := c.PostForm("custom_time")
 
 	files := c.Request.MultipartForm.File["files"]
 	if len(files) == 0 {
@@ -358,16 +361,26 @@ func SendEmail(c *gin.Context) {
 	}
 
 	// 发送邮件
-	if err := service.SmtpSendEmail(email.(string), pwd.(string), toList, ccList, raw); err != nil {
+	if err := service.ScheduleSendEmail(email.(string), pwd.(string), toList, ccList, raw, customTime); err != nil {
 		c.JSON(200, gin.H{"code": 500, "msg": "发送失败", "err": err.Error()})
 		return
 	}
 
-	// 存入已发送
-	err = service.SaveMailToFolder(email.(string), pwd.(string), config.FolderSent, raw)
-	if err != nil {
-		c.JSON(200, gin.H{"code": 500, "msg": "发送成功，存入已发送失败", "err": err.Error()})
-		return
+	// 如果是定时发送，不立即保存到已发送，而是保存到草稿箱
+	if customTime == "" {
+		// 立即发送：存入已发送
+		err = service.SaveMailToFolder(email.(string), pwd.(string), config.FolderSent, raw)
+		if err != nil {
+			c.JSON(200, gin.H{"code": 500, "msg": "发送成功，存入已发送失败", "err": err.Error()})
+			return
+		}
+	} else {
+		// 定时发送：存入草稿箱，等待定时发送后再移动到已发送
+		err = service.SaveMailToFolder(email.(string), pwd.(string), config.FolderDrafts, raw)
+		if err != nil {
+			c.JSON(200, gin.H{"code": 500, "msg": "定时发送已设置，但保存草稿失败", "err": err.Error()})
+			return
+		}
 	}
 
 	// 删除草稿

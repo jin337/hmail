@@ -62,6 +62,7 @@ import IconZip from 'src/assets/file_zip.svg'
 import IconMoveFolder from 'src/assets/mail_move_folder.svg'
 import IconMailNormal from 'src/assets/mail_normal.svg'
 import IconMailOpen from 'src/assets/mail_open.svg'
+import IconMailReply from 'src/assets/mail_reply.svg'
 import IconSent from 'src/assets/mail_sent.svg'
 import IconStarUnselect from 'src/assets/mail_star.svg'
 import IconStarSelect from 'src/assets/mail_star_open.svg'
@@ -390,7 +391,7 @@ const MailLayout = () => {
       }
 
       // 标记已读
-      if (!item?.flags || !item.flags.includes('Seen')) {
+      if (!item?.flags || !item.flags?.includes('Seen')) {
         onRead(item, 1)
       }
     } else {
@@ -756,13 +757,13 @@ const MailLayout = () => {
       formData.append('uid', detail.uid)
     }
     if (customTime) {
-      formData.append('customTime', customTime)
+      formData.append('custom_time', customTime)
     }
 
     // 回复
     if (detail?.is_reply) {
       const references = detail.references + ' ' + detail?.message_id
-      formData.append('in-reply-to', detail?.message_id)
+      formData.append('in_reply_to', detail?.message_id)
       formData.append('references', references)
     }
 
@@ -785,16 +786,31 @@ const MailLayout = () => {
     }
 
     setLoading(true)
-    let url = '/api/mail/send'
+    let url = ''
     if (type === 'Drafts') {
       url = '/api/mail/save-draft'
-    }
-    const { code, msg } = await request.post(url, formData, { headers: { 'Content-Type': 'multipart/form-data' } })
-    if (code === 200) {
-      Message.success(msg)
-      onClickCompose(type === 'Sent' ? 'sent' : 'drafts')
     } else {
-      Message.error(msg)
+      url = '/api/mail/send'
+
+      // 标记已回复
+      if (detail?.is_reply) {
+        const params = {
+          uid: detail?.uid,
+          folder: detail?.folder,
+          status: 'Answered',
+          type: 1,
+        }
+        await request.post('/api/mail/status', params)
+      }
+    }
+    if (url) {
+      const { code, msg } = await request.post(url, formData, { headers: { 'Content-Type': 'multipart/form-data' } })
+      if (code === 200) {
+        Message.success(msg)
+        onClickCompose(type === 'Sent' ? 'sent' : 'drafts')
+      } else {
+        Message.error(msg)
+      }
     }
     setLoading(false)
   }
@@ -1086,7 +1102,15 @@ const MailLayout = () => {
                       <div className={`flex items-center justify-between gap-2 ${!isTable ? 'mb-1' : ''}`}>
                         <div className={` ${isTable ? 'flex' : ''}`}>
                           <div className={`flex items-center gap-1.5 ${isTable ? 'w-60!' : ''}`}>
-                            {record?.flags?.includes('Seen') ? <IconMailOpen /> : <IconMailNormal />}
+                            {record?.flags?.includes('Seen') ? (
+                              record?.flags?.includes('Answered') ? (
+                                <IconMailReply />
+                              ) : (
+                                <IconMailOpen />
+                              )
+                            ) : (
+                              <IconMailNormal />
+                            )}
                             {currentFolder?.key === 'sent' ? (
                               <>
                                 <IconSent />
