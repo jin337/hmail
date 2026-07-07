@@ -966,7 +966,7 @@ const MailLayout = () => {
   }
 
   return (
-    <Layout className='h-[calc(100vh-64px)] w-full flex-1 overflow-hidden'>
+    <Layout className='flex-1'>
       {/* 左列：文件夹导航 */}
       <Layout.Sider width={220} theme='light' className='mail-menu box-shadow-none bg-transparent!'>
         <div className='p-4'>
