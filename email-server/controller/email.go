@@ -335,7 +335,7 @@ func SendEmail(c *gin.Context) {
 	references := c.PostForm("references")
 
 	// 定时
-	customTime := c.PostForm("custom_time")
+	xScheduleSend := c.PostForm("x-schedule-send")
 
 	files := c.Request.MultipartForm.File["files"]
 	if len(files) == 0 {
@@ -343,7 +343,7 @@ func SendEmail(c *gin.Context) {
 	}
 
 	// 解析 UID
-	var uid uint32
+	var uid int64
 	if uidStr != "" {
 		if _, parseErr := fmt.Sscanf(uidStr, "%d", &uid); parseErr != nil {
 			c.JSON(200, gin.H{"code": 400, "msg": "无效的 UID 格式"})
@@ -361,18 +361,27 @@ func SendEmail(c *gin.Context) {
 	}
 
 	// 发送邮件
-	if err := service.ScheduleSendEmail(email.(string), pwd.(string), toList, ccList, raw, customTime); err != nil {
+	if err := service.ScheduleSendEmail(email.(string), pwd.(string), toList, ccList, raw, xScheduleSend); err != nil {
 		c.JSON(200, gin.H{"code": 500, "msg": "发送失败", "err": err.Error()})
 		return
 	}
 
 	// 如果是定时发送，不立即保存到已发送，而是保存到草稿箱
-	if customTime == "" {
+	if xScheduleSend == "" {
 		// 立即发送：存入已发送
 		err = service.SaveMailToFolder(email.(string), pwd.(string), config.FolderSent, raw)
 		if err != nil {
 			c.JSON(200, gin.H{"code": 500, "msg": "发送成功，存入已发送失败", "err": err.Error()})
 			return
+		}
+
+		// 删除草稿
+		if uidStr != "" {
+			err = service.DeleteMail(email.(string), pwd.(string), config.FolderDrafts, []int64{uid})
+			if err != nil {
+				c.JSON(200, gin.H{"code": 500, "msg": "删除草稿失败: " + err.Error()})
+				return
+			}
 		}
 	} else {
 		// 定时发送：存入草稿箱，等待定时发送后再移动到已发送
@@ -381,14 +390,20 @@ func SendEmail(c *gin.Context) {
 			c.JSON(200, gin.H{"code": 500, "msg": "定时发送已设置，但保存草稿失败", "err": err.Error()})
 			return
 		}
-	}
 
-	// 删除草稿
-	if uidStr != "" {
-		err = service.DeleteMail(email.(string), pwd.(string), config.FolderDrafts, []int64{int64(uid)})
-		if err != nil {
-			c.JSON(200, gin.H{"code": 500, "msg": "删除草稿失败: " + err.Error()})
-			return
+		// 增加定时标签
+		messageID := utils.GetMessageID(raw)
+
+		// 发送成功后，将邮件从草稿箱移动到已发送文件夹
+		if messageID != "" {
+			if uid, err := utils.GetUid(email.(string), pwd.(string), messageID, config.FolderDrafts); err == nil {
+				// 添加重要标签
+				if err = service.UpdateMailFlag(email.(string), pwd.(string), config.FolderDrafts, uid, 1, "Draft"); err != nil {
+					fmt.Printf("标记邮件失败: %v\n", err)
+				}
+			}
+		} else {
+			fmt.Printf("未找到 Message-ID，跳过移动操作\n")
 		}
 	}
 

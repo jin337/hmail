@@ -66,6 +66,7 @@ import IconMailReply from 'src/assets/mail_reply.svg'
 import IconSent from 'src/assets/mail_sent.svg'
 import IconStarUnselect from 'src/assets/mail_star.svg'
 import IconStarSelect from 'src/assets/mail_star_open.svg'
+import IconMailTimer from 'src/assets/mail_timer.svg'
 
 import { flatTree, getFileType, throttle } from 'src/utils/index'
 
@@ -150,6 +151,15 @@ const FlagList = (flags) => {
     list[1].key = 1
   }
   return list.map((e) => <Menu.Item key={e.flag + '_' + e.key}>{e.title}</Menu.Item>)
+}
+
+// 邮件图标
+const showMailIcon = (flags) => {
+  const flagArr = Array.isArray(flags) ? flags : []
+  if (flagArr.includes('Draft')) return <IconMailTimer />
+  if (flagArr.includes('Answered')) return <IconMailReply />
+  if (flagArr.includes('Seen')) return <IconMailOpen />
+  return <IconMailNormal />
 }
 
 const MailLayout = () => {
@@ -434,7 +444,6 @@ const MailLayout = () => {
 
     scrollToTop()
   }
-
   // 获取邮件数据
   const getMailList = async (keys) => {
     const { isRefresh, ...item } = keys
@@ -651,7 +660,10 @@ const MailLayout = () => {
         } else {
           flags = flags?.filter((item) => item !== 'Flagged')
         }
-        newList[index].flags = flags
+        newList[index] = {
+          ...newList[index],
+          flags,
+        }
         if (currentFolder.folder === 'Star') {
           newList = newList?.filter((item) => item.uid !== params.uid)
         }
@@ -695,7 +707,10 @@ const MailLayout = () => {
         if (type === 2) {
           flags = flags?.filter((item) => item !== 'Seen')
         }
-        newList[index].flags = flags
+        newList[index] = {
+          ...newList[index],
+          flags,
+        }
         return newList
       })
 
@@ -757,7 +772,7 @@ const MailLayout = () => {
       formData.append('uid', detail.uid)
     }
     if (customTime) {
-      formData.append('custom_time', customTime)
+      formData.append('x-schedule-send', customTime)
     }
 
     // 回复
@@ -1102,15 +1117,7 @@ const MailLayout = () => {
                       <div className={`flex items-center justify-between gap-2 ${!isTable ? 'mb-1' : ''}`}>
                         <div className={` ${isTable ? 'flex' : ''}`}>
                           <div className={`flex items-center gap-1.5 ${isTable ? 'w-60!' : ''}`}>
-                            {record?.flags?.includes('Seen') ? (
-                              record?.flags?.includes('Answered') ? (
-                                <IconMailReply />
-                              ) : (
-                                <IconMailOpen />
-                              )
-                            ) : (
-                              <IconMailNormal />
-                            )}
+                            {showMailIcon(record?.flags)}
                             {currentFolder?.key === 'sent' ? (
                               <>
                                 <IconSent />

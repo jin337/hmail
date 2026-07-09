@@ -20,13 +20,14 @@ import (
 	"email-server/model"
 	"email-server/utils"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/emersion/go-imap"
 	"github.com/google/uuid"
 	"github.com/jhillyerd/enmime"
 )
 
-// FormatFilter 将字符串数组转换为 MailFilter 结构体
-func FormatFilter(filter []string) model.MailFilter {
+// formatFilter 将字符串数组转换为 MailFilter 结构体
+func formatFilter(filter []string) model.MailFilter {
 	mailFilter := model.MailFilter{}
 	for _, f := range filter {
 		switch f {
@@ -97,7 +98,7 @@ func MailList(email, pwd, folder string, page, size int64, keyword string, filte
 	var list []*model.MailItem
 
 	// 处理筛选条件
-	mailFilter := FormatFilter(filter)
+	mailFilter := formatFilter(filter)
 
 	// 搜索邮件
 	searchCrit := &imap.SearchCriteria{}
@@ -187,6 +188,8 @@ func MailList(email, pwd, folder string, page, size int64, keyword string, filte
 			if strings.HasPrefix(flag, "\\") {
 				short := flag[1:]
 				flagMap[short] = struct{}{}
+			} else if strings.HasPrefix(flag, "$") {
+				flagMap[flag] = struct{}{}
 			}
 		}
 		var flags []string
@@ -239,7 +242,7 @@ func StarMailList(email, pwd string, page, size int64, keyword string, filter []
 	var list []*model.MailItem
 
 	// 处理筛选条件
-	mailFilter := FormatFilter(filter)
+	mailFilter := formatFilter(filter)
 
 	// 遍历所有文件夹config.DefaultFolders
 	for _, folder := range config.DefaultFolders {
@@ -526,7 +529,7 @@ func UpdateMailFlag(email, pwd string, folder string, uid int64, opType int64, s
 	}
 
 	// 验证状态参数
-	var flag = "\\" + status
+	flag := "\\" + status
 	isValid := false
 	for _, vs := range validStatuses {
 		if flag == vs {
@@ -550,9 +553,9 @@ func UpdateMailFlag(email, pwd string, folder string, uid int64, opType int64, s
 		return fmt.Errorf("操作类型仅支持 1(添加)、2(删除)，传入值：%d", opType)
 	}
 
+	spew.Dump(flag)
 	flags := []interface{}{flag}
-	err = imapClient.UidStore(uidSet, storeOp, flags, nil)
-	if err != nil {
+	if err = imapClient.UidStore(uidSet, storeOp, flags, nil); err != nil {
 		return fmt.Errorf("更新邮件状态失败: %w", err)
 	}
 
@@ -884,14 +887,19 @@ func ScheduleSendEmail(email, pwd string, to []string, cc []string, raw []byte, 
 		return SmtpSendEmail(email, pwd, to, cc, raw)
 	}
 
+	// 加载东八区时区
+	loc, err := time.LoadLocation("Asia/Shanghai")
+	if err != nil {
+		return fmt.Errorf("加载时区 Asia/Shanghai 失败: %w", err)
+	}
 	// 解析定时时间
-	targetTime, err := time.Parse("2006-01-02 15:04:05", customTime)
+	targetTime, err := time.ParseInLocation("2006-01-02 15:04:05", customTime, loc)
 	if err != nil {
 		return fmt.Errorf("解析定时时间失败: %w", err)
 	}
 
 	// 计算需要等待的时长
-	now := time.Now()
+	now := time.Now().In(loc)
 	duration := targetTime.Sub(now)
 
 	// 如果时间已过，立即发送
@@ -899,13 +907,13 @@ func ScheduleSendEmail(email, pwd string, to []string, cc []string, raw []byte, 
 		return SmtpSendEmail(email, pwd, to, cc, raw)
 	}
 
-	// 提取 Message-ID 用于后续查找
-	messageID := extractMessageID(raw)
+	// 提取 Message-ID
+	messageID := utils.GetMessageID(raw)
 
-	// 启动一个独立的协程去休眠并发送，不阻塞主程序
+	// 启动一个独立的协程去休眠并发送
 	go func() {
+		fmt.Printf("定时任务已启动，等待 %v 后发送\n", duration)
 		time.Sleep(duration)
-		fmt.Printf("⏰ 时间到，开始发送邮件...\n")
 
 		// 发送邮件
 		if err := SmtpSendEmail(email, pwd, to, cc, raw); err != nil {
@@ -913,65 +921,26 @@ func ScheduleSendEmail(email, pwd string, to []string, cc []string, raw []byte, 
 			return
 		}
 
-		fmt.Printf("定时邮件发送成功 [%s]\n", customTime)
-
 		// 发送成功后，将邮件从草稿箱移动到已发送文件夹
 		if messageID != "" {
-			if err := afterScheduledSend(email, pwd, messageID); err != nil {
-				fmt.Printf("移动定时邮件到已发送文件夹失败: %v\n", err)
+			if uid, err := utils.GetUid(email, pwd, messageID, config.FolderDrafts); err == nil {
+				// 取消重要标签
+				if err = UpdateMailFlag(email, pwd, config.FolderDrafts, uid, 2, "Draft"); err != nil {
+					fmt.Printf("标记邮件失败: %v\n", err)
+				}
+				// 移动邮件
+				if err = MoveMail(email, pwd, config.FolderDrafts, config.FolderSent, []int64{uid}); err != nil {
+					fmt.Printf("移动邮件失败: %v\n", err)
+				} else {
+					fmt.Printf("邮件已发送成功，并已移动到已发送文件夹\n")
+				}
 			}
+		} else {
+			fmt.Printf("⚠️ 未找到 Message-ID，跳过移动操作\n")
 		}
 	}()
 
 	return nil
-}
-
-// extractMessageID 从原始邮件中提取 Message-ID
-func extractMessageID(raw []byte) string {
-	rawStr := string(raw)
-	lines := strings.Split(rawStr, "\r\n")
-	for _, line := range lines {
-		if strings.HasPrefix(line, "Message-ID:") {
-			return strings.TrimSpace(strings.TrimPrefix(line, "Message-ID:"))
-		}
-	}
-	return ""
-}
-
-// afterScheduledSend 定时发送后将草稿移动到已发送
-func afterScheduledSend(email, pwd, messageID string) error {
-	imapClient, err := utils.DialIMAPClient(email, pwd)
-	if err != nil {
-		return fmt.Errorf("连接IMAP服务器失败: %w", err)
-	}
-	defer imapClient.Logout()
-
-	// 选择草稿箱
-	_, err = imapClient.Select(config.FolderDrafts, false)
-	if err != nil {
-		return fmt.Errorf("选择草稿箱失败: %w", err)
-	}
-
-	// 搜索包含该 Message-ID 的邮件
-	searchCrit := &imap.SearchCriteria{}
-	searchCrit.Header.Add("Message-Id", messageID)
-
-	ids, err := imapClient.Search(searchCrit)
-	if err != nil {
-		return fmt.Errorf("搜索草稿邮件失败: %w", err)
-	}
-
-	if len(ids) == 0 {
-		return fmt.Errorf("未找到对应的草稿邮件")
-	}
-
-	// 使用现有的 MoveMail 函数移动邮件
-	var uids []int64
-	for _, id := range ids {
-		uids = append(uids, int64(id))
-	}
-
-	return MoveMail(email, pwd, config.FolderDrafts, config.FolderSent, uids)
 }
 
 // SmtpSendEmail 发送邮件
@@ -1041,9 +1010,6 @@ func SaveMailToFolder(email, pwd, folder string, raw []byte) error {
 
 	// 根据文件夹类型设置邮件标志
 	flag := []string{imap.SeenFlag}
-	if folder == "Drafts" {
-		flag = []string{imap.DraftFlag}
-	}
 
 	// 追加邮件到文件夹
 	rawMail := bytes.NewReader(raw)

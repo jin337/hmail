@@ -10,6 +10,7 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/emersion/go-imap"
 	"github.com/emersion/go-imap/client"
 	"github.com/go-ole/go-ole"
 	"github.com/go-ole/go-ole/oleutil"
@@ -298,4 +299,47 @@ func GetMailName(adminPwd, email string) (string, string, error) {
 	}
 
 	return fullName, email, nil
+}
+
+// getMessageID 从原始邮件中提取 Message-ID
+func GetMessageID(raw []byte) string {
+	rawStr := string(raw)
+	lines := strings.Split(rawStr, "\r\n")
+	for _, line := range lines {
+		if strings.HasPrefix(line, "Message-ID:") {
+			return strings.TrimSpace(strings.TrimPrefix(line, "Message-ID:"))
+		}
+	}
+	return ""
+}
+
+// getUid 定时发送后将草稿移动到已发送
+func GetUid(email, pwd, messageID, folder string) (int64, error) {
+	imapClient, err := DialIMAPClient(email, pwd)
+	if err != nil {
+		return 0, fmt.Errorf("连接IMAP服务器失败: %w", err)
+	}
+	defer imapClient.Logout()
+
+	// 选择草稿箱
+	_, err = imapClient.Select(folder, false)
+	if err != nil {
+		return 0, fmt.Errorf("选择文件夹失败: %w", err)
+	}
+
+	// 搜索包含该 Message-ID 的邮件
+	searchCrit := &imap.SearchCriteria{}
+	searchCrit.Header = make(map[string][]string)
+	searchCrit.Header.Add("Message-Id", messageID)
+
+	ids, err := imapClient.UidSearch(searchCrit)
+	if err != nil {
+		return 0, fmt.Errorf("搜索邮件失败: %w", err)
+	}
+
+	if len(ids) == 0 {
+		return 0, fmt.Errorf("未找到对应的邮件")
+	}
+
+	return int64(ids[0]), nil
 }
