@@ -279,10 +279,15 @@ func SaveDraft(c *gin.Context) {
 			return
 		}
 	}
+
+	extra := model.EmailExtra{
+		InReplyTo:  inReplyTo,
+		References: references,
+	}
 	// 构建邮件
 	toList := strings.Split(to, ",")
 	ccList := strings.Split(cc, ",")
-	raw, err := service.BuildRawEmail(email.(string), pwd.(string), config.FolderDrafts, int64(uid), partIds, []string{email.(string)}, toList, ccList, subject, content, files, inReplyTo, references)
+	raw, err := service.BuildRawEmail(email.(string), pwd.(string), config.FolderDrafts, int64(uid), partIds, []string{email.(string)}, toList, ccList, subject, content, files, extra)
 	if err != nil {
 		c.JSON(200, gin.H{"code": 500, "msg": "构建邮件失败", "err": err.Error()})
 		return
@@ -351,17 +356,23 @@ func SendEmail(c *gin.Context) {
 		}
 	}
 
+	extra := model.EmailExtra{
+		InReplyTo:     inReplyTo,
+		References:    references,
+		XScheduleSend: xScheduleSend,
+	}
+
 	// 构建邮件内容
 	toList := strings.Split(to, ",")
 	ccList := strings.Split(cc, ",")
-	raw, err := service.BuildRawEmail(email.(string), pwd.(string), config.FolderDrafts, int64(uid), partIds, []string{email.(string)}, toList, ccList, subject, content, files, inReplyTo, references)
+	raw, err := service.BuildRawEmail(email.(string), pwd.(string), config.FolderDrafts, int64(uid), partIds, []string{email.(string)}, toList, ccList, subject, content, files, extra)
 	if err != nil {
 		c.JSON(200, gin.H{"code": 500, "msg": "构建邮件失败", "err": err.Error()})
 		return
 	}
 
 	// 发送邮件
-	if err := service.ScheduleSendEmail(email.(string), pwd.(string), toList, ccList, raw, xScheduleSend); err != nil {
+	if err := service.ScheduleSendEmail(email.(string), pwd.(string), toList, ccList, raw); err != nil {
 		c.JSON(200, gin.H{"code": 500, "msg": "发送失败", "err": err.Error()})
 		return
 	}
@@ -392,7 +403,7 @@ func SendEmail(c *gin.Context) {
 		}
 
 		// 增加定时标签
-		messageID := utils.GetMessageID(raw)
+		messageID := utils.GetExtractHeader(raw, "Message-ID")
 
 		// 发送成功后，将邮件从草稿箱移动到已发送文件夹
 		if messageID != "" {

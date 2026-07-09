@@ -25,6 +25,7 @@ import {
   IconArrowLeft,
   IconAttachment,
   IconCheck,
+  IconClockCircle,
   IconClose,
   IconDelete,
   IconDown,
@@ -390,7 +391,7 @@ const MailLayout = () => {
       newData.content = transHtml(newData.content)
 
       setCurrentMail({ ...item, detail: newData })
-      if (item.folder === 'Drafts') {
+      if (item.folder === 'Drafts' && item.schedule === '') {
         const newItem = {
           ...item,
           detail: newData,
@@ -1301,12 +1302,22 @@ const MailLayout = () => {
                   </div>
                   <Divider />
                   {/* 邮件正文 */}
-                  <div
-                    className='mail-detail'
-                    dangerouslySetInnerHTML={{
-                      __html: currentMail.detail?.content || '<div class="text-gray-500">暂无邮件内容</div>',
-                    }}
-                  />
+                  {currentMail.schedule === '' ? (
+                    <div
+                      className='mail-detail'
+                      dangerouslySetInnerHTML={{
+                        __html: currentMail.detail?.content || '<div class="text-gray-500">暂无邮件内容</div>',
+                      }}
+                    />
+                  ) : (
+                    <div className='flex items-center bg-[#e6edf5] px-4 py-2 rounded'>
+                      <IconClockCircle className='mr-1 text-blue-500!' />
+                      此邮件是定时邮件，将在<span className='mx-2 text-blue-500'>{currentMail.schedule}</span>发出。
+                      <Button type='text' size='mini'>
+                        取消发送
+                      </Button>
+                    </div>
+                  )}
 
                   {/* 附件 */}
                   {currentMail?.has_attach && (

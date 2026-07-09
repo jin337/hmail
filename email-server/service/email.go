@@ -20,7 +20,6 @@ import (
 	"email-server/model"
 	"email-server/utils"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/emersion/go-imap"
 	"github.com/google/uuid"
 	"github.com/jhillyerd/enmime"
@@ -181,6 +180,7 @@ func MailList(email, pwd, folder string, page, size int64, keyword string, filte
 
 		inReplyToVal := env.GetHeader("In-Reply-To")
 		referencesVal := env.GetHeader("References")
+		Schedule := env.GetHeader("X-Schedule-Send")
 
 		// 标签处理
 		var flagMap = make(map[string]struct{})
@@ -210,6 +210,7 @@ func MailList(email, pwd, folder string, page, size int64, keyword string, filte
 			CcInfo:     ccInfo,
 			Subject:    env.GetHeader("Subject"),
 			SendTime:   sendTime,
+			Schedule:   Schedule,
 			Text:       showText,
 			HasAttach:  len(env.Attachments) > 0,
 			Folder:     folder,
@@ -553,7 +554,6 @@ func UpdateMailFlag(email, pwd string, folder string, uid int64, opType int64, s
 		return fmt.Errorf("操作类型仅支持 1(添加)、2(删除)，传入值：%d", opType)
 	}
 
-	spew.Dump(flag)
 	flags := []interface{}{flag}
 	if err = imapClient.UidStore(uidSet, storeOp, flags, nil); err != nil {
 		return fmt.Errorf("更新邮件状态失败: %w", err)
@@ -687,7 +687,7 @@ func DeleteMail(email, pwd string, folder string, uids []int64) error {
 }
 
 // BuildRawEmail 构建原始邮件内容
-func BuildRawEmail(email, pwd, folder string, uid int64, partIDs string, from, to []string, cc []string, subject, body string, files []*multipart.FileHeader, inReplyTo, references string) ([]byte, error) {
+func BuildRawEmail(email, pwd, folder string, uid int64, partIDs string, from, to []string, cc []string, subject, body string, files []*multipart.FileHeader, extra model.EmailExtra) ([]byte, error) {
 	buf := &bytes.Buffer{}
 	writer := multipart.NewWriter(buf)
 	defer writer.Close()
@@ -705,12 +705,16 @@ func BuildRawEmail(email, pwd, folder string, uid int64, partIDs string, from, t
 	headers["Message-ID"] = fmt.Sprintf("<%s@%s>", uuid.NewString(), strings.Split(email, "@")[1])
 
 	// in-reply-to
-	if inReplyTo != "" {
-		headers["In-Reply-To"] = inReplyTo
+	if extra.InReplyTo != "" {
+		headers["In-Reply-To"] = extra.InReplyTo
 	}
 	// references
-	if references != "" {
-		headers["References"] = references
+	if extra.References != "" {
+		headers["References"] = extra.References
+	}
+	// X-Schedule-Send
+	if extra.XScheduleSend != "" {
+		headers["X-Schedule-Send"] = extra.XScheduleSend
 	}
 
 	// 发件人
@@ -881,19 +885,20 @@ func BuildRawEmail(email, pwd, folder string, uid int64, partIDs string, from, t
 }
 
 // ScheduleSendEmail 定时发送邮件
-func ScheduleSendEmail(email, pwd string, to []string, cc []string, raw []byte, customTime string) error {
+func ScheduleSendEmail(email, pwd string, to []string, cc []string, raw []byte) error {
+	// 提取 Message-ID
+	messageID := utils.GetExtractHeader(raw, "Message-ID")
+	// 提取自定义头部 X-Schedule-Send
+	sendAtStr := utils.GetExtractHeader(raw, "X-Schedule-Send")
+
 	// 如果没有定时时间，立即发送
-	if customTime == "" {
+	if sendAtStr == "" {
 		return SmtpSendEmail(email, pwd, to, cc, raw)
 	}
 
-	// 加载东八区时区
-	loc, err := time.LoadLocation("Asia/Shanghai")
-	if err != nil {
-		return fmt.Errorf("加载时区 Asia/Shanghai 失败: %w", err)
-	}
-	// 解析定时时间
-	targetTime, err := time.ParseInLocation("2006-01-02 15:04:05", customTime, loc)
+	// 解析北京时间定时时间
+	loc, _ := time.LoadLocation("Asia/Shanghai")
+	targetTime, err := time.ParseInLocation("2006-01-02 15:04:05", sendAtStr, loc)
 	if err != nil {
 		return fmt.Errorf("解析定时时间失败: %w", err)
 	}
@@ -907,9 +912,6 @@ func ScheduleSendEmail(email, pwd string, to []string, cc []string, raw []byte, 
 		return SmtpSendEmail(email, pwd, to, cc, raw)
 	}
 
-	// 提取 Message-ID
-	messageID := utils.GetMessageID(raw)
-
 	// 启动一个独立的协程去休眠并发送
 	go func() {
 		fmt.Printf("定时任务已启动，等待 %v 后发送\n", duration)
@@ -917,7 +919,7 @@ func ScheduleSendEmail(email, pwd string, to []string, cc []string, raw []byte, 
 
 		// 发送邮件
 		if err := SmtpSendEmail(email, pwd, to, cc, raw); err != nil {
-			fmt.Printf("定时发送邮件失败 [%s]: %v\n", customTime, err)
+			fmt.Printf("定时发送邮件失败 [%s]: %v\n", sendAtStr, err)
 			return
 		}
 

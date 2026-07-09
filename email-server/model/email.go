@@ -54,6 +54,7 @@ type MailItem struct {
 	CcInfo     []*MailInfo `json:"cc_info"`    // 抄送人信息
 	Subject    string      `json:"subject"`    // 主题
 	SendTime   time.Time   `json:"send_time"`  // 发送时间
+	Schedule   string      `json:"schedule"`   // 定时发送
 	HasAttach  bool        `json:"has_attach"` // 是否有附件
 	Text       string      `json:"text"`       // 邮件内容
 	Size       string      `json:"size"`       // 邮件大小
@@ -179,4 +180,11 @@ type UpdateMailFlagReq struct {
 	Uid    int64  `json:"uid" binding:"required"`    // 邮件ID
 	Status string `json:"status" binding:"required"` // 状态
 	Type   int64  `json:"type" binding:"required"`   // 1：添加，2：删除
+}
+
+// EmailExtra 邮件扩展附加参数
+type EmailExtra struct {
+	InReplyTo     string `json:"in_reply_to"`     // 回复
+	References    string `json:"references"`      // 引用
+	XScheduleSend string `json:"x-schedule-send"` // 定时发送
 }

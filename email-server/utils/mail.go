@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"bytes"
 	"email-server/config"
 	"email-server/constant"
 	"fmt"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/emersion/go-imap"
 	"github.com/emersion/go-imap/client"
+	"github.com/emersion/go-message/mail"
 	"github.com/go-ole/go-ole"
 	"github.com/go-ole/go-ole/oleutil"
 )
@@ -301,16 +303,15 @@ func GetMailName(adminPwd, email string) (string, string, error) {
 	return fullName, email, nil
 }
 
-// getMessageID 从原始邮件中提取 Message-ID
-func GetMessageID(raw []byte) string {
-	rawStr := string(raw)
-	lines := strings.Split(rawStr, "\r\n")
-	for _, line := range lines {
-		if strings.HasPrefix(line, "Message-ID:") {
-			return strings.TrimSpace(strings.TrimPrefix(line, "Message-ID:"))
-		}
+// GetExtractHeader 获取邮件头信息
+func GetExtractHeader(raw []byte, headerKey string) string {
+	reader := bytes.NewReader(raw)
+	mailReader, err := mail.CreateReader(reader)
+	if err != nil {
+		return ""
 	}
-	return ""
+	defer mailReader.Close()
+	return mailReader.Header.Get(headerKey)
 }
 
 // getUid 定时发送后将草稿移动到已发送
