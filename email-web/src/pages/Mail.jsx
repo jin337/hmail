@@ -1012,7 +1012,7 @@ const MailLayout = () => {
       {/* 左列：文件夹导航 */}
       <Layout.Sider width={220} theme='light' className='mail-menu box-shadow-none bg-transparent!'>
         <div className='p-4'>
-          <Button type='primary' icon={<IconEdit />} long onClick={() => onWriteMail('new')}>
+          <Button type='primary rounded!' icon={<IconEdit />} long onClick={() => onWriteMail('new')}>
             写信
           </Button>
         </div>
@@ -1160,8 +1160,8 @@ const MailLayout = () => {
                           </div>
                           {isTable && (
                             <div className='flex gap-1'>
-                              <div className={'max-w-50 truncate'}>{record?.subject || ''}</div>
-                              <div className={'max-w-50 truncate font-light text-gray-400'}>{record?.text || ''}</div>
+                              <div className={'max-w-100 truncate'}>{record?.subject || ''}</div>
+                              <div className={'max-w-100 truncate font-light text-gray-400'}>{record?.text || ''}</div>
                             </div>
                           )}
                         </div>

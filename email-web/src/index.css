@@ -25,13 +25,15 @@ strong {
   justify-content: space-between;
   align-items: center;
   background-color: transparent;
+  color: #13181d;
 }
 .mail-menu .arco-menu-light .arco-menu-item.arco-menu-selected {
   background-color: #c6dcf5;
   font-weight: bold;
   color: #13181d;
+  border-radius: 4px;
 }
-.mail-menu .arco-menu-light .arco-menu-item.arco-menu-selected .arco-icon {
+.mail-menu .arco-menu-light .arco-menu-item .arco-icon {
   color: #13181d;
 }
 .email-list thead .arco-table-th {
@@ -87,4 +89,7 @@ strong {
 }
 .no-footer .arco-picker-footer {
   display: none;
+}
+.arco-checkbox-mask {
+  border: 1px solid #1d2129;
 }

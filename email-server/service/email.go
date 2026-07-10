@@ -433,11 +433,8 @@ func MailDetail(email, pwd string, token string, folder string, uid int64) (*mod
 	// 构建附件列表
 	var attachments []model.AttachmentInfo
 	for _, att := range env.Attachments {
-
 		filetype := strings.Split(att.FileName, ".")[1]
-
 		size := int64(len(att.Content))
-
 		attachments = append(attachments, model.AttachmentInfo{
 			PartID:      att.PartID,
 			FileName:    att.FileName,

@@ -1,9 +1,9 @@
 import react from '@vitejs/plugin-react-swc'
 import { defineConfig } from 'vite'
 
-import tailwindcss from '@tailwindcss/vite'; // tailwindcss 插件
-import compression from 'vite-plugin-compression'; // 代码压缩
-import svgr from 'vite-plugin-svgr'; // svg
+import tailwindcss from '@tailwindcss/vite' // tailwindcss 插件
+import compression from 'vite-plugin-compression' // 代码压缩
+import svgr from 'vite-plugin-svgr' // svg
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -28,6 +28,7 @@ export default defineConfig({
     compression(),
   ],
   build: {
+    outDir: 'Web',
     rollupOptions: {
       output: {
         entryFileNames: 'assets/js/[name]-[hash].js',

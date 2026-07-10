@@ -11,12 +11,10 @@ import (
 
 func SetupRouter(r *gin.Engine) {
 	// 判断环境变量
-	//envValue := os.Getenv("GIN_MODE")
 	envValue := config.GetConfig(constant.GinMode)
-	apiPrefix := "/"
+	apiPrefix := "/api"
 	if envValue == "debug" {
 		gin.SetMode(gin.DebugMode)
-		apiPrefix = "/api"
 	} else {
 		gin.SetMode(gin.ReleaseMode)
 	}
