@@ -430,28 +430,63 @@ func MailDetail(email, pwd string, token string, folder string, uid int64) (*mod
 		return nil, fmt.Errorf("解析邮件失败: %w", err)
 	}
 
-	// 构建附件列表
-	var attachments []model.AttachmentInfo
-	for _, att := range env.Attachments {
-		filetype := strings.Split(att.FileName, ".")[1]
-		size := int64(len(att.Content))
-		attachments = append(attachments, model.AttachmentInfo{
-			PartID:      att.PartID,
-			FileName:    att.FileName,
-			ContentType: att.ContentType,
-			FileType:    strings.ToLower(filetype),
-			Size:        utils.FormatUnitSize(size),
-		})
-	}
-
 	// 获取邮件正文
 	content := env.HTML
 	if content == "" {
 		content = env.Text
 	}
+
+	//	cid内容
+	cidMap := make(map[string]string)
+
+	// 构建附件列表
+	var attachments []model.AttachmentInfo
+	for idx, att := range env.Attachments {
+		if att.Disposition == "attachment" {
+			filetype := strings.Split(att.FileName, ".")[1]
+			size := int64(len(att.Content))
+			attachments = append(attachments, model.AttachmentInfo{
+				PartID:      att.PartID,
+				FileName:    att.FileName,
+				ContentType: att.ContentType,
+				FileType:    strings.ToLower(filetype),
+				Size:        utils.FormatUnitSize(size),
+			})
+		} else {
+			contentID := strings.Trim(att.Header.Get("Content-Id"), "<>")
+			if contentID != "" && len(att.Content) > 0 {
+				// 生成本地文件路径
+				fileName := att.FileName
+				ext := filepath.Ext(fileName)
+				nameWithoutExt := strings.TrimSuffix(fileName, ext)
+				fileName = fmt.Sprintf("%s_%d%s", nameWithoutExt, idx, ext)
+
+				// 保存到静态资源目录
+				staticDir := filepath.Join("static", "images", email, folder, fmt.Sprint(uid))
+				if err := os.MkdirAll(staticDir, 0755); err != nil {
+					fmt.Printf("创建静态目录失败: %v\n", err)
+					continue
+				}
+
+				localPath := filepath.Join(staticDir, fileName)
+				if err := os.WriteFile(localPath, att.Content, 0644); err != nil {
+					fmt.Printf("保存内联图片失败: %v\n", err)
+					continue
+				}
+
+				// 构建 HTTP 访问 URL
+				serverHost := config.GetConfig("mail.server.host")
+				serverPort := config.GetConfig("mail.server.port")
+				imageURL := fmt.Sprintf("http://%s:%s/static/images/%s/%s/%d/%s",
+					serverHost, serverPort, email, folder, uid, fileName)
+
+				cidMap[contentID] = imageURL
+			}
+		}
+	}
+
 	// 处理内联图片
 	if content != "" && len(env.Inlines) > 0 {
-		cidMap := make(map[string]string)
 
 		for idx, inline := range env.Inlines {
 			contentID := strings.Trim(inline.Header.Get("Content-Id"), "<>")
@@ -485,10 +520,11 @@ func MailDetail(email, pwd string, token string, folder string, uid int64) (*mod
 			}
 		}
 
-		// 批量替换 HTML 中的 cid: 引用
-		for cid, imageURL := range cidMap {
-			content = strings.ReplaceAll(content, "cid:"+cid, imageURL)
-		}
+	}
+
+	// 批量替换 HTML 中的 cid: 引用
+	for cid, imageURL := range cidMap {
+		content = strings.ReplaceAll(content, "cid:"+cid, imageURL)
 	}
 
 	var totalSize int64
