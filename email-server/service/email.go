@@ -21,6 +21,7 @@ import (
 	"email-server/utils"
 
 	"github.com/emersion/go-imap"
+	"github.com/emersion/go-message/mail"
 	"github.com/google/uuid"
 	"github.com/jhillyerd/enmime"
 )
@@ -176,11 +177,18 @@ func MailList(email, pwd, folder string, page, size int64, keyword string, filte
 		toMail, toInfo, _ := utils.FormatMailName(env.GetHeader("To"))
 		ccMail, ccInfo, _ := utils.FormatMailName(env.GetHeader("Cc"))
 
-		sendTime, _ := utils.FormatDate(env.GetHeader("Date"))
-
 		inReplyToVal := env.GetHeader("In-Reply-To")
 		referencesVal := env.GetHeader("References")
-		Schedule := env.GetHeader("X-Schedule-Send")
+
+		sendTime, _ := utils.FormatDate(env.GetHeader("Date"))
+
+		// 处理定时发送
+		Schedule, _ := utils.FormatDate(env.GetHeader("X-Schedule-Send"))
+		now := time.Now()
+		Schedule = Schedule.Add(-8 * time.Hour)
+		if Schedule.Before(now) {
+			Schedule = time.Time{}
+		}
 
 		// 标签处理
 		var flagMap = make(map[string]struct{})
@@ -714,7 +722,8 @@ func BuildRawEmail(email, pwd, folder string, uid int64, partIDs string, from, t
 	}
 	// X-Schedule-Send
 	if extra.XScheduleSend != "" {
-		headers["X-Schedule-Send"] = extra.XScheduleSend
+		t, _ := time.ParseInLocation("2006-01-02 15:04:05", extra.XScheduleSend, time.UTC)
+		headers["X-Schedule-Send"] = t.Format(time.RFC1123)
 	}
 
 	// 发件人
@@ -889,44 +898,60 @@ func ScheduleSendEmail(email, pwd string, to []string, cc []string, raw []byte) 
 	// 提取 Message-ID
 	messageID := utils.GetExtractHeader(raw, "Message-ID")
 	// 提取自定义头部 X-Schedule-Send
-	sendAtStr := utils.GetExtractHeader(raw, "X-Schedule-Send")
+	scheduleSend := utils.GetExtractHeader(raw, "X-Schedule-Send")
 
 	// 如果没有定时时间，立即发送
-	if sendAtStr == "" {
+	if scheduleSend == "" {
 		return SmtpSendEmail(email, pwd, to, cc, raw)
 	}
 
-	// 解析北京时间定时时间
-	loc, _ := time.LoadLocation("Asia/Shanghai")
-	targetTime, err := time.ParseInLocation("2006-01-02 15:04:05", sendAtStr, loc)
+	targetUTC, err := time.Parse("Mon, 02 Jan 2006 15:04:05 UTC", scheduleSend)
 	if err != nil {
-		return fmt.Errorf("解析定时时间失败: %w", err)
+		return fmt.Errorf("解析UTC定时时间失败: %w", err)
 	}
-
-	// 计算需要等待的时长
-	now := time.Now().In(loc)
-	duration := targetTime.Sub(now)
+	// 解析时间
+	targetLocal := targetUTC.Add(-8 * time.Hour)
+	nowUTC := time.Now().UTC()
+	duration := targetLocal.Sub(nowUTC)
 
 	// 如果时间已过，立即发送
 	if duration <= 0 {
 		return SmtpSendEmail(email, pwd, to, cc, raw)
 	}
 
-	// 启动一个独立的协程去休眠并发送
-	go func() {
-		fmt.Printf("定时任务已启动，等待 %v 后发送\n", duration)
-		time.Sleep(duration)
+	// 启动一个独立的协程，定时发送
+	go func(msgID string, waitDur time.Duration) {
+		fmt.Printf("定时任务已启动，等待 %v 后发送，\nMessage-ID:%s\n", waitDur, msgID)
+		time.Sleep(waitDur)
 
-		// 发送邮件
-		if err := SmtpSendEmail(email, pwd, to, cc, raw); err != nil {
-			fmt.Printf("定时发送邮件失败 [%s]: %v\n", sendAtStr, err)
+		// 根据messageID查找草稿箱当前邮件UID
+		uid, err := utils.GetUid(email, pwd, msgID, config.FolderDrafts)
+		if err != nil {
+			fmt.Printf("定时发送终止：未找到对应草稿:%v\n", err)
+			return
+		}
+		// 拉取当前最新完整raw
+		newRaw, err := utils.GetMailRawByUID(email, pwd, config.FolderDrafts, uid)
+		if err != nil {
+			fmt.Printf("定时发送终止：读取邮件raw失败:%v\n", err)
+			return
+		}
+		// 校验最新邮件是否还有 X-Schedule-Send 头部
+		latestSchedule := utils.GetExtractHeader(newRaw, "X-Schedule-Send")
+		if latestSchedule == "" {
+			return
+		}
+
+		// 校验通过，使用新raw发送邮件
+		if err := SmtpSendEmail(email, pwd, to, cc, newRaw); err != nil {
+			fmt.Printf("定时发送邮件失败 [%s]: %v\n", latestSchedule, err)
 			return
 		}
 
 		// 发送成功后，将邮件从草稿箱移动到已发送文件夹
-		if messageID != "" {
-			if uid, err := utils.GetUid(email, pwd, messageID, config.FolderDrafts); err == nil {
-				// 取消重要标签
+		if msgID != "" {
+			if uid, err := utils.GetUid(email, pwd, msgID, config.FolderDrafts); err == nil {
+				// 移除Draft标记
 				if err = UpdateMailFlag(email, pwd, config.FolderDrafts, uid, 2, "Draft"); err != nil {
 					fmt.Printf("标记邮件失败: %v\n", err)
 				}
@@ -938,9 +963,9 @@ func ScheduleSendEmail(email, pwd string, to []string, cc []string, raw []byte) 
 				}
 			}
 		} else {
-			fmt.Printf("⚠️ 未找到 Message-ID，跳过移动操作\n")
+			fmt.Printf("未找到 Message-ID，跳过移动操作\n")
 		}
-	}()
+	}(messageID, duration)
 
 	return nil
 }
@@ -1035,5 +1060,70 @@ func UpdateDraft(email, pwd, folder string, raw []byte, uid int64) error {
 		return fmt.Errorf("保存新草稿失败: %w", err)
 	}
 
+	return nil
+}
+
+// UnScheduleEmail 取消定时发送的邮件
+func UnScheduleEmail(email, pwd string, folder string, uid int64, opType int64, status string) error {
+	// 修改状态
+	if err := UpdateMailFlag(email, pwd, folder, uid, opType, status); err != nil {
+		return fmt.Errorf("更新邮件标志失败: %w", err)
+	}
+
+	// 获取邮件原始数据
+	raw, err := utils.GetMailRawByUID(email, pwd, folder, uid)
+	if err != nil {
+		return fmt.Errorf("获取邮件原始数据失败: %w", err)
+	}
+
+	// 解析邮件并删除 X-Schedule-Send 头部
+	reader := bytes.NewReader(raw)
+	mailReader, err := mail.CreateReader(reader)
+	if err != nil {
+		return fmt.Errorf("创建邮件读取器失败: %w", err)
+	}
+	defer mailReader.Close()
+
+	// 获取所有头部
+	header := mailReader.Header
+
+	// 检查是否有 X-Schedule-Send 头部
+	if header.Get("X-Schedule-Send") == "" {
+		return nil
+	}
+
+	// 重新构建邮件
+	var newRaw bytes.Buffer
+
+	// 逐行读取原始邮件
+	lines := strings.Split(string(raw), "\r\n")
+	inHeaders := true
+	for _, line := range lines {
+		// 检测头部结束（空行）
+		if inHeaders && line == "" {
+			inHeaders = false
+			newRaw.WriteString("\r\n")
+			continue
+		}
+
+		// 在头部区域，跳过 X-Schedule-Send 行
+		if inHeaders && strings.HasPrefix(line, "X-Schedule-Send:") {
+			continue
+		}
+
+		newRaw.WriteString(line)
+		newRaw.WriteString("\r\n")
+	}
+
+	// 删除旧邮件
+	if err := DeleteMail(email, pwd, folder, []int64{uid}); err != nil {
+		return fmt.Errorf("删除旧邮件失败: %w", err)
+	}
+
+	// 保存新邮件（不含 X-Schedule-Send 头部）
+	if err := SaveMailToFolder(email, pwd, folder, newRaw.Bytes()); err != nil {
+		return fmt.Errorf("保存新邮件失败: %w", err)
+	}
+	fmt.Printf("定时任务已取消，Message-ID:%s\n", header.Get("Message-ID"))
 	return nil
 }

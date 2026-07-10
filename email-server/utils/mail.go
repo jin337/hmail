@@ -5,6 +5,7 @@ import (
 	"email-server/config"
 	"email-server/constant"
 	"fmt"
+	"io"
 	"mime"
 	"net"
 	"net/smtp"
@@ -314,7 +315,7 @@ func GetExtractHeader(raw []byte, headerKey string) string {
 	return mailReader.Header.Get(headerKey)
 }
 
-// getUid 定时发送后将草稿移动到已发送
+// GetUid 定时发送后将草稿移动到已发送
 func GetUid(email, pwd, messageID, folder string) (int64, error) {
 	imapClient, err := DialIMAPClient(email, pwd)
 	if err != nil {
@@ -344,3 +345,57 @@ func GetUid(email, pwd, messageID, folder string) (int64, error) {
 
 	return int64(ids[0]), nil
 }
+
+// GetMailRawByUID 获取邮件原始数据
+func GetMailRawByUID(email, pwd, folder string, uid int64) ([]byte, error) {
+	imapClient, err := DialIMAPClient(email, pwd)
+	if err != nil {
+		return nil, fmt.Errorf("连接IMAP服务器失败: %w", err)
+	}
+	defer imapClient.Logout()
+
+	// 选择文件夹
+	_, err = imapClient.Select(folder, false)
+	if err != nil {
+		return nil, fmt.Errorf("选择文件夹 %s 失败: %w", folder, err)
+	}
+
+	uidSet := new(imap.SeqSet)
+	uidSet.AddNum(uint32(uid))
+
+	bodyMail := make(chan *imap.Message, 1)
+	done := make(chan error, 1)
+	go func() {
+		done <- imapClient.UidFetch(uidSet, []imap.FetchItem{
+			imap.FetchRFC822,
+		}, bodyMail)
+	}()
+
+	// 从channel中获取邮件消息
+	msg, ok := <-bodyMail
+	if !ok {
+		if err := <-done; err != nil {
+			return nil, fmt.Errorf("获取邮件失败: %w", err)
+		}
+		return nil, fmt.Errorf("未找到邮件 UID: %d", uid)
+	}
+
+	section := &imap.BodySectionName{}
+	r := msg.GetBody(section)
+	if r == nil {
+		return nil, fmt.Errorf("无法获取邮件内容")
+	}
+
+	// 读取完整的原始邮件数据
+	rawData, err := io.ReadAll(r)
+	if err != nil {
+		return nil, fmt.Errorf("读取邮件内容失败: %w", err)
+	}
+
+	if err := <-done; err != nil {
+		return nil, fmt.Errorf("获取邮件完成状态失败: %w", err)
+	}
+
+	return rawData, nil
+}
+

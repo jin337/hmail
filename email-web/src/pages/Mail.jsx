@@ -391,7 +391,7 @@ const MailLayout = () => {
       newData.content = transHtml(newData.content)
 
       setCurrentMail({ ...item, detail: newData })
-      if (item.folder === 'Drafts' && item.schedule === '') {
+      if (item.folder === 'Drafts' && item.schedule === '0001-01-01T00:00:00Z') {
         const newItem = {
           ...item,
           detail: newData,
@@ -519,6 +519,12 @@ const MailLayout = () => {
             Message.success('邮件已彻底删除')
           }
         } else {
+          // 判断是否是定时邮件
+          const isSchedule = mailList.filter((e) => ids.includes(e.uid) && Array.isArray(e.flags) && e.flags.includes('Draft'))
+          if (isSchedule) {
+            return Message.error('请先取消定时邮件后再进行删除操作')
+          }
+
           // 其他文件夹：移动到垃圾箱
           const { code } = await request.post('/api/mail/move', {
             uids: ids,
@@ -753,6 +759,26 @@ const MailLayout = () => {
     }
   }
 
+  // 标记已读
+  const onUnSchedule = async (item, type = 2) => {
+    const params = {
+      uid: item.uid,
+      folder: item.folder,
+      status: 'Draft',
+      type,
+    }
+    const { code } = await request.post('/api/mail/un-schedule', params)
+    if (code === 200) {
+      setCurrentMail(null)
+      getMailList({
+        folder: item.folder,
+        keyword: '',
+        page: 1,
+        filter: filterKeys,
+        isRefresh: false,
+      })
+    }
+  }
   // 发送邮件&草稿
   const onSend = async (type, form, html, fileList, detail, customTime, setLoading) => {
     const values = form.getFieldsValue()
@@ -1302,22 +1328,23 @@ const MailLayout = () => {
                   </div>
                   <Divider />
                   {/* 邮件正文 */}
-                  {currentMail.schedule === '' ? (
-                    <div
-                      className='mail-detail'
-                      dangerouslySetInnerHTML={{
-                        __html: currentMail.detail?.content || '<div class="text-gray-500">暂无邮件内容</div>',
-                      }}
-                    />
-                  ) : (
-                    <div className='flex items-center bg-[#e6edf5] px-4 py-2 rounded'>
+                  {!['0001-01-01T00:00:00Z', ''].includes(currentMail.schedule) && (
+                    <div className='mb-5 flex items-center rounded bg-[#e6edf5] px-4 py-2'>
                       <IconClockCircle className='mr-1 text-blue-500!' />
-                      此邮件是定时邮件，将在<span className='mx-2 text-blue-500'>{currentMail.schedule}</span>发出。
-                      <Button type='text' size='mini'>
+                      此邮件是定时邮件，将在
+                      <span className='mx-2 text-blue-500'>{dayjs(currentMail.schedule).format('YYYY年MM月DD日 HH:mm:ss')}</span>
+                      发出。
+                      <Button type='text' size='mini' onClick={() => onUnSchedule(currentMail)}>
                         取消发送
                       </Button>
                     </div>
                   )}
+                  <div
+                    className='mail-detail'
+                    dangerouslySetInnerHTML={{
+                      __html: currentMail.detail?.content || '<div class="text-gray-500">暂无邮件内容</div>',
+                    }}
+                  />
 
                   {/* 附件 */}
                   {currentMail?.has_attach && (

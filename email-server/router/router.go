@@ -67,6 +67,7 @@ func SetupRouter(r *gin.Engine) {
 				mailAuth.POST("/delete", controller.DeleteMail)
 				mailAuth.POST("/save-draft", controller.SaveDraft)
 				mailAuth.POST("/send", controller.SendEmail)
+				mailAuth.POST("/un-schedule", controller.UnScheduleEmail)
 			}
 		}
 	}

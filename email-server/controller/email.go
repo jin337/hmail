@@ -429,3 +429,31 @@ func SendEmail(c *gin.Context) {
 
 	c.JSON(200, gin.H{"code": 200, "msg": "发送成功"})
 }
+
+// UnScheduleEmail 取消定时发送
+func UnScheduleEmail(c *gin.Context) {
+	email, _ := c.Get("userEmail")
+	pwd, _ := c.Get("userPwd")
+
+	var req model.UpdateMailFlagReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(200, gin.H{"code": 400, "msg": "参数错误"})
+		return
+	}
+
+	// 验证必传参数
+	if err := utils.ValidateRequiredParams([]string{"Uid", "Folder", "Status", "Type"}, req); err != nil {
+		c.JSON(200, gin.H{"code": 400, "msg": err.Error()})
+		return
+	}
+
+	err := service.UnScheduleEmail(email.(string), pwd.(string), req.Folder, req.Uid, req.Type, req.Status)
+	if err != nil {
+		c.JSON(200, gin.H{"code": 500, "msg": "取消定时失败: " + err.Error()})
+		return
+	}
+	c.JSON(200, gin.H{
+		"code": 200,
+		"msg":  "修改成功",
+	})
+}
