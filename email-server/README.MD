@@ -38,14 +38,14 @@ air
 
 ```bash
 # 编译
-go build -trimpath -ldflags="-s -w" -o email-server.exe main.go
+go build -trimpath -ldflags="-s -w" -o hst-email.exe main.go
 
 # UPX压缩
-upx --lzma -9 email-server.exe
+upx --lzma -9 hst-email.exe
 
 # 校验
-upx -t email-server.exe
+upx -t hst-email.exe
 
 # 一键
-go build -trimpath -ldflags="-s -w" -o email-server.exe main.go && upx --lzma -9 email-server.exe && upx -t email-server.exe
+go build -trimpath -ldflags="-s -w" -o hst-email.exe main.go && upx --lzma -9 hst-email.exe && upx -t hst-email.exe
 ```

@@ -487,7 +487,6 @@ func MailDetail(email, pwd string, token string, folder string, uid int64) (*mod
 
 	// 处理内联图片
 	if content != "" && len(env.Inlines) > 0 {
-
 		for idx, inline := range env.Inlines {
 			contentID := strings.Trim(inline.Header.Get("Content-Id"), "<>")
 			if contentID != "" && len(inline.Content) > 0 {
