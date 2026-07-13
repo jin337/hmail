@@ -166,6 +166,7 @@ const showMailIcon = (flags) => {
 const MailLayout = () => {
   const [userList, setUserList] = useState({}) // 用户列表
   const [recentlyList, setRecentlyList] = useState([]) // 最近联系人
+  const [contactList, setContactList] = useState([]) // 联系人
 
   const [folderList, setFolderList] = useState(menuList) // 文件夹
   const [currentFolder, setCurrentFolder] = useState({}) // 当前文件夹
@@ -239,6 +240,16 @@ const MailLayout = () => {
       Message.error(message)
     }
   }
+  // 获取最近联系人
+  const getContactList = async () => {
+    const { code, data, message } = await request.post('/api/user/contact-list')
+    if (code == 200) {
+      const list = (data.list || []).map((e) => ({ ...e, full_name: e.name }))
+      setContactList(list)
+    } else {
+      Message.error(message)
+    }
+  }
 
   // 写邮件
   const onWriteMail = async (key, mailData) => {
@@ -251,6 +262,7 @@ const MailLayout = () => {
       return Message.warning('写邮件页已打开，请先关闭')
     }
 
+    // getContactList()
     getRecentlyContact()
 
     let composeItem = { key: 'compose', folder: 'DRAFTS', title: '草稿', icon: <IconFile className='text-lg!' /> }
@@ -734,7 +746,7 @@ const MailLayout = () => {
     }
   }
 
-  // 清空联系人
+  // 清空最近联系人
   const onClearRecently = async () => {
     const { code, msg } = await request.post('/api/user/contact/clear')
     if (code === 200) {
@@ -743,7 +755,7 @@ const MailLayout = () => {
     }
   }
 
-  // 删除联系人
+  // 删除最近联系人
   const onDeleteRecently = async (item) => {
     const { code, msg } = await request.post('/api/user/contact/delete', { email: item.email })
     if (code === 200) {
@@ -758,6 +770,31 @@ const MailLayout = () => {
     if (code === 200) {
       Message.success(msg)
       getRecentlyContact()
+    }
+  }
+
+  // 添加编辑联系人
+  const onEditContact = async (params) => {
+    const { code, msg } = await request.post('/api/user/contact-list/save', params)
+    if (code === 200) {
+      Message.success(msg)
+      getContactList()
+    }
+  }
+  // 删除联系人
+  const onDeleteContact = async (item) => {
+    const { code, msg } = await request.post('/api/user/contact-list/delete', { email: item.email })
+    if (code === 200) {
+      Message.success(msg)
+      getContactList()
+    }
+  }
+  // 清空联系人
+  const onClearContactList = async () => {
+    const { code, msg } = await request.post('/api/user/contact-list/clear')
+    if (code === 200) {
+      Message.success(msg)
+      setContactList([])
     }
   }
 
@@ -1052,13 +1089,19 @@ const MailLayout = () => {
             key={writeMail?.uid || '0'}
             detail={writeMail}
             userList={userList?.list || []}
-            recentlyList={recentlyList}
             onChange={setNewWriteMail} // 监控邮件内容变化
             onClose={onClickCompose} // 关闭写邮件页
             onSend={onSend} // 发邮件或存草稿
+
+            recentlyList={recentlyList} // 最近联系人
             onEditRecently={onEditRecently} // 添加编辑最近联系人
             onDeleteRecently={onDeleteRecently} // 删除最近联系人
             onClearRecently={onClearRecently} // 清空最近联系人
+
+            contactList={contactList} //我的联系人
+            onEditContact={onEditContact} // 添加编辑联系人
+            onDeleteContact={onDeleteContact} // 删除联系人
+            onClearContactList={onClearContactList} // 清空联系人
           />
         </Spin>
       )}

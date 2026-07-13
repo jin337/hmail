@@ -44,13 +44,17 @@ import { isSvg } from 'src/utils'
 export default function WriteMail({
   detail,
   userList = [],
-  recentlyList = [],
   onClose,
   onChange,
   onSend,
+  recentlyList = [],
   onEditRecently,
   onDeleteRecently,
   onClearRecently,
+  contactList = [],
+  onEditContact,
+  onDeleteContact,
+  onClearContactList,
 }) {
   const separator = '#_#'
   const [form] = Form.useForm()
@@ -256,8 +260,8 @@ export default function WriteMail({
     onChange(newValues)
   }
 
-  // 清空联系人
-  const onClearContact = useCallback(() => {
+  // 清空最近联系人
+  const onClearContactRecently = useCallback(() => {
     Modal.confirm({
       title: '提示',
       okText: '清空',
@@ -267,21 +271,34 @@ export default function WriteMail({
         onClearRecently()
       },
     })
-  }, [onClearRecently,])
+  }, [onClearRecently])
+
+  // 清空我的联系人
+  const onClearContact = useCallback(() => {
+    Modal.confirm({
+      title: '提示',
+      okText: '清空',
+      className: 'simpleModal',
+      content: '确定要清空最近联系人吗？',
+      onOk: async () => {
+        onClearContactList()
+      },
+    })
+  }, [onClearContactList])
 
   // 联系人数据
   const treeData = useMemo(() => {
     const baseNodes = [
       {
         full_name: '邮箱联系人',
-        key: '0-1',
+        key: '0-2',
         selectable: false,
-        children: userList?.map((e) => ({ ...e, key: '0-1' + separator + e.email })),
+        children: userList?.map((e) => ({ ...e, key: '0-2' + separator + e.email })),
       },
     ]
 
-    // 有最近联系人则前置插入分组
-    if (recentlyList.length > 0) {
+    // 有我的联系人则前置插入分组
+    if (contactList.length > 0) {
       baseNodes.unshift({
         full_name: (
           <div className='group flex justify-between leading-6'>
@@ -291,18 +308,40 @@ export default function WriteMail({
             </Button>
           </div>
         ),
+        key: '0-1',
+        selectable: false,
+        children: contactList?.map((e) => ({ ...e, itemKey: 'contact', key: '0-1' + separator + e.email })),
+      })
+    }
+
+    // 有最近联系人则前置插入分组
+    if (recentlyList.length > 0) {
+      baseNodes.unshift({
+        full_name: (
+          <div className='group flex justify-between leading-6'>
+            <span>最近联系人</span>
+            <Button
+              type='text'
+              status='danger'
+              size='mini'
+              className='hidden! group-hover:block!'
+              onClick={onClearContactRecently}>
+              清空
+            </Button>
+          </div>
+        ),
         key: '0-0',
         selectable: false,
-        children: recentlyList?.map((e) => ({ ...e, key: '0-0' + separator + e.email })),
+        children: recentlyList?.map((e) => ({ ...e, itemKey: 'recently', key: '0-0' + separator + e.email })),
       })
     }
     return baseNodes
-  }, [recentlyList, userList, onClearContact])
+  }, [recentlyList, userList, onClearContactRecently, onClearContact])
 
   // 编辑联系人
   const editContact = (e) => {
     Modal.confirm({
-      title: '编辑联系人',
+      title: '编辑最近联系人',
       okText: '保存',
       icon: null,
       content: (
@@ -318,6 +357,28 @@ export default function WriteMail({
       onOk: async () => {
         const values = await formContact.validate()
         onEditRecently(values)
+      },
+    })
+  }
+  // 编辑联系人
+  const editContactList = (e) => {
+    Modal.confirm({
+      title: '编辑我的联系人',
+      okText: '保存',
+      icon: null,
+      content: (
+        <Form autoComplete='off' form={formContact} initialValues={e}>
+          <Form.Item label='昵称' field='name' required>
+            <Input placeholder='昵称' />
+          </Form.Item>
+          <Form.Item label='邮箱' field='email' disabled>
+            <Input placeholder='邮箱' />
+          </Form.Item>
+        </Form>
+      ),
+      onOk: async () => {
+        const values = await formContact.validate()
+        onEditContact(values)
       },
     })
   }
@@ -345,7 +406,14 @@ export default function WriteMail({
               <div>
                 <div className='flex items-center gap-2 font-bold'>
                   {item?.full_name}
-                  {!item.id && <IconEdit className='cursor-pointer' onClick={() => editContact(item)} />}
+                  {!item.id && <IconEdit className='cursor-pointer' onClick={() => {
+                    if (item.itemKey === 'contact') {
+                      editContactList(item)
+                    }
+                    if (item.itemKey === 'recently') {
+                      editContact(item)
+                    }
+                  }} />}
                 </div>
                 <Typography.Text copyable>{item?.email}</Typography.Text>
               </div>
@@ -359,7 +427,14 @@ export default function WriteMail({
                 status='danger'
                 size='mini'
                 className='hidden! group-hover:block!'
-                onClick={() => onDeleteRecently(item)}>
+                onClick={() => {
+                  if (item.itemKey === 'recently') {
+                    onDeleteRecently(item)
+                  }
+                  if (item.itemKey === 'contact') {
+                    onDeleteContact(item)
+                  }
+                }}>
                 <IconDelete />
               </Button>
             )}
