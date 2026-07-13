@@ -60,7 +60,9 @@ export default function Login() {
               <p>从北京发往德国</p>
               <p>"越过长城，走向世界"</p>
             </div>
-            <img className='mx-auto -ml-18 max-w-sm' src={loginImg} alt='企业邮箱' />
+            <div className='h-95 w-95'>
+              <img className='-ml-18 w-full' src={loginImg} alt='企业邮箱' />
+            </div>
           </div>
 
           {/* 右侧登录卡片 */}

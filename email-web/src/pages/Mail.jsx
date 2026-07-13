@@ -1357,7 +1357,7 @@ const MailLayout = () => {
                         </>
                       }>
                       <div className='flex flex-col gap-2'>
-                        {currentMail.detail.attachments.map((item, index) => (
+                        {currentMail?.detail?.attachments?.map((item, index) => (
                           <div key={index} className='flex items-center justify-between gap-2 bg-gray-100 p-2 hover:bg-gray-200'>
                             <div className='flex flex-1 items-center'>
                               <span className='mr-2'>
