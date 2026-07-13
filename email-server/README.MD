@@ -30,6 +30,9 @@ var (
 
 ```bash
 air
+
+cd email-server/test
+go test -run TestLocalEml -v
 ```
 
 默认运行端口：`8058`

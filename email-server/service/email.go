@@ -205,6 +205,15 @@ func MailList(email, pwd, folder string, page, size int64, keyword string, filte
 			flags = append(flags, f)
 		}
 
+		// 附件处理
+		hasAttach := false
+		for _, att := range env.Attachments {
+			if att.Disposition == "attachment" {
+				hasAttach = true
+				break
+			}
+		}
+
 		item := &model.MailItem{
 			Uid:        int64(msg.Uid),
 			MessageId:  env.GetHeader("Message-Id"),
@@ -220,7 +229,7 @@ func MailList(email, pwd, folder string, page, size int64, keyword string, filte
 			SendTime:   sendTime,
 			Schedule:   Schedule,
 			Text:       showText,
-			HasAttach:  len(env.Attachments) > 0,
+			HasAttach:  hasAttach,
 			Folder:     folder,
 			Size:       utils.FormatUnitSize(int64(msg.Size)),
 			Flags:      flags,
@@ -349,6 +358,15 @@ func StarMailList(email, pwd string, page, size int64, keyword string, filter []
 				flags = append(flags, f)
 			}
 
+			// 附件处理
+			hasAttach := false
+			for _, att := range env.Attachments {
+				if att.Disposition == "attachment" {
+					hasAttach = true
+					break
+				}
+			}
+
 			item := &model.MailItem{
 				Uid:        int64(msg.Uid),
 				MessageId:  env.GetHeader("Message-Id"),
@@ -363,7 +381,7 @@ func StarMailList(email, pwd string, page, size int64, keyword string, filter []
 				Subject:    env.GetHeader("Subject"),
 				SendTime:   sendTime,
 				Text:       showText,
-				HasAttach:  len(env.Attachments) > 0,
+				HasAttach:  hasAttach,
 				Folder:     folder,
 				Size:       utils.FormatUnitSize(int64(msg.Size)),
 				Flags:      flags,
@@ -456,10 +474,8 @@ func MailDetail(email, pwd string, token string, folder string, uid int64) (*mod
 			contentID := strings.Trim(att.Header.Get("Content-Id"), "<>")
 			if contentID != "" && len(att.Content) > 0 {
 				// 生成本地文件路径
-				fileName := att.FileName
-				ext := filepath.Ext(fileName)
-				nameWithoutExt := strings.TrimSuffix(fileName, ext)
-				fileName = fmt.Sprintf("%s_%d%s", nameWithoutExt, idx, ext)
+				ext := filepath.Ext(att.FileName)
+				fileName := fmt.Sprintf("%s_%d%s", "image", idx, ext)
 
 				// 保存到静态资源目录
 				staticDir := filepath.Join("static", "images", email, folder, fmt.Sprint(uid))
@@ -491,10 +507,8 @@ func MailDetail(email, pwd string, token string, folder string, uid int64) (*mod
 			contentID := strings.Trim(inline.Header.Get("Content-Id"), "<>")
 			if contentID != "" && len(inline.Content) > 0 {
 				// 生成本地文件路径
-				fileName := inline.FileName
-				ext := filepath.Ext(fileName)
-				nameWithoutExt := strings.TrimSuffix(fileName, ext)
-				fileName = fmt.Sprintf("%s_%d%s", nameWithoutExt, idx, ext)
+				ext := filepath.Ext(inline.FileName)
+				fileName := fmt.Sprintf("%s_%d%s", "image", idx, ext)
 
 				// 保存到静态资源目录
 				staticDir := filepath.Join("static", "images", email, folder, fmt.Sprint(uid))
@@ -518,7 +532,6 @@ func MailDetail(email, pwd string, token string, folder string, uid int64) (*mod
 				cidMap[contentID] = imageURL
 			}
 		}
-
 	}
 
 	// 批量替换 HTML 中的 cid: 引用
