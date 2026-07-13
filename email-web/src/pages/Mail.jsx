@@ -519,10 +519,12 @@ const MailLayout = () => {
             Message.success('邮件已彻底删除')
           }
         } else {
-          // 判断是否是定时邮件
-          const isSchedule = mailList.filter((e) => ids.includes(e.uid) && Array.isArray(e.flags) && e.flags.includes('Draft'))
-          if (isSchedule) {
-            return Message.error('请先取消定时邮件后再进行删除操作')
+          if (currentFolder.folder === 'Drafts') {
+            // 判断是否是定时邮件
+            const isSchedule = mailList.filter((e) => ids.includes(e.uid) && Array.isArray(e.flags) && e.flags.includes('Draft'))
+            if (isSchedule?.length > 0) {
+              return Message.error('请先取消定时邮件后再进行删除操作')
+            }
           }
 
           // 其他文件夹：移动到垃圾箱
@@ -996,6 +998,7 @@ const MailLayout = () => {
     </Menu>
   )
 
+  // 清空筛选
   const onClearFilter = (e) => {
     e.stopPropagation()
     getMailList({
