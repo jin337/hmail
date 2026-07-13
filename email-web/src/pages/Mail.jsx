@@ -165,7 +165,7 @@ const showMailIcon = (flags) => {
 
 const MailLayout = () => {
   const [userList, setUserList] = useState({}) // 用户列表
-  const [recentlyContact, setRecentlyContact] = useState([]) // 最近联系人
+  const [recentlyList, setRecentlyList] = useState([]) // 最近联系人
 
   const [folderList, setFolderList] = useState(menuList) // 文件夹
   const [currentFolder, setCurrentFolder] = useState({}) // 当前文件夹
@@ -234,7 +234,7 @@ const MailLayout = () => {
     const { code, data, message } = await request.post('/api/user/contact/list')
     if (code == 200) {
       const list = (data.list || []).map((e) => ({ ...e, full_name: e.name }))
-      setRecentlyContact(list)
+      setRecentlyList(list)
     } else {
       Message.error(message)
     }
@@ -733,16 +733,16 @@ const MailLayout = () => {
   }
 
   // 清空联系人
-  const onClearContact = async () => {
+  const onClearRecently = async () => {
     const { code, msg } = await request.post('/api/user/contact/clear')
     if (code === 200) {
       Message.success(msg)
-      setRecentlyContact([])
+      setRecentlyList([])
     }
   }
 
   // 删除联系人
-  const onDeleteContact = async (item) => {
+  const onDeleteRecently = async (item) => {
     const { code, msg } = await request.post('/api/user/contact/delete', { email: item.email })
     if (code === 200) {
       Message.success(msg)
@@ -750,8 +750,8 @@ const MailLayout = () => {
     }
   }
 
-  // 添加编辑联系人
-  const onEditContact = async (params) => {
+  // 添加编辑最近联系人
+  const onEditRecently = async (params) => {
     const { code, msg } = await request.post('/api/user/contact/save', params)
     if (code === 200) {
       Message.success(msg)
@@ -1049,13 +1049,13 @@ const MailLayout = () => {
             key={writeMail?.uid || '0'}
             detail={writeMail}
             userList={userList?.list || []}
-            recentlyContact={recentlyContact}
+            recentlyList={recentlyList}
             onChange={setNewWriteMail} // 监控邮件内容变化
             onClose={onClickCompose} // 关闭写邮件页
             onSend={onSend} // 发邮件或存草稿
-            onEditContact={onEditContact} // 添加编辑联系人
-            onDelete={onDeleteContact} // 删除联系人
-            onClear={onClearContact} // 清空联系人
+            onEditRecently={onEditRecently} // 添加编辑最近联系人
+            onDeleteRecently={onDeleteRecently} // 删除最近联系人
+            onClearRecently={onClearRecently} // 清空最近联系人
           />
         </Spin>
       )}

@@ -41,24 +41,16 @@ import dayjs from 'dayjs'
 // 公共事件
 import { isSvg } from 'src/utils'
 
-// detail 邮件详情
-// userList 用户列表
-// recentlyContact 最近联系人
-// onClose 关闭回调
-// onChange 数据变化回调
-// onSend 发送邮件回调
-// onEditContact 编辑联系人回调
-
 export default function WriteMail({
   detail,
   userList = [],
-  recentlyContact = [],
+  recentlyList = [],
   onClose,
   onChange,
   onSend,
-  onEditContact,
-  onDelete,
-  onClear,
+  onEditRecently,
+  onDeleteRecently,
+  onClearRecently,
 }) {
   const separator = '#_#'
   const [form] = Form.useForm()
@@ -126,7 +118,7 @@ export default function WriteMail({
     }
 
     const key = ids[0]?.split(separator).pop()
-    const item = [...recentlyContact, ...userList].find((e) => e?.email === key)
+    const item = [...recentlyList, ...userList].find((e) => e?.email === key)
     if (!item) return
 
     const targetEmail = {
@@ -272,10 +264,10 @@ export default function WriteMail({
       className: 'simpleModal',
       content: '确定要清空最近联系人吗？',
       onOk: async () => {
-        onClear()
+        onClearRecently()
       },
     })
-  }, [onClear])
+  }, [onClearRecently,])
 
   // 联系人数据
   const treeData = useMemo(() => {
@@ -289,7 +281,7 @@ export default function WriteMail({
     ]
 
     // 有最近联系人则前置插入分组
-    if (recentlyContact.length > 0) {
+    if (recentlyList.length > 0) {
       baseNodes.unshift({
         full_name: (
           <div className='group flex justify-between leading-6'>
@@ -301,11 +293,11 @@ export default function WriteMail({
         ),
         key: '0-0',
         selectable: false,
-        children: recentlyContact?.map((e) => ({ ...e, key: '0-0' + separator + e.email })),
+        children: recentlyList?.map((e) => ({ ...e, key: '0-0' + separator + e.email })),
       })
     }
     return baseNodes
-  }, [recentlyContact, userList, onClearContact])
+  }, [recentlyList, userList, onClearContact])
 
   // 编辑联系人
   const editContact = (e) => {
@@ -325,7 +317,7 @@ export default function WriteMail({
       ),
       onOk: async () => {
         const values = await formContact.validate()
-        onEditContact(values)
+        onEditRecently(values)
       },
     })
   }
@@ -367,7 +359,7 @@ export default function WriteMail({
                 status='danger'
                 size='mini'
                 className='hidden! group-hover:block!'
-                onClick={() => onDelete(item)}>
+                onClick={() => onDeleteRecently(item)}>
                 <IconDelete />
               </Button>
             )}
