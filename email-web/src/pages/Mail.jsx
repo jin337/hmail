@@ -1029,7 +1029,14 @@ const MailLayout = () => {
                 </span>
               </div>
               {item?.key === 'inbox' && item?.total > 0 && <span className='font-medium text-blue-600'>{item.total}</span>}
-              {item?.key === 'compose' && <IconClose className='m-0!' onClick={() => onClickCompose('inbox')} />}
+              {item?.key === 'compose' && (
+                <Button
+                  className='m-0!'
+                  type='text'
+                  size='mini'
+                  onClick={() => onClickCompose('inbox')}
+                  icon={<IconClose className='m-0! text-gray-500!' />}></Button>
+              )}
             </Menu.Item>
           ))}
         </Menu>

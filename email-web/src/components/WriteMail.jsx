@@ -421,7 +421,11 @@ export default function WriteMail({
               添加抄送
             </Button>
           )}
-          <IconClose className='cursor-pointer' onClick={() => onClose('inbox')} />
+          <Button
+            type='text'
+            size='mini'
+            onClick={() => onClose('inbox')}
+            icon={<IconClose className='text-gray-500!' />}></Button>
         </Space>
       </Layout.Header>
       <Layout.Content>
