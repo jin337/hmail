@@ -14,6 +14,7 @@ import {
   Modal,
   Popover,
   Space,
+  Tabs,
   TimePicker,
   Tree,
   Typography,
@@ -28,6 +29,7 @@ import {
   IconFile,
   IconPlus,
   IconPlusCircle,
+  IconSearch,
   IconSend,
   IconSettings,
   IconUpload,
@@ -44,10 +46,10 @@ import { isSvg } from 'src/utils'
 
 export default function WriteMail({
   detail,
-  userList = [],
   onClose,
   onChange,
   onSend,
+  userList = [],
   recentlyList = [],
   contactList = [],
   onEditContact,
@@ -65,8 +67,13 @@ export default function WriteMail({
   const [editor, setEditor] = useState(null)
   const [html, setHtml] = useState('')
 
+  // 自定义时间
   const [customTimeVisible, setCustomTimeVisible] = useState(false)
   const [customTime, setCustomTime] = useState(null)
+
+  // 联系人
+  const [contactVisible, setContactVisible] = useState(false)
+  const [selectList, setSelectList] = useState([])
 
   const toRef = useRef(null)
   const ccRef = useRef(null)
@@ -82,6 +89,13 @@ export default function WriteMail({
       title: '自定义时间发送...',
     },
   ]
+
+  // 打开联系人
+  const openContact = (key) => {
+    setContactVisible(key)
+    const value = form.getFieldValue(key)
+    setSelectList(value)
+  }
 
   // 格式化时间
   const onFormatTime = () => {
@@ -120,7 +134,7 @@ export default function WriteMail({
     }
 
     const key = ids[0]?.split(separator).pop()
-    const item = [...recentlyList, ...userList].find((e) => e?.email === key)
+    const item = [...recentlyList, ...contactList, ...userList].find((e) => e?.email === key)
     if (!item) return
 
     const targetEmail = {
@@ -490,7 +504,7 @@ export default function WriteMail({
                 labelInValue
                 ref={toRef}
                 prefix={
-                  <div className='focus-box flex w-15 items-center gap-1'>
+                  <div className='focus-box flex w-15 cursor-pointer items-center gap-1' onClick={() => openContact('to_info')}>
                     <span>收件人</span>
                     <IconPlusCircle />
                   </div>
@@ -505,7 +519,7 @@ export default function WriteMail({
                 labelInValue
                 ref={ccRef}
                 prefix={
-                  <div className='focus-box flex w-15 items-center gap-1'>
+                  <div className='focus-box flex w-15 cursor-pointer items-center gap-1' onClick={() => openContact('cc_info')}>
                     <span>
                       抄<i className='mx-1.5' />送
                     </span>
@@ -568,10 +582,11 @@ export default function WriteMail({
           </Form>
           {/* 联系人 */}
           <Card title='联系人' className='h-full w-60 border-t-0!' bodyStyle={{ overflowY: 'auto', height: 'calc(100% - 50px)' }}>
+            <Input prefix={<IconSearch />} placeholder='搜索联系人' />
             <Tree
               blockNode
               autoExpandParent
-              className='mail-contacts h-full'
+              className='mail-contacts mt-4 h-[calc(100% - 48px)]'
               key={treeData.map((item) => item.key).join(',')}
               onSelect={(e, extra) => onSelectUser(e, extra)}>
               {treeNodes}
@@ -602,6 +617,138 @@ export default function WriteMail({
           triggerElement={null}
           onChange={(_, date) => setCustomTimeVisible((prev) => ({ ...prev, date: date.format('YYYY-MM-DD ddd') }))}
         />
+      </Modal>
+
+      {/* 联系人 */}
+      <Modal
+        unmountOnExit={true}
+        className={'w-200!'}
+        closable={false}
+        visible={contactVisible}
+        onCancel={() => setContactVisible(false)}
+        onOk={() => {
+          form.setFieldValue(contactVisible, selectList)
+          setContactVisible(false)
+        }}>
+        <div className='flex h-120'>
+          <div className='-my-6 -ml-5 w-1/2 rounded-tl bg-[#FAFBFC] px-5 py-6'>
+            <Input prefix={<IconSearch />} placeholder='搜索联系人' />
+            <Tabs defaultActiveTab='1' className='mt-3'>
+              <Tabs.TabPane key='1' title='最近联系人'>
+                <Tree
+                  checkable
+                  treeData={recentlyList?.map((e) => ({
+                    ...e,
+                    itemKey: 'user_contact:' + e.email,
+                    label: e.full_name,
+                    value: e.email,
+                  }))}
+                  fieldNames={{ key: 'itemKey', title: 'full_name' }}
+                  checkedKeys={selectList?.map((e) => 'user_contact:' + e.value)}
+                  onCheck={(value, extra) => {
+                    const values = value?.map((e) => e.split('user_contact:')[1])
+                    let list = []
+                    if (!extra.checked) {
+                      list = [...selectList]?.filter((e) => values.includes(e.value))
+                    } else {
+                      list = recentlyList
+                        ?.filter((e) => values.includes(e.email))
+                        ?.map((e) => ({
+                          ...e,
+                          itemKey: 'user_contact:' + e.email,
+                          label: e.full_name,
+                          value: e.email,
+                        }))
+                    }
+                    setSelectList(list)
+                  }}
+                />
+              </Tabs.TabPane>
+              <Tabs.TabPane key='2' title='我的联系人'>
+                <Tree
+                  checkable
+                  treeData={contactList?.map((e) => ({
+                    ...e,
+                    itemKey: 'user_sent:' + e.email,
+                    label: e.full_name,
+                    value: e.email,
+                  }))}
+                  fieldNames={{ key: 'itemKey', title: 'full_name' }}
+                  checkedKeys={selectList?.map((e) => 'user_sent:' + e.value)}
+                  onCheck={(value, extra) => {
+                    const values = value?.map((e) => e.split('user_sent:')[1])
+                    let list = []
+                    if (!extra.checked) {
+                      list = [...selectList]?.filter((e) => values.includes(e.value))
+                    } else {
+                      list = contactList
+                        ?.filter((e) => values.includes(e.email))
+                        ?.map((e) => ({
+                          ...e,
+                          itemKey: 'user_sent:' + e.email,
+                          label: e.full_name,
+                          value: e.email,
+                        }))
+                    }
+                    setSelectList(list)
+                  }}
+                />
+              </Tabs.TabPane>
+              <Tabs.TabPane key='3' title='邮箱联系人'>
+                <Tree
+                  checkable
+                  treeData={userList?.map((e) => ({
+                    ...e,
+                    itemKey: 'user_sys:' + e.email,
+                    label: e.full_name,
+                    value: e.email,
+                  }))}
+                  fieldNames={{ key: 'itemKey', title: 'full_name' }}
+                  checkedKeys={selectList?.map((e) => 'user_sys:' + e.value)}
+                  onCheck={(value, extra) => {
+                    const values = value?.map((e) => e.split('user_sys:')[1])
+                    let list = []
+                    if (!extra.checked) {
+                      list = [...selectList]?.filter((e) => values.includes(e.value))
+                    } else {
+                      list = userList
+                        ?.filter((e) => values.includes(e.email))
+                        ?.map((e) => ({
+                          ...e,
+                          itemKey: 'user_sys:' + e.email,
+                          label: e.full_name,
+                          value: e.email,
+                        }))
+                    }
+                    setSelectList(list)
+                  }}
+                />
+              </Tabs.TabPane>
+            </Tabs>
+          </div>
+          <div className='w-1/2 pl-5'>
+            <div className='text-lg font-bold'>已选择</div>
+            <div>
+              {selectList?.map((item) => (
+                <div className='mt-3 flex items-center justify-between gap-2' key={item.value}>
+                  <div className='flex gap-2'>
+                    <Avatar className={'min-w-10!'} style={{ backgroundColor: '#FFEDD8', color: '#FF8800' }}>
+                      {item?.label?.slice(0, 1).toUpperCase()}
+                    </Avatar>
+                    <div>
+                      <div className=''>{item?.label}</div>
+                      <div className='text-gray-400'>{item?.value}</div>
+                    </div>
+                  </div>
+                  <Button
+                    size='mini'
+                    icon={<IconClose />}
+                    onClick={() => setSelectList((prev) => prev?.filter((e) => e.value !== item.value))}></Button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
       </Modal>
     </Layout>
   )
