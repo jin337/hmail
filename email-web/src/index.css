@@ -93,3 +93,14 @@ strong {
 .arco-checkbox-mask {
   border: 1px solid #1d2129;
 }
+
+/* 写邮件的收件人抄送人添加样式 */
+.focus-box .arco-icon {
+  display: none;
+}
+.arco-input-tag-focus .focus-box {
+  color: rgb(var(--primary-6));
+}
+.arco-input-tag-focus .focus-box .arco-icon {
+  display: block !important;
+}

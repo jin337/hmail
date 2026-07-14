@@ -27,6 +27,7 @@ import {
   IconEdit,
   IconFile,
   IconPlus,
+  IconPlusCircle,
   IconSend,
   IconSettings,
   IconUpload,
@@ -288,7 +289,7 @@ export default function WriteMail({
     if (contactList.length > 0) {
       let prefix = 'user_contact'
       baseNodes.unshift({
-        full_name: "我的联系人",
+        full_name: '我的联系人',
         key: '0-1',
         selectable: false,
         children: contactList?.map((e) => ({ ...e, prefix, key: '0-1' + separator + e.email })),
@@ -415,6 +416,7 @@ export default function WriteMail({
 
   return (
     <Layout className='h-full'>
+      {/* 发送邮件头部 */}
       <Layout.Header className='flex h-15 items-center justify-between border-b border-gray-300 px-6'>
         <Space>
           <Button type='primary' icon={<IconSend />} loading={loading} onClick={() => handleSend('Sent')}>
@@ -458,6 +460,7 @@ export default function WriteMail({
       </Layout.Header>
       <Layout.Content>
         <div className='flex h-[calc(100vh-116px)] items-start'>
+          {/* 邮件内容 */}
           <Form
             className='h-full flex-1 overflow-y-auto p-6 pb-0'
             form={form}
@@ -486,8 +489,12 @@ export default function WriteMail({
               <InputTag
                 labelInValue
                 ref={toRef}
-                prefix='收件人'
-                placeholder='test@xxx.com'
+                prefix={
+                  <div className='focus-box flex w-15 items-center gap-1'>
+                    <span>收件人</span>
+                    <IconPlusCircle />
+                  </div>
+                }
                 maxTagCount={5}
                 saveOnBlur
                 onFocus={() => setLastFocus('to_info')}
@@ -497,15 +504,27 @@ export default function WriteMail({
               <InputTag
                 labelInValue
                 ref={ccRef}
-                prefix='抄送'
-                placeholder='test@xxx.com'
+                prefix={
+                  <div className='focus-box flex w-15 items-center gap-1'>
+                    <span>
+                      抄<i className='mx-1.5' />送
+                    </span>
+                    <IconPlusCircle />
+                  </div>
+                }
                 maxTagCount={5}
                 saveOnBlur
                 onFocus={() => setLastFocus('cc_info')}
               />
             </Form.Item>
             <Form.Item field='subject' rules={[{ required: true, message: '请输入主题' }]}>
-              <Input prefix='主题' placeholder='邮件主题' />
+              <Input
+                prefix={
+                  <span>
+                    主<i className='mx-1.5' />题
+                  </span>
+                }
+              />
             </Form.Item>
             {/* 富文本编辑器 */}
             <Form.Item>
@@ -524,7 +543,7 @@ export default function WriteMail({
                 />
                 <Editor
                   className='h-80 overflow-y-auto'
-                  defaultConfig={{ placeholder: '请输入邮件正文...' }}
+                  defaultConfig={{ placeholder: '输入正文...' }}
                   onCreated={setEditor}
                   onChange={(editor) => {
                     setHtml(editor.getHtml())
@@ -547,6 +566,7 @@ export default function WriteMail({
               </Upload>
             </Form.Item>
           </Form>
+          {/* 联系人 */}
           <Card title='联系人' className='h-full w-60 border-t-0!' bodyStyle={{ overflowY: 'auto', height: 'calc(100% - 50px)' }}>
             <Tree
               blockNode
@@ -560,6 +580,7 @@ export default function WriteMail({
         </div>
       </Layout.Content>
 
+      {/* 自定义发送时间 */}
       <Modal
         title='自定义发送时间'
         className={'w-110!'}
