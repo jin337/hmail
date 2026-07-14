@@ -74,6 +74,8 @@ export default function WriteMail({
   // 联系人
   const [contactVisible, setContactVisible] = useState(false)
   const [selectList, setSelectList] = useState([])
+  const [searchList, setSearchList] = useState([])
+  const [searchContactList, setSearchContactList] = useState([])
 
   const toRef = useRef(null)
   const ccRef = useRef(null)
@@ -95,6 +97,7 @@ export default function WriteMail({
     setContactVisible(key)
     const value = form.getFieldValue(key)
     setSelectList(value)
+    setSearchContactList([])
   }
 
   // 格式化时间
@@ -125,15 +128,18 @@ export default function WriteMail({
 
   // 选择用户
   const onSelectUser = (ids, extra) => {
-    const { e } = extra
-    // 忽略svg点击
-    if (isSvg(e)) {
-      e.preventDefault()
-      e.stopPropagation()
-      return
+    let key = ids[0]
+    if (extra) {
+      const { e } = extra
+      // 忽略svg点击
+      if (isSvg(e)) {
+        e.preventDefault()
+        e.stopPropagation()
+        return
+      }
+      key = ids[0]?.split(separator).pop()
     }
 
-    const key = ids[0]?.split(separator).pop()
     const item = [...recentlyList, ...contactList, ...userList].find((e) => e?.email === key)
     if (!item) return
 
@@ -333,7 +339,7 @@ export default function WriteMail({
       })
     }
     return baseNodes
-  }, [recentlyList, userList, onClearContactList])
+  }, [contactList, recentlyList, userList, onClearContactList])
 
   // 编辑联系人
   const editContact = (e) => {
@@ -582,15 +588,44 @@ export default function WriteMail({
           </Form>
           {/* 联系人 */}
           <Card title='联系人' className='h-full w-60 border-t-0!' bodyStyle={{ overflowY: 'auto', height: 'calc(100% - 50px)' }}>
-            <Input prefix={<IconSearch />} placeholder='搜索联系人' />
-            <Tree
-              blockNode
-              autoExpandParent
-              className='mail-contacts mt-4 h-[calc(100% - 48px)]'
-              key={treeData.map((item) => item.key).join(',')}
-              onSelect={(e, extra) => onSelectUser(e, extra)}>
-              {treeNodes}
-            </Tree>
+            <Input
+              prefix={<IconSearch />}
+              placeholder='搜索联系人'
+              allowClear
+              onChange={(e) => {
+                if (!e) {
+                  setSearchList([])
+                  return
+                }
+                const allUser = [...userList, ...recentlyList, ...contactList].reduce((acc, cur) => {
+                  if (!acc.find((v) => v.email === cur.email)) {
+                    acc.push(cur)
+                  }
+                  return acc
+                }, [])
+                const list = allUser.filter((item) => item.full_name.includes(e) || item.email.includes(e))
+                setSearchList(list)
+              }}
+            />
+            <div className='h-[calc(100% - 48px)] mt-4'>
+              {searchList?.length > 0 ? (
+                searchList.map((item) => (
+                  <div key={item.itemkey} className='mb-3 cursor-pointer' onClick={() => onSelectUser([item.email])}>
+                    <div className='text-(--color-text-1)'>{item.full_name}</div>
+                    <div className='text-[13px]'>{item.email}</div>
+                  </div>
+                ))
+              ) : (
+                <Tree
+                  blockNode
+                  autoExpandParent
+                  className='mail-contacts h-full'
+                  key={treeData.map((item) => item.key).join(',')}
+                  onSelect={(e, extra) => onSelectUser(e, extra)}>
+                  {treeNodes}
+                </Tree>
+              )}
+            </div>
           </Card>
         </div>
       </Layout.Content>
@@ -632,30 +667,50 @@ export default function WriteMail({
         }}>
         <div className='flex h-120'>
           <div className='-my-6 -ml-5 w-1/2 rounded-tl bg-[#FAFBFC] px-5 py-6'>
-            <Input prefix={<IconSearch />} placeholder='搜索联系人' />
-            <Tabs defaultActiveTab='1' className='mt-3'>
-              <Tabs.TabPane key='1' title='最近联系人'>
+            <Input
+              prefix={<IconSearch />}
+              placeholder='搜索联系人'
+              allowClear
+              onChange={(e) => {
+                if (!e) {
+                  setSearchContactList([])
+                  return
+                }
+                const allUser = [...userList, ...recentlyList, ...contactList].reduce((acc, cur) => {
+                  if (!acc.find((v) => v.email === cur.email)) {
+                    acc.push(cur)
+                  }
+                  return acc
+                }, [])
+                const list = allUser.filter((item) => item.full_name.includes(e) || item.email.includes(e))
+                setSearchContactList(list)
+              }}
+            />
+            <div className='mt-3'>
+              {searchContactList.length > 0 ? (
                 <Tree
+                  className='-ml-3'
                   checkable
-                  treeData={recentlyList?.map((e) => ({
+                  blockNode
+                  treeData={searchContactList?.map((e) => ({
                     ...e,
-                    itemKey: 'user_contact:' + e.email,
+                    itemKey: 'search:' + e.email,
                     label: e.full_name,
                     value: e.email,
                   }))}
                   fieldNames={{ key: 'itemKey', title: 'full_name' }}
-                  checkedKeys={selectList?.map((e) => 'user_contact:' + e.value)}
+                  checkedKeys={selectList?.map((e) => 'search:' + e.value)}
                   onCheck={(value, extra) => {
-                    const values = value?.map((e) => e.split('user_contact:')[1])
+                    const values = value?.map((e) => e.split('search:')[1])
                     let list = []
                     if (!extra.checked) {
                       list = [...selectList]?.filter((e) => values.includes(e.value))
                     } else {
-                      list = recentlyList
+                      list = searchContactList
                         ?.filter((e) => values.includes(e.email))
                         ?.map((e) => ({
                           ...e,
-                          itemKey: 'user_contact:' + e.email,
+                          itemKey: 'search:' + e.email,
                           label: e.full_name,
                           value: e.email,
                         }))
@@ -663,71 +718,104 @@ export default function WriteMail({
                     setSelectList(list)
                   }}
                 />
-              </Tabs.TabPane>
-              <Tabs.TabPane key='2' title='我的联系人'>
-                <Tree
-                  checkable
-                  treeData={contactList?.map((e) => ({
-                    ...e,
-                    itemKey: 'user_sent:' + e.email,
-                    label: e.full_name,
-                    value: e.email,
-                  }))}
-                  fieldNames={{ key: 'itemKey', title: 'full_name' }}
-                  checkedKeys={selectList?.map((e) => 'user_sent:' + e.value)}
-                  onCheck={(value, extra) => {
-                    const values = value?.map((e) => e.split('user_sent:')[1])
-                    let list = []
-                    if (!extra.checked) {
-                      list = [...selectList]?.filter((e) => values.includes(e.value))
-                    } else {
-                      list = contactList
-                        ?.filter((e) => values.includes(e.email))
-                        ?.map((e) => ({
-                          ...e,
-                          itemKey: 'user_sent:' + e.email,
-                          label: e.full_name,
-                          value: e.email,
-                        }))
-                    }
-                    setSelectList(list)
-                  }}
-                />
-              </Tabs.TabPane>
-              <Tabs.TabPane key='3' title='邮箱联系人'>
-                <Tree
-                  checkable
-                  treeData={userList?.map((e) => ({
-                    ...e,
-                    itemKey: 'user_sys:' + e.email,
-                    label: e.full_name,
-                    value: e.email,
-                  }))}
-                  fieldNames={{ key: 'itemKey', title: 'full_name' }}
-                  checkedKeys={selectList?.map((e) => 'user_sys:' + e.value)}
-                  onCheck={(value, extra) => {
-                    const values = value?.map((e) => e.split('user_sys:')[1])
-                    let list = []
-                    if (!extra.checked) {
-                      list = [...selectList]?.filter((e) => values.includes(e.value))
-                    } else {
-                      list = userList
-                        ?.filter((e) => values.includes(e.email))
-                        ?.map((e) => ({
-                          ...e,
-                          itemKey: 'user_sys:' + e.email,
-                          label: e.full_name,
-                          value: e.email,
-                        }))
-                    }
-                    setSelectList(list)
-                  }}
-                />
-              </Tabs.TabPane>
-            </Tabs>
+              ) : (
+                <Tabs defaultActiveTab='1'>
+                  <Tabs.TabPane key='1' title='最近联系人'>
+                    <Tree
+                      checkable
+                      treeData={recentlyList?.map((e) => ({
+                        ...e,
+                        itemKey: 'user_contact:' + e.email,
+                        label: e.full_name,
+                        value: e.email,
+                      }))}
+                      fieldNames={{ key: 'itemKey', title: 'full_name' }}
+                      checkedKeys={selectList?.map((e) => 'user_contact:' + e.value)}
+                      onCheck={(value, extra) => {
+                        const values = value?.map((e) => e.split('user_contact:')[1])
+                        let list = []
+                        if (!extra.checked) {
+                          list = [...selectList]?.filter((e) => values.includes(e.value))
+                        } else {
+                          list = recentlyList
+                            ?.filter((e) => values.includes(e.email))
+                            ?.map((e) => ({
+                              ...e,
+                              itemKey: 'user_contact:' + e.email,
+                              label: e.full_name,
+                              value: e.email,
+                            }))
+                        }
+                        setSelectList(list)
+                      }}
+                    />
+                  </Tabs.TabPane>
+                  <Tabs.TabPane key='2' title='我的联系人'>
+                    <Tree
+                      checkable
+                      treeData={contactList?.map((e) => ({
+                        ...e,
+                        itemKey: 'user_sent:' + e.email,
+                        label: e.full_name,
+                        value: e.email,
+                      }))}
+                      fieldNames={{ key: 'itemKey', title: 'full_name' }}
+                      checkedKeys={selectList?.map((e) => 'user_sent:' + e.value)}
+                      onCheck={(value, extra) => {
+                        const values = value?.map((e) => e.split('user_sent:')[1])
+                        let list = []
+                        if (!extra.checked) {
+                          list = [...selectList]?.filter((e) => values.includes(e.value))
+                        } else {
+                          list = contactList
+                            ?.filter((e) => values.includes(e.email))
+                            ?.map((e) => ({
+                              ...e,
+                              itemKey: 'user_sent:' + e.email,
+                              label: e.full_name,
+                              value: e.email,
+                            }))
+                        }
+                        setSelectList(list)
+                      }}
+                    />
+                  </Tabs.TabPane>
+                  <Tabs.TabPane key='3' title='邮箱联系人'>
+                    <Tree
+                      checkable
+                      treeData={userList?.map((e) => ({
+                        ...e,
+                        itemKey: 'user_sys:' + e.email,
+                        label: e.full_name,
+                        value: e.email,
+                      }))}
+                      fieldNames={{ key: 'itemKey', title: 'full_name' }}
+                      checkedKeys={selectList?.map((e) => 'user_sys:' + e.value)}
+                      onCheck={(value, extra) => {
+                        const values = value?.map((e) => e.split('user_sys:')[1])
+                        let list = []
+                        if (!extra.checked) {
+                          list = [...selectList]?.filter((e) => values.includes(e.value))
+                        } else {
+                          list = userList
+                            ?.filter((e) => values.includes(e.email))
+                            ?.map((e) => ({
+                              ...e,
+                              itemKey: 'user_sys:' + e.email,
+                              label: e.full_name,
+                              value: e.email,
+                            }))
+                        }
+                        setSelectList(list)
+                      }}
+                    />
+                  </Tabs.TabPane>
+                </Tabs>
+              )}
+            </div>
           </div>
           <div className='w-1/2 pl-5'>
-            <div className='text-lg font-bold'>已选择</div>
+            <div className='text-lg font-bold'>已选择 {selectList?.length > 0 && selectList?.length + '人'}</div>
             <div>
               {selectList?.map((item) => (
                 <div className='mt-3 flex items-center justify-between gap-2' key={item.value}>
@@ -736,8 +824,8 @@ export default function WriteMail({
                       {item?.label?.slice(0, 1).toUpperCase()}
                     </Avatar>
                     <div>
-                      <div className=''>{item?.label}</div>
-                      <div className='text-gray-400'>{item?.value}</div>
+                      <div className='text-(--color-text-1)'>{item.label}</div>
+                      <div className='text-[13px] text-gray-400'>{item.value}</div>
                     </div>
                   </div>
                   <Button
