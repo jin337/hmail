@@ -478,8 +478,8 @@ func UpdatePassword(adminPassword, email, oldPwd, newPassword string) error {
 }
 
 // ContactList 联系人列表
-func ContactList(email string) ([]*model.Contact, int64, error) {
-	contactEmails, err := utils.ListUserContacts(email)
+func ContactList(prefix, email string) ([]*model.Contact, int64, error) {
+	contactEmails, err := utils.ListUserContacts(prefix, email)
 	if err != nil {
 		return nil, 0, fmt.Errorf("读取联系人失败: %w", err)
 	}
@@ -498,20 +498,20 @@ func ContactList(email string) ([]*model.Contact, int64, error) {
 }
 
 // SaveContact 保存联系人
-func SaveContact(email, to, name string) error {
+func SaveContact(prefix, email, to, name string) error {
 	// 不能自己保存自己
 	if email == to {
 		return nil
 	}
-	return utils.SaveSentContact(email, to, name)
+	return utils.SaveSentContact(prefix, email, to, name)
 }
 
 // DeleteContact 删除单个联系人
-func DeleteContact(email string, to string) error {
-	return utils.DelContact(email, to)
+func DeleteContact(prefix, email string, to string) error {
+	return utils.DelContact(prefix, email, to)
 }
 
 // ClearContact 清空所有联系人
-func ClearContact(email string) error {
-	return utils.ClearAllContact(email)
+func ClearContact(prefix, email string) error {
+	return utils.ClearAllContact(prefix, email)
 }

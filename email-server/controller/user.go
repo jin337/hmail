@@ -161,7 +161,14 @@ func UpdateUser(c *gin.Context) {
 // ContactList 获取联系人列表
 func ContactList(c *gin.Context) {
 	email, _ := c.Get("userEmail")
-	list, total, err := service.ContactList(email.(string))
+
+	var req model.ContactReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(200, gin.H{"code": 400, "msg": "参数错误"})
+		return
+	}
+
+	list, total, err := service.ContactList(req.Prefix, email.(string))
 	if err != nil {
 		c.JSON(200, gin.H{"code": 500, "msg": "获取联系人列表失败: " + err.Error()})
 		return
@@ -179,7 +186,8 @@ func ContactList(c *gin.Context) {
 // SaveContact	保存联系人
 func SaveContact(c *gin.Context) {
 	email, _ := c.Get("userEmail")
-	var req model.Contact
+
+	var req model.ContactReq
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(200, gin.H{"code": 400, "msg": "参数错误"})
 		return
@@ -191,7 +199,7 @@ func SaveContact(c *gin.Context) {
 		return
 	}
 
-	err := service.SaveContact(email.(string), req.Email, req.Name)
+	err := service.SaveContact(req.Prefix, email.(string), req.Email, req.Name)
 	if err != nil {
 		c.JSON(200, gin.H{"code": 500, "msg": "保存联系人失败: " + err.Error()})
 		return
@@ -206,7 +214,8 @@ func SaveContact(c *gin.Context) {
 // DeleteContact 删除联系人
 func DeleteContact(c *gin.Context) {
 	email, _ := c.Get("userEmail")
-	var req model.Contact
+
+	var req model.ContactReq
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(200, gin.H{"code": 400, "msg": "参数错误"})
 		return
@@ -218,7 +227,7 @@ func DeleteContact(c *gin.Context) {
 		return
 	}
 
-	err := service.DeleteContact(email.(string), req.Email)
+	err := service.DeleteContact(req.Prefix, email.(string), req.Email)
 	if err != nil {
 		c.JSON(200, gin.H{"code": 500, "msg": "删除联系人失败: " + err.Error()})
 		return
@@ -234,7 +243,13 @@ func DeleteContact(c *gin.Context) {
 func ClearContact(c *gin.Context) {
 	email, _ := c.Get("userEmail")
 
-	err := service.ClearContact(email.(string))
+	var req model.ContactReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(200, gin.H{"code": 400, "msg": "参数错误"})
+		return
+	}
+
+	err := service.ClearContact(req.Prefix, email.(string))
 	if err != nil {
 		c.JSON(200, gin.H{"code": 500, "msg": "清空联系人失败: " + err.Error()})
 		return

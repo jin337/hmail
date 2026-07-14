@@ -188,3 +188,9 @@ type EmailExtra struct {
 	References    string `json:"references"`      // 引用
 	XScheduleSend string `json:"x-schedule-send"` // 定时发送
 }
+
+type ContactReq struct {
+	Prefix string `json:"prefix"`
+	Email  string `json:"email"`
+	Name   string `json:"name"`
+}

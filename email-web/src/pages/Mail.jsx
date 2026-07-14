@@ -17,9 +17,11 @@ import {
   Menu,
   Message,
   Modal,
+  Popover,
   Space,
   Spin,
   Table,
+  Typography,
 } from '@arco-design/web-react'
 import {
   IconArrowLeft,
@@ -36,6 +38,7 @@ import {
   IconLayout,
   IconLeft,
   IconMenu,
+  IconPlus,
   IconRedo,
   IconReply,
   IconRight,
@@ -164,6 +167,10 @@ const showMailIcon = (flags) => {
 }
 
 const MailLayout = () => {
+  // 本地登录信息
+  const currentAccountId = localStorage.getItem('current_account_id') || ''
+  const userInfo = currentAccountId ? JSON.parse(localStorage.getItem(`USERINFO_${currentAccountId}`) || '{}') : {}
+
   const [userList, setUserList] = useState({}) // 用户列表
   const [recentlyList, setRecentlyList] = useState([]) // 最近联系人
   const [contactList, setContactList] = useState([]) // 联系人
@@ -230,24 +237,33 @@ const MailLayout = () => {
     }, 300)
   }
 
-  // 获取最近联系人
-  const getRecentlyContact = async () => {
-    const { code, data, message } = await request.post('/api/user/contact/list')
+  // 获取联系人
+  const getContactList = async (params) => {
+    const { code, data, message } = await request.post('/api/user/contact/list', { prefix: params?.prefix })
     if (code == 200) {
       const list = (data.list || []).map((e) => ({ ...e, full_name: e.name }))
-      setRecentlyList(list)
+      if (params?.prefix === 'user_sent') {
+        setRecentlyList(list)
+      }
+      if (params?.prefix === 'user_contact') {
+        setContactList(list)
+      }
     } else {
       Message.error(message)
     }
   }
-  // 获取最近联系人
-  const getContactList = async () => {
-    const { code, data, message } = await request.post('/api/user/contact-list')
-    if (code == 200) {
-      const list = (data.list || []).map((e) => ({ ...e, full_name: e.name }))
-      setContactList(list)
+
+  // 获取用户列表
+  const getUserList = async () => {
+    const { code, data, msg } = await request.post('/api/user/list')
+    if (code === 200) {
+      const newData = {
+        list: (data.list || []).map((e) => ({ ...e, is_me: e.email === currentAccountId })),
+        total: data.total,
+      }
+      setUserList(newData)
     } else {
-      Message.error(message)
+      Message.error(msg)
     }
   }
 
@@ -262,8 +278,7 @@ const MailLayout = () => {
       return Message.warning('写邮件页已打开，请先关闭')
     }
 
-    // getContactList()
-    getRecentlyContact()
+    getContactList({ prefix: 'user_sent' })
 
     let composeItem = { key: 'compose', folder: 'DRAFTS', title: '草稿', icon: <IconFile className='text-lg!' /> }
     if (key !== 'new') {
@@ -746,55 +761,30 @@ const MailLayout = () => {
     }
   }
 
-  // 清空最近联系人
-  const onClearRecently = async () => {
-    const { code, msg } = await request.post('/api/user/contact/clear')
+  // 清空联系人
+  const onClearContact = async (params) => {
+    const { code, msg } = await request.post('/api/user/contact/clear', params)
     if (code === 200) {
       Message.success(msg)
-      setRecentlyList([])
+      getContactList(params)
     }
   }
 
   // 删除最近联系人
-  const onDeleteRecently = async (item) => {
-    const { code, msg } = await request.post('/api/user/contact/delete', { email: item.email })
+  const onDeleteContact = async (params) => {
+    const { code, msg } = await request.post('/api/user/contact/delete', { email: params?.email, prefix: params?.prefix })
     if (code === 200) {
       Message.success(msg)
-      getRecentlyContact()
+      getContactList(params)
     }
   }
 
   // 添加编辑最近联系人
-  const onEditRecently = async (params) => {
+  const onEditContact = async (params) => {
     const { code, msg } = await request.post('/api/user/contact/save', params)
     if (code === 200) {
       Message.success(msg)
-      getRecentlyContact()
-    }
-  }
-
-  // 添加编辑联系人
-  const onEditContact = async (params) => {
-    const { code, msg } = await request.post('/api/user/contact-list/save', params)
-    if (code === 200) {
-      Message.success(msg)
-      getContactList()
-    }
-  }
-  // 删除联系人
-  const onDeleteContact = async (item) => {
-    const { code, msg } = await request.post('/api/user/contact-list/delete', { email: item.email })
-    if (code === 200) {
-      Message.success(msg)
-      getContactList()
-    }
-  }
-  // 清空联系人
-  const onClearContactList = async () => {
-    const { code, msg } = await request.post('/api/user/contact-list/clear')
-    if (code === 200) {
-      Message.success(msg)
-      setContactList([])
+      getContactList(params)
     }
   }
 
@@ -896,20 +886,11 @@ const MailLayout = () => {
     setLoading(false)
   }
 
-  // 获取用户列表
-  const getUserList = async () => {
-    const { code, data, msg } = await request.post('/api/user/list')
-    if (code === 200) {
-      setUserList(data)
-    } else {
-      Message.error(msg)
-    }
-
-    loadMailList('inbox')
-  }
   // 初始加载邮件列表
   useEffect(() => {
     const init = async () => {
+      await loadMailList('inbox')
+      await getContactList({ prefix: 'user_contact' })
       await getUserList()
     }
     init()
@@ -1092,16 +1073,11 @@ const MailLayout = () => {
             onChange={setNewWriteMail} // 监控邮件内容变化
             onClose={onClickCompose} // 关闭写邮件页
             onSend={onSend} // 发邮件或存草稿
-
             recentlyList={recentlyList} // 最近联系人
-            onEditRecently={onEditRecently} // 添加编辑最近联系人
-            onDeleteRecently={onDeleteRecently} // 删除最近联系人
-            onClearRecently={onClearRecently} // 清空最近联系人
-
             contactList={contactList} //我的联系人
             onEditContact={onEditContact} // 添加编辑联系人
             onDeleteContact={onDeleteContact} // 删除联系人
-            onClearContactList={onClearContactList} // 清空联系人
+            onClearContact={onClearContact} // 清空联系人
           />
         </Spin>
       )}
@@ -1340,21 +1316,93 @@ const MailLayout = () => {
                       {currentMail?.from_info?.name?.slice(0, 1).toUpperCase()}
                     </Avatar>
                     <div className='flex-1 text-sm'>
-                      <div className='mb-1'>
-                        <strong>{currentMail?.from_info?.name}</strong>
-                        <span className='text-gray-400'>&nbsp;&lt;{currentMail.from}&gt;</span>
-                      </div>
+                      <Popover
+                        position='bl'
+                        trigger='hover'
+                        key={currentMail.from}
+                        triggerProps={{ mouseEnterDelay: 500, showArrow: false }}
+                        content={
+                          <div>
+                            <div className='flex gap-2'>
+                              <Avatar className={'min-w-10!'} style={{ backgroundColor: '#FFEDD8', color: '#FF8800' }}>
+                                {currentMail?.from_info?.name?.slice(0, 1).toUpperCase()}
+                              </Avatar>
+                              <div>
+                                <div className='flex items-center gap-2 font-bold'>{currentMail?.from_info?.name}</div>
+                                <Typography.Text copyable>{currentMail.from}</Typography.Text>
+                              </div>
+                            </div>
+                            {![...contactList, { email: userInfo.email }]?.map((e) => e.email).includes(currentMail.from) && (
+                              <div className={'mt-2'}>
+                                <Button
+                                  type='primary'
+                                  size='small'
+                                  long
+                                  icon={<IconPlus />}
+                                  onClick={() =>
+                                    onEditContact({
+                                      name: currentMail?.from_info?.name,
+                                      email: currentMail.from,
+                                      prefix: 'user_contact',
+                                    })
+                                  }>
+                                  添加联系人
+                                </Button>
+                              </div>
+                            )}
+                          </div>
+                        }>
+                        <div className='mb-1'>
+                          <strong>{currentMail?.from_info?.name}</strong>
+                          <span className='text-gray-400'>&nbsp;&lt;{currentMail.from}&gt;</span>
+                        </div>
+                      </Popover>
                       <div className='flex items-start justify-between gap-2'>
                         <div className='flex-1'>
                           <div className='mb-1 flex'>
                             <div className='whitespace-nowrap text-gray-400'>收件人</div>
                             <div className='flex flex-wrap'>
                               {currentMail?.to_info?.map((e, index) => (
-                                <div key={index}>
+                                <Popover
+                                  position='bl'
+                                  trigger='hover'
+                                  key={e.email}
+                                  triggerProps={{ mouseEnterDelay: 500, showArrow: false }}
+                                  content={
+                                    <div>
+                                      <div className='flex gap-2'>
+                                        <Avatar className={'min-w-10!'} style={{ backgroundColor: '#FFEDD8', color: '#FF8800' }}>
+                                          {e?.name?.slice(0, 1).toUpperCase()}
+                                        </Avatar>
+                                        <div>
+                                          <div className='flex items-center gap-2 font-bold'>{e?.name}</div>
+                                          <Typography.Text copyable>{e?.email}</Typography.Text>
+                                        </div>
+                                      </div>
+                                      {![...contactList, { email: userInfo.email }]?.map((e) => e.email).includes(e?.email) && (
+                                        <div className={'mt-2'}>
+                                          <Button
+                                            type='primary'
+                                            size='small'
+                                            long
+                                            icon={<IconPlus />}
+                                            onClick={() =>
+                                              onEditContact({
+                                                name: e?.name,
+                                                email: e?.email,
+                                                prefix: 'user_contact',
+                                              })
+                                            }>
+                                            添加联系人
+                                          </Button>
+                                        </div>
+                                      )}
+                                    </div>
+                                  }>
                                   <span className='mr-1 ml-3'>{e.name}</span>
                                   <span className='text-gray-400'>&lt;{e.email}&gt;</span>
                                   {index !== currentMail?.to_info?.length - 1 && <span className='text-gray-400'>,</span>}
-                                </div>
+                                </Popover>
                               ))}
                             </div>
                           </div>
@@ -1363,11 +1411,48 @@ const MailLayout = () => {
                               <div className='text-gray-400'>抄送</div>
                               <div className='flex flex-wrap'>
                                 {currentMail?.cc_info?.map((e, index) => (
-                                  <div key={index}>
+                                  <Popover
+                                    position='bl'
+                                    trigger='hover'
+                                    key={e.email}
+                                    triggerProps={{ mouseEnterDelay: 500, showArrow: false }}
+                                    content={
+                                      <div>
+                                        <div className='flex gap-2'>
+                                          <Avatar
+                                            className={'min-w-10!'}
+                                            style={{ backgroundColor: '#FFEDD8', color: '#FF8800' }}>
+                                            {e?.name?.slice(0, 1).toUpperCase()}
+                                          </Avatar>
+                                          <div>
+                                            <div className='flex items-center gap-2 font-bold'>{e?.name}</div>
+                                            <Typography.Text copyable>{e?.email}</Typography.Text>
+                                          </div>
+                                        </div>
+                                        {![...contactList, { email: userInfo.email }]?.map((e) => e.email).includes(e?.email) && (
+                                          <div className={'mt-2'}>
+                                            <Button
+                                              type='primary'
+                                              size='small'
+                                              long
+                                              icon={<IconPlus />}
+                                              onClick={() =>
+                                                onEditContact({
+                                                  name: e?.name,
+                                                  email: e?.email,
+                                                  prefix: 'user_contact',
+                                                })
+                                              }>
+                                              添加联系人
+                                            </Button>
+                                          </div>
+                                        )}
+                                      </div>
+                                    }>
                                     <span className='mr-1 ml-3'>{e.name}</span>
                                     <span className='text-gray-400'>&lt;{e.email}&gt;</span>
-                                    {index !== currentMail?.to_info?.length - 1 && <span className='text-gray-400'>,</span>}
-                                  </div>
+                                    {index !== currentMail?.cc_info?.length - 1 && <span className='text-gray-400'>,</span>}
+                                  </Popover>
                                 ))}
                               </div>
                             </div>

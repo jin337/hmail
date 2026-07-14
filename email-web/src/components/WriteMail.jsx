@@ -48,13 +48,10 @@ export default function WriteMail({
   onChange,
   onSend,
   recentlyList = [],
-  onEditRecently,
-  onDeleteRecently,
-  onClearRecently,
   contactList = [],
   onEditContact,
   onDeleteContact,
-  onClearContactList,
+  onClearContact,
 }) {
   const separator = '#_#'
   const [form] = Form.useForm()
@@ -260,31 +257,21 @@ export default function WriteMail({
     onChange(newValues)
   }
 
-  // 清空最近联系人
-  const onClearContactRecently = useCallback(() => {
-    Modal.confirm({
-      title: '提示',
-      okText: '清空',
-      className: 'simpleModal',
-      content: '确定要清空最近联系人吗？',
-      onOk: async () => {
-        onClearRecently()
-      },
-    })
-  }, [onClearRecently])
-
   // 清空我的联系人
-  const onClearContact = useCallback(() => {
-    Modal.confirm({
-      title: '提示',
-      okText: '清空',
-      className: 'simpleModal',
-      content: '确定要清空最近联系人吗？',
-      onOk: async () => {
-        onClearContactList()
-      },
-    })
-  }, [onClearContactList])
+  const onClearContactList = useCallback(
+    (params) => {
+      Modal.confirm({
+        title: '提示',
+        okText: '清空',
+        className: 'simpleModal',
+        content: '确定要清空最近联系人吗？',
+        onOk: async () => {
+          onClearContact(params)
+        },
+      })
+    },
+    [onClearContact]
+  )
 
   // 联系人数据
   const treeData = useMemo(() => {
@@ -299,23 +286,18 @@ export default function WriteMail({
 
     // 有我的联系人则前置插入分组
     if (contactList.length > 0) {
+      let prefix = 'user_contact'
       baseNodes.unshift({
-        full_name: (
-          <div className='group flex justify-between leading-6'>
-            <span>最近联系人</span>
-            <Button type='text' status='danger' size='mini' className='hidden! group-hover:block!' onClick={onClearContact}>
-              清空
-            </Button>
-          </div>
-        ),
+        full_name: "我的联系人",
         key: '0-1',
         selectable: false,
-        children: contactList?.map((e) => ({ ...e, itemKey: 'contact', key: '0-1' + separator + e.email })),
+        children: contactList?.map((e) => ({ ...e, prefix, key: '0-1' + separator + e.email })),
       })
     }
 
     // 有最近联系人则前置插入分组
     if (recentlyList.length > 0) {
+      let prefix = 'user_sent'
       baseNodes.unshift({
         full_name: (
           <div className='group flex justify-between leading-6'>
@@ -325,18 +307,18 @@ export default function WriteMail({
               status='danger'
               size='mini'
               className='hidden! group-hover:block!'
-              onClick={onClearContactRecently}>
+              onClick={() => onClearContactList({ prefix })}>
               清空
             </Button>
           </div>
         ),
         key: '0-0',
         selectable: false,
-        children: recentlyList?.map((e) => ({ ...e, itemKey: 'recently', key: '0-0' + separator + e.email })),
+        children: recentlyList?.map((e) => ({ ...e, prefix, key: '0-0' + separator + e.email })),
       })
     }
     return baseNodes
-  }, [recentlyList, userList, onClearContactRecently, onClearContact])
+  }, [recentlyList, userList, onClearContactList])
 
   // 编辑联系人
   const editContact = (e) => {
@@ -356,31 +338,15 @@ export default function WriteMail({
       ),
       onOk: async () => {
         const values = await formContact.validate()
-        onEditRecently(values)
+        onEditContact({ ...values, prefix: e.prefix })
       },
     })
   }
-  // 编辑联系人
-  const editContactList = (e) => {
-    Modal.confirm({
-      title: '编辑我的联系人',
-      okText: '保存',
-      icon: null,
-      content: (
-        <Form autoComplete='off' form={formContact} initialValues={e}>
-          <Form.Item label='昵称' field='name' required>
-            <Input placeholder='昵称' />
-          </Form.Item>
-          <Form.Item label='邮箱' field='email' disabled>
-            <Input placeholder='邮箱' />
-          </Form.Item>
-        </Form>
-      ),
-      onOk: async () => {
-        const values = await formContact.validate()
-        onEditContact(values)
-      },
-    })
+
+  // 添加联系人
+  const onAddContact = (e, item) => {
+    e.stopPropagation()
+    onEditContact({ email: item.email, name: item.full_name, prefix: 'user_contact' })
   }
 
   // 联系人-生成树节点
@@ -399,24 +365,26 @@ export default function WriteMail({
           key={item.email}
           triggerProps={{ mouseEnterDelay: 500, showArrow: false }}
           content={
-            <div className='flex gap-2'>
-              <Avatar className={'min-w-10!'} style={{ backgroundColor: '#FFEDD8', color: '#FF8800' }}>
-                {item?.full_name?.slice(0, 1).toUpperCase()}
-              </Avatar>
-              <div>
-                <div className='flex items-center gap-2 font-bold'>
-                  {item?.full_name}
-                  {!item.id && <IconEdit className='cursor-pointer' onClick={() => {
-                    if (item.itemKey === 'contact') {
-                      editContactList(item)
-                    }
-                    if (item.itemKey === 'recently') {
-                      editContact(item)
-                    }
-                  }} />}
+            <div>
+              <div className='flex gap-2'>
+                <Avatar className={'min-w-10!'} style={{ backgroundColor: '#FFEDD8', color: '#FF8800' }}>
+                  {item?.full_name?.slice(0, 1).toUpperCase()}
+                </Avatar>
+                <div>
+                  <div className='flex items-center gap-2 font-bold'>
+                    {item?.full_name}
+                    {!item.id && <IconEdit className='cursor-pointer' onClick={() => editContact(item)} />}
+                  </div>
+                  <Typography.Text copyable>{item?.email}</Typography.Text>
                 </div>
-                <Typography.Text copyable>{item?.email}</Typography.Text>
               </div>
+              {!contactList?.map((e) => e.email).includes(item.email) && !item.is_me && (
+                <div className={'mt-2'}>
+                  <Button type='primary' size='small' long icon={<IconPlus />} onClick={(e) => onAddContact(e, item)}>
+                    添加联系人
+                  </Button>
+                </div>
+              )}
             </div>
           }>
           <div className='group flex items-center justify-between gap-2 leading-6'>
@@ -427,14 +395,7 @@ export default function WriteMail({
                 status='danger'
                 size='mini'
                 className='hidden! group-hover:block!'
-                onClick={() => {
-                  if (item.itemKey === 'recently') {
-                    onDeleteRecently(item)
-                  }
-                  if (item.itemKey === 'contact') {
-                    onDeleteContact(item)
-                  }
-                }}>
+                onClick={() => onDeleteContact(item)}>
                 <IconDelete />
               </Button>
             )}

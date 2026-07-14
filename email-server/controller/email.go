@@ -299,7 +299,7 @@ func SaveDraft(c *gin.Context) {
 		if err != nil {
 			fmt.Printf("获取联系人名称失败: %v，使用邮箱前缀作为默认名称\n", err)
 		}
-		_ = service.SaveContact(email.(string), mail, name)
+		_ = service.SaveContact("user_sent:", email.(string), mail, name)
 	}
 
 	// 更新草稿
@@ -424,7 +424,7 @@ func SendEmail(c *gin.Context) {
 		if err != nil {
 			fmt.Printf("获取联系人名称失败: %v，使用邮箱前缀作为默认名称\n", err)
 		}
-		_ = service.SaveContact(email.(string), mail, name)
+		_ = service.SaveContact("user_sent:", email.(string), mail, name)
 	}
 
 	c.JSON(200, gin.H{"code": 200, "msg": "发送成功"})
