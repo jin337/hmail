@@ -612,7 +612,7 @@ export default function WriteMail({
                 searchList.map((item) => (
                   <div key={item.itemkey} className='mb-3 cursor-pointer' onClick={() => onSelectUser([item.email])}>
                     <div className='text-(--color-text-1)'>{item.full_name}</div>
-                    <div className='text-[13px]'>{item.email}</div>
+                    <div className='text-[13px] text-gray-400'>{item.email}</div>
                   </div>
                 ))
               ) : (
