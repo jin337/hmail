@@ -96,6 +96,9 @@ func Login(adminPassword, email, password string, Folders []string) (*model.User
 		Token:    tokenStr,
 	}
 
+	// 校验是否包含头像
+	_ = utils.HasAvatar([]string{email})
+
 	// 返回用户信息
 	return user, nil
 }
@@ -299,7 +302,6 @@ func UserList(adminPassword, email string) ([]*model.UserList, int64, error) {
 	var userList []*model.UserList
 	var total int64
 	var targetDomainObj *ole.IDispatch
-	var accountList []string
 
 	// 只查找匹配的目标域名
 	for i := 0; i < domainCount; i++ {
@@ -374,14 +376,10 @@ func UserList(adminPassword, email string) ([]*model.UserList, int64, error) {
 			IsAdmin:         isadmin,
 			LastLogonTime:   loginTimeStr,
 		}
-		accountList = append(accountList, address)
 		userList = append(userList, user)
 		total++
 		account.Release()
 	}
-
-	// 校验是否包含头像
-	_ = utils.HasAvatar(accountList)
 
 	return userList, total, nil
 }
