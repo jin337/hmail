@@ -104,3 +104,7 @@ strong {
 .arco-input-tag-focus .focus-box .arco-icon {
   display: block !important;
 }
+.descriptions-wrap .arco-descriptions-item-label,
+.descriptions-wrap .arco-descriptions-item-value {
+  line-height: 28px;
+}

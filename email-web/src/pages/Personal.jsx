@@ -11,13 +11,38 @@ const baseUrl = import.meta.env.VITE_BASE_URL
 
 // 本地登录信息
 const currentAccountId = localStorage.getItem('current_account_id') || ''
-const userInfo = currentAccountId ? JSON.parse(localStorage.getItem(`USERINFO_${currentAccountId}`) || '{}') : {}
+let userInfo = currentAccountId ? JSON.parse(localStorage.getItem(`USERINFO_${currentAccountId}`) || '{}') : {}
 const token = currentAccountId ? localStorage.getItem(`TOKEN_${currentAccountId}`) : null
 const Personal = () => {
   const navigate = useNavigate()
   const [formPwd] = Form.useForm()
   const [file, setFile] = useState(null)
   const [time, setTime] = useState(dayjs().unix())
+  const [edit, setEdit] = useState(false)
+
+  // 修改姓名
+  const onEditName = async (e) => {
+    const params = {
+      ...userInfo,
+      full_name: e,
+      person_first_name: e.slice(0, 1),
+      person_last_name: e.slice(1),
+    }
+    const { code, msg } = await request.post('/api/user/update', params)
+    if (code === 200) {
+      Message.success(msg)
+      setEdit(false)
+      userInfo = {
+        email: params.email,
+        full_name: params.full_name,
+        id: params.id,
+        is_admin: params.is_admin,
+      }
+      localStorage.setItem(`USERINFO_${currentAccountId}`, JSON.stringify(userInfo))
+    } else {
+      Message.error(msg)
+    }
+  }
 
   // 修改密码
   const submitPwd = () => {
@@ -55,7 +80,7 @@ const Personal = () => {
       <Tabs className={'h-full'} size='large' tabPosition='left' defaultActiveTab='1'>
         <Tabs.TabPane key='1' title='个人资料'>
           <Descriptions
-            className='mx-auto w-90!'
+            className='descriptions-wrap mx-auto w-90!'
             column={1}
             data={[
               {
@@ -109,10 +134,18 @@ const Personal = () => {
               },
               {
                 label: '姓名',
-                value: (
+                value: edit ? (
+                  <Input.Search
+                    size='small'
+                    className='w-50!'
+                    defaultValue={userInfo?.full_name}
+                    searchButton='保存'
+                    onSearch={onEditName}
+                  />
+                ) : (
                   <>
                     {userInfo?.full_name}
-                    <IconEdit className='ml-2 cursor-pointer' />
+                    <IconEdit className='ml-2 cursor-pointer' onClick={() => setEdit(true)} />
                   </>
                 ),
               },
