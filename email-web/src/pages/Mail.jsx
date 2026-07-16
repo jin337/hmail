@@ -7,7 +7,6 @@ dayjs.extend(relativeTime)
 dayjs.locale('zh-cn')
 
 import {
-  Avatar,
   Button,
   Card,
   Divider,
@@ -51,6 +50,7 @@ import {
 
 import request from 'src/api/request'
 
+import AvatarImage from 'src/components/AvatarImage'
 import WriteMail from 'src/components/WriteMail'
 
 import IconAudio from 'src/assets/file_aduio.svg'
@@ -416,7 +416,6 @@ const MailLayout = () => {
       }
 
       newData.content = transHtml(newData.content)
-
       setCurrentMail({ ...item, detail: newData })
       if (item.folder === 'Drafts' && item.schedule === '0001-01-01T00:00:00Z') {
         const newItem = {
@@ -1312,9 +1311,8 @@ const MailLayout = () => {
                     </Button>
                   </div>
                   <div className='mb-4 flex items-start gap-3'>
-                    <Avatar className={'min-w-10!'} style={{ backgroundColor: '#FFEDD8', color: '#FF8800' }}>
-                      {currentMail?.from_info?.name?.slice(0, 1).toUpperCase()}
-                    </Avatar>
+                    {/* 头像 */}
+                    <AvatarImage email={currentMail?.from_info?.email} name={currentMail?.from_info?.name} />
                     <div className='flex-1 text-sm'>
                       <Popover
                         position='bl'
@@ -1324,9 +1322,7 @@ const MailLayout = () => {
                         content={
                           <div>
                             <div className='flex gap-2'>
-                              <Avatar className={'min-w-10!'} style={{ backgroundColor: '#FFEDD8', color: '#FF8800' }}>
-                                {currentMail?.from_info?.name?.slice(0, 1).toUpperCase()}
-                              </Avatar>
+                              <AvatarImage email={currentMail?.from_info?.email} name={currentMail?.from_info?.name} />
                               <div>
                                 <div className='flex items-center gap-2 font-bold'>{currentMail?.from_info?.name}</div>
                                 <Typography.Text copyable>{currentMail.from}</Typography.Text>
@@ -1371,9 +1367,7 @@ const MailLayout = () => {
                                   content={
                                     <div>
                                       <div className='flex gap-2'>
-                                        <Avatar className={'min-w-10!'} style={{ backgroundColor: '#FFEDD8', color: '#FF8800' }}>
-                                          {e?.name?.slice(0, 1).toUpperCase()}
-                                        </Avatar>
+                                        <AvatarImage email={e?.email} name={e?.name} />
                                         <div>
                                           <div className='flex items-center gap-2 font-bold'>{e?.name}</div>
                                           <Typography.Text copyable>{e?.email}</Typography.Text>
@@ -1419,11 +1413,7 @@ const MailLayout = () => {
                                     content={
                                       <div>
                                         <div className='flex gap-2'>
-                                          <Avatar
-                                            className={'min-w-10!'}
-                                            style={{ backgroundColor: '#FFEDD8', color: '#FF8800' }}>
-                                            {e?.name?.slice(0, 1).toUpperCase()}
-                                          </Avatar>
+                                          <AvatarImage email={e?.email} name={e?.name} time={time} />
                                           <div>
                                             <div className='flex items-center gap-2 font-bold'>{e?.name}</div>
                                             <Typography.Text copyable>{e?.email}</Typography.Text>

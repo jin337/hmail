@@ -11,7 +11,7 @@ const baseUrl = import.meta.env.VITE_BASE_URL
 
 const Home = () => {
   const navigate = useNavigate()
-  const [time, setTime] = useState(dayjs().unix())
+  const [time] = useState(dayjs().unix())
 
   // 本地登录信息
   const currentAccountId = localStorage.getItem('current_account_id') || ''
