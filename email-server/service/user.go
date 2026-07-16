@@ -3,6 +3,11 @@ package service
 import (
 	"email-server/constant"
 	"fmt"
+	"io"
+	"mime/multipart"
+	"net/http"
+	"os"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"time"
@@ -269,7 +274,7 @@ func UserList(adminPassword, email string) ([]*model.UserList, int64, error) {
 		runtime.UnlockOSThread()
 	}()
 
-	// 1. 从入参email提取目标域名
+	// 从入参email提取目标域名
 	var targetDomain string
 	if idx := strings.LastIndex(email, "@"); idx == -1 {
 		return nil, 0, fmt.Errorf("邮箱格式非法，缺少@符号")
@@ -294,8 +299,9 @@ func UserList(adminPassword, email string) ([]*model.UserList, int64, error) {
 	var userList []*model.UserList
 	var total int64
 	var targetDomainObj *ole.IDispatch
+	var accountList []string
 
-	// 2. 只查找匹配的目标域名
+	// 只查找匹配的目标域名
 	for i := 0; i < domainCount; i++ {
 		domainItem, err := oleutil.GetProperty(domains, "Item", int32(i))
 		if err != nil {
@@ -321,7 +327,7 @@ func UserList(adminPassword, email string) ([]*model.UserList, int64, error) {
 	}
 	defer targetDomainObj.Release()
 
-	// 3. 仅遍历当前域名下的账号
+	// 仅遍历当前域名下的账号
 	accountsObj, err := oleutil.GetProperty(targetDomainObj, "Accounts")
 	if err != nil {
 		return nil, 0, fmt.Errorf("获取 Accounts 属性失败: %v", err)
@@ -335,6 +341,7 @@ func UserList(adminPassword, email string) ([]*model.UserList, int64, error) {
 	}
 	accountsCount := int(accountsCountResult.Val)
 
+	// 遍历账号
 	for j := 0; j < accountsCount; j++ {
 		acctItem, err := oleutil.GetProperty(accounts, "Item", int32(j))
 		if err != nil {
@@ -367,11 +374,14 @@ func UserList(adminPassword, email string) ([]*model.UserList, int64, error) {
 			IsAdmin:         isadmin,
 			LastLogonTime:   loginTimeStr,
 		}
-
+		accountList = append(accountList, address)
 		userList = append(userList, user)
 		total++
 		account.Release()
 	}
+
+	// 校验是否包含头像
+	_ = utils.HasAvatar(accountList)
 
 	return userList, total, nil
 }
@@ -514,4 +524,47 @@ func DeleteContact(prefix, email string, to string) error {
 // ClearContact 清空所有联系人
 func ClearContact(prefix, email string) error {
 	return utils.ClearAllContact(prefix, email)
+}
+
+// UploadAvatar 上传头像
+func UploadAvatar(email string, avatarFile *multipart.FileHeader) error {
+	// 打开上传的文件
+	src, err := avatarFile.Open()
+	if err != nil {
+		return fmt.Errorf("打开上传文件失败: %w", err)
+	}
+	defer src.Close()
+
+	// 读取文件内容
+	fileContent, err := io.ReadAll(src)
+	if err != nil {
+		return fmt.Errorf("读取文件内容失败: %w", err)
+	}
+
+	// 验证文件大小（限制为 5MB）
+	if len(fileContent) > 5*1024*1024 {
+		return fmt.Errorf("头像文件大小不能超过 5MB")
+	}
+
+	// 验证文件类型（检查是否为图片）
+	contentType := http.DetectContentType(fileContent)
+	if !strings.HasPrefix(contentType, "image/") {
+		return fmt.Errorf("上传的文件不是有效的图片格式")
+	}
+	// 生成本地文件路径
+	fileName := fmt.Sprintf("%s%s", email, ".webp")
+
+	// 保存到静态资源目录
+	staticDir := filepath.Join("static", "avatars")
+	if err := os.MkdirAll(staticDir, 0755); err != nil {
+		return fmt.Errorf("创建静态目录失败: %v", err)
+	}
+
+	localPath := filepath.Join(staticDir, fileName)
+
+	// 保存文件
+	if err := os.WriteFile(localPath, fileContent, 0644); err != nil {
+		return fmt.Errorf("保存头像文件失败: %v", err)
+	}
+	return nil
 }

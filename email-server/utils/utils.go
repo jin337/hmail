@@ -3,7 +3,10 @@ package utils
 import (
 	"email-server/model"
 	"fmt"
+	"io"
 	"net/mail"
+	"os"
+	"path/filepath"
 	"reflect"
 	"regexp"
 	"strconv"
@@ -140,4 +143,71 @@ func FormatDate(dateStr string) (time.Time, error) {
 	}
 
 	return time.Time{}, fmt.Errorf("不支持的日期格式: %s", dateStr)
+}
+
+// HasAvatar 判断用户是否上传了头像
+func HasAvatar(accountList []string) error {
+	// 定义目录与默认头像路径
+	avatarDir := "static/avatars"
+	defaultAvatarPath := filepath.Join(avatarDir, "default.webp")
+
+	// 检查头像文件夹是否存在，不存在则创建
+	if err := os.MkdirAll(avatarDir, 0755); err != nil {
+		return fmt.Errorf("创建头像目录失败: %w", err)
+	}
+
+	// 校验默认头像文件是否存在，不存在直接报错
+	_, err := os.Stat(defaultAvatarPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return fmt.Errorf("默认头像 default.webp 不存在，请检查文件")
+		}
+		return fmt.Errorf("读取默认头像状态失败: %w", err)
+	}
+	// 遍历所有账号处理头像
+	for _, account := range accountList {
+		// 当前账号头像完整路径
+		userAvatarPath := filepath.Join(avatarDir, fmt.Sprintf("%s.webp", account))
+
+		// 判断用户头像是否存在
+		stat, err := os.Stat(userAvatarPath)
+		if err != nil {
+			// 文件不存在，复制默认头像
+			if os.IsNotExist(err) {
+				if err := copyFile(defaultAvatarPath, userAvatarPath); err != nil {
+					return fmt.Errorf("账号[%s]复制默认头像失败: %w", account, err)
+				}
+				continue
+			}
+			// 其他错误（权限、读取失败等）直接返回
+			return fmt.Errorf("检查账号[%s]头像状态失败: %w", account, err)
+		}
+
+		// 存在但为文件夹，异常报错
+		if stat.IsDir() {
+			return fmt.Errorf("账号[%s]头像路径是文件夹，非法", account)
+		}
+	}
+
+	return nil
+}
+
+// copyFile 文件复制工具函数
+func copyFile(src, dst string) error {
+	srcFile, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer srcFile.Close()
+
+	// 创建目标文件，权限0644
+	dstFile, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		return err
+	}
+	defer dstFile.Close()
+
+	// 拷贝文件内容
+	_, err = io.Copy(dstFile, srcFile)
+	return err
 }

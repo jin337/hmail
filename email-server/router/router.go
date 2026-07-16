@@ -38,6 +38,7 @@ func SetupRouter(r *gin.Engine) {
 				useAuth.POST("/create", controller.CreateUser)
 				useAuth.POST("/delete", controller.DeleteUser)
 				useAuth.POST("/update", controller.UpdateUser)
+				useAuth.POST("/uploadavatar", controller.UploadAvatar)
 
 				// 联系人相关
 				contact := user.Group("/contact")

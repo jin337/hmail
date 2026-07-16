@@ -260,3 +260,19 @@ func ClearContact(c *gin.Context) {
 		"msg":  "删除成功",
 	})
 }
+
+// UploadAvatar	上传头像
+func UploadAvatar(c *gin.Context) {
+	email, _ := c.Get("userEmail")
+	fileHeader, _ := c.FormFile("file")
+
+	err := service.UploadAvatar(email.(string), fileHeader)
+	if err != nil {
+		c.JSON(200, gin.H{"code": 500, "msg": err.Error()})
+		return
+	}
+	c.JSON(200, gin.H{
+		"code": 200,
+		"msg":  "更新头像成功",
+	})
+}

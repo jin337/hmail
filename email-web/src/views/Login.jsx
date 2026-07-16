@@ -27,9 +27,10 @@ export default function Login() {
       } else {
         localStorage.removeItem('mail_remember')
       }
+      const { token, ...rest } = data
       const accountId = data.email
-      localStorage.setItem(`TOKEN_${accountId}`, data.token)
-      localStorage.setItem(`USERINFO_${accountId}`, JSON.stringify(data))
+      localStorage.setItem(`TOKEN_${accountId}`, token)
+      localStorage.setItem(`USERINFO_${accountId}`, JSON.stringify(rest))
 
       localStorage.setItem('current_account_id', accountId)
       Message.success('登录成功')
