@@ -34,9 +34,6 @@ type ContactItem struct {
 }
 
 // SaveSentContact 新增/更新联系人（自动覆盖，可修改昵称）
-// userEmail: 当前登录用户邮箱
-// contactEmail: 对方邮箱
-// name: 联系人昵称，空则默认等于邮箱
 func SaveSentContact(prefixUnit, userEmail, contactEmail, name string) error {
 	db := globalDB
 	prefix := prefixUnit + ":"

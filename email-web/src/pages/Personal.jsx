@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router'
+import { useOutletContext } from 'react-router'
 
 import { Button, Descriptions, Form, Input, Layout, Message, Progress, Tabs, Upload } from '@arco-design/web-react'
 import { IconEdit } from '@arco-design/web-react/icon'
@@ -7,24 +7,19 @@ import { IconEdit } from '@arco-design/web-react/icon'
 import dayjs from 'dayjs'
 
 import request from 'src/api/request'
-const baseUrl = import.meta.env.VITE_BASE_URL
 
-// 本地登录信息
-const currentAccountId = localStorage.getItem('current_account_id') || ''
-let userInfo = currentAccountId ? JSON.parse(localStorage.getItem(`USERINFO_${currentAccountId}`) || '{}') : {}
-const token = currentAccountId ? localStorage.getItem(`TOKEN_${currentAccountId}`) : null
 const Personal = () => {
-  const navigate = useNavigate()
+  const { currentAccountId, baseUrl, userInfo, userToken, setUserInfo, onLogout } = useOutletContext()
   const [formPwd] = Form.useForm()
   const [file, setFile] = useState(null)
-  const [time, setTime] = useState(dayjs().unix())
   const [edit, setEdit] = useState(false)
 
   // 修改姓名
   const onEditName = async (e) => {
     const params = {
-      ...userInfo,
-      full_name: e,
+      id: userInfo.id,
+      email: userInfo.email,
+      is_admin: userInfo.is_admin,
       person_first_name: e.slice(0, 1),
       person_last_name: e.slice(1),
     }
@@ -32,13 +27,12 @@ const Personal = () => {
     if (code === 200) {
       Message.success(msg)
       setEdit(false)
-      userInfo = {
-        email: params.email,
-        full_name: params.full_name,
-        id: params.id,
-        is_admin: params.is_admin,
+      const data = {
+        ...userInfo,
+        full_name: e,
       }
-      localStorage.setItem(`USERINFO_${currentAccountId}`, JSON.stringify(userInfo))
+      localStorage.setItem(`USERINFO_${currentAccountId}`, JSON.stringify(data))
+      setUserInfo(data)
     } else {
       Message.error(msg)
     }
@@ -55,24 +49,11 @@ const Personal = () => {
       if (code === 200) {
         Message.success('密码修改成功，请重新登录')
         localStorage.removeItem('mail_remember')
-        handleLogout()
+        onLogout()
       } else {
         Message.error(message)
       }
     })
-  }
-
-  // 退出
-  const handleLogout = () => {
-    if (currentAccountId) {
-      // 删除当前账号独立存储
-      localStorage.removeItem(`TOKEN_${currentAccountId}`)
-      localStorage.removeItem(`USERINFO_${currentAccountId}`)
-      localStorage.removeItem(`current_account_id`)
-    }
-    // 清空活跃账号标记
-    localStorage.removeItem('current_account_id')
-    navigate('/login')
   }
 
   return (
@@ -89,20 +70,19 @@ const Personal = () => {
                   <Upload
                     action={baseUrl + 'api/user/uploadavatar'}
                     headers={{
-                      Authorization: token,
+                      Authorization: userToken,
                     }}
-                    key={time}
+                    key={userInfo?.email}
                     fileList={file ? [file] : []}
                     showUploadList={false}
                     accept='image/*'
                     onChange={(_, currentFile) => {
                       const { response } = currentFile
                       if (response?.code === 200) {
-                        Message.success(response?.msg + ', 5秒后刷新页面')
-                        setTime(dayjs().unix())
-                        setTimeout(() => {
-                          navigate(0)
-                        }, 5000)
+                        setUserInfo((prev) => ({
+                          ...prev,
+                          avatar: baseUrl + `static/avatars/${userInfo?.email}.webp?v=${dayjs().unix()}`,
+                        }))
                       }
                     }}
                     onProgress={(currentFile) => {
@@ -110,7 +90,7 @@ const Personal = () => {
                     }}>
                     <div className={`arco-upload-list-item mt-0! pr-0! ${file && file?.status === 'error' ? ' is-error' : ''}`}>
                       <div className='h-10 w-10 border border-dashed border-(--color-neutral-3) bg-(--color-fill-2)'>
-                        <img className='h-full w-full' src={baseUrl + `static/avatars/${userInfo?.email}.webp?v=${time}`} />
+                        <img className='h-full w-full' src={userInfo?.avatar} />
                         <div className='arco-upload-list-item-picture-mask h-10 w-10 leading-10!'>
                           <IconEdit />
                         </div>

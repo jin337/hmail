@@ -4,22 +4,19 @@ import { Outlet, useNavigate } from 'react-router'
 import { Avatar, Button, Dropdown, Layout, Menu, Space, Tag } from '@arco-design/web-react'
 import { IconSettings } from '@arco-design/web-react/icon'
 
-import dayjs from 'dayjs'
-
 const pageTitle = import.meta.env.VITE_PAGE_TITLE
 const baseUrl = import.meta.env.VITE_BASE_URL
 
 const Home = () => {
-  const navigate = useNavigate()
-  const [time] = useState(dayjs().unix())
-
   // 本地登录信息
   const currentAccountId = localStorage.getItem('current_account_id') || ''
   const userToken = currentAccountId ? localStorage.getItem(`TOKEN_${currentAccountId}`) : null
-  const userInfo = currentAccountId ? JSON.parse(localStorage.getItem(`USERINFO_${currentAccountId}`) || '{}') : {}
+
+  const navigate = useNavigate()
+  const [userInfo, setUserInfo] = useState(JSON.parse(localStorage.getItem(`USERINFO_${currentAccountId}`) || '{}'))
 
   // 退出
-  const handleLogout = () => {
+  const onLogout = () => {
     if (currentAccountId) {
       // 删除当前账号独立存储
       localStorage.removeItem(`TOKEN_${currentAccountId}`)
@@ -38,6 +35,16 @@ const Home = () => {
     }
   }, [currentAccountId, userToken, navigate])
 
+  // 页面传递参数
+  const outletCtx = {
+    baseUrl,
+    currentAccountId,
+    userInfo,
+    userToken,
+    setUserInfo,
+    onLogout,
+  }
+
   return (
     <Layout className='h-screen w-screen overflow-hidden'>
       <Layout.Header className='z-10 flex h-14 items-center justify-between pr-6'>
@@ -52,7 +59,7 @@ const Home = () => {
         {/* 头像和退出登录按钮 */}
         <Space>
           <Avatar size={32}>
-            <img alt='avatar' src={baseUrl + `static/avatars/${userInfo?.email}.webp?v=${time}`} />
+            <img alt='avatar' src={userInfo?.avatar} />
           </Avatar>
           {userInfo?.full_name}&middot;
           {userInfo?.email}
@@ -70,7 +77,7 @@ const Home = () => {
                 <Menu.Item key='1' onClick={() => navigate('/personal')}>
                   个人中心
                 </Menu.Item>
-                <Menu.Item key='2' onClick={handleLogout}>
+                <Menu.Item key='2' onClick={onLogout}>
                   退出登录
                 </Menu.Item>
               </Menu>
@@ -82,7 +89,7 @@ const Home = () => {
         </Space>
       </Layout.Header>
 
-      <Outlet />
+      <Outlet context={outletCtx} />
     </Layout>
   )
 }

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useOutletContext } from 'react-router'
 
 import dayjs from 'dayjs'
 import 'dayjs/locale/zh-cn'
@@ -167,9 +168,7 @@ const showMailIcon = (flags) => {
 }
 
 const MailLayout = () => {
-  // 本地登录信息
-  const currentAccountId = localStorage.getItem('current_account_id') || ''
-  const userInfo = currentAccountId ? JSON.parse(localStorage.getItem(`USERINFO_${currentAccountId}`) || '{}') : {}
+  const { currentAccountId, userInfo } = useOutletContext()
 
   const [userList, setUserList] = useState({}) // 用户列表
   const [recentlyList, setRecentlyList] = useState([]) // 最近联系人
@@ -1413,7 +1412,7 @@ const MailLayout = () => {
                                     content={
                                       <div>
                                         <div className='flex gap-2'>
-                                          <AvatarImage email={e?.email} name={e?.name} time={time} />
+                                          <AvatarImage email={e?.email} name={e?.name} />
                                           <div>
                                             <div className='flex items-center gap-2 font-bold'>{e?.name}</div>
                                             <Typography.Text copyable>{e?.email}</Typography.Text>

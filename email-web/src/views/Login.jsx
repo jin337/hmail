@@ -5,9 +5,12 @@ import { Button, Card, Checkbox, Form, Input, Message } from '@arco-design/web-r
 
 import request from 'src/api/request'
 
+import dayjs from 'dayjs'
+
 import loginImg from '../assets/img_login.gif'
 const suffix = import.meta.env.VITE_SUFFIX
 const pageTitle = import.meta.env.VITE_PAGE_TITLE
+const baseUrl = import.meta.env.VITE_BASE_URL
 
 export default function Login() {
   const [loading, setLoading] = useState(false)
@@ -30,7 +33,12 @@ export default function Login() {
       const { token, ...rest } = data
       const accountId = data.email
       localStorage.setItem(`TOKEN_${accountId}`, token)
-      localStorage.setItem(`USERINFO_${accountId}`, JSON.stringify(rest))
+
+      const userInfo = {
+        ...rest,
+        avatar: baseUrl + `static/avatars/${rest?.email}.webp?v=${dayjs().unix()}`,
+      }
+      localStorage.setItem(`USERINFO_${accountId}`, JSON.stringify(userInfo))
 
       localStorage.setItem('current_account_id', accountId)
       Message.success('登录成功')
