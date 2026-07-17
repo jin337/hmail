@@ -1187,8 +1187,8 @@ const MailLayout = () => {
                           </div>
                           {isTable && (
                             <div className='flex gap-1'>
-                              <div className={'max-w-100 truncate'}>{record?.subject || ''}</div>
-                              <div className={'max-w-100 truncate font-light text-gray-400'}>{record?.text || ''}</div>
+                              <div className={'max-w-1/2 truncate'}>{record?.subject || ''}</div>
+                              <div className={'max-w-1/2 truncate font-light text-gray-400'}>{record?.text || ''}</div>
                             </div>
                           )}
                         </div>
