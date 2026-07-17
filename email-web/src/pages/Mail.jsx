@@ -1208,13 +1208,13 @@ const MailLayout = () => {
                         </div>
                       ) : (
                         <>
-                          <div className='flex justify-between gap-2'>
-                            <div className='flex w-[calc(100%-64px)] items-center gap-1.5'>
+                          <div className='flex justify-between gap-2 mb-1'>
+                            <div className='flex w-[calc(100%-72px)] items-center gap-1.5'>
                               {showMailIcon(record?.flags)}
                               {currentFolder?.folder === 'Sent' ? (
                                 <>
                                   <IconSent />
-                                  <div className='flex-1 truncate'>
+                                  <div className={`${record?.to_info.length > 1 ? 'flex-1' : ''} truncate`}>
                                     {record?.to_info?.map((t) => t.name).join(', ') || record?.to}
                                     {record?.cc_info?.length > 0 ? ',  ' : ''}
                                     {record?.cc_info?.map((t) => t.name).join(', ') || record?.cc}
@@ -1225,14 +1225,14 @@ const MailLayout = () => {
                               )}
                               {record.has_attach ? <IconAttachment className='text-base text-gray-400!' /> : ''}
                             </div>
-                            <div className='w-16 text-right'>
+                            <div className='w-18 text-right'>
                               {dayjs(record?.send_time).isBefore(dayjs().subtract(1, 'week'))
                                 ? dayjs(record?.send_time).format('MM/DD')
                                 : dayjs(record?.send_time).fromNow()}
                             </div>
                           </div>
                           <div className='truncate'>{record?.subject || ''}</div>
-                          <div className='flex items-center justify-between'>
+                          <div className='flex h-5.5 items-center justify-between'>
                             <div className={'flex-1 truncate font-light text-gray-400'}>{record?.text || ''}</div>
                             {record?.flags?.includes('Flagged') && <IconStarSelect className='cursor-pointer text-xl!' />}
                           </div>
