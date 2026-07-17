@@ -1169,8 +1169,8 @@ const MailLayout = () => {
                   render: (_, record) => (
                     <div className={`w-full ${!record?.flags?.includes('Seen') && record.folder === 'INBOX' ? 'font-bold' : ''}`}>
                       {isTable ? (
-                        <div className='flex w-full overflow-hidden'>
-                          <div className='flex w-50 items-center justify-between gap-1.5'>
+                        <div className='flex w-full gap-2 overflow-hidden'>
+                          <div className='flex w-60 items-center justify-between gap-1.5'>
                             <div className='flex flex-1 gap-1.5 overflow-hidden'>
                               {showMailIcon(record?.flags)}
                               {currentFolder?.folder === 'Sent' ? (
@@ -1188,7 +1188,7 @@ const MailLayout = () => {
                             </div>
                             {record.has_attach ? <IconAttachment className='text-base text-gray-400!' /> : ''}
                           </div>
-                          <div className='flex w-[calc(100%-400px)] gap-2'>
+                          <div className='flex w-[calc(100%-500px)] gap-2'>
                             <div className={'max-w-1/2 truncate'}>{record?.subject || ''}</div>
                             <div className={'flex-1 truncate font-light text-gray-400'}>{record?.text || ''}</div>
                           </div>
@@ -1208,7 +1208,7 @@ const MailLayout = () => {
                         </div>
                       ) : (
                         <>
-                          <div className='flex justify-between gap-2 mb-1'>
+                          <div className='mb-1 flex justify-between gap-2'>
                             <div className='flex w-[calc(100%-72px)] items-center gap-1.5'>
                               {showMailIcon(record?.flags)}
                               {currentFolder?.folder === 'Sent' ? (
