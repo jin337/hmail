@@ -46,7 +46,7 @@ const Home = () => {
   }
 
   return (
-    <Layout className='h-screen w-screen overflow-hidden'>
+    <Layout className='h-screen w-screen overflow-y-hidden'>
       <Layout.Header className='z-10 flex h-14 items-center justify-between pr-6'>
         {/* Logo */}
         <div className='flex h-full w-55 cursor-pointer items-center justify-center'>

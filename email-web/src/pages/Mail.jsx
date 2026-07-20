@@ -885,81 +885,6 @@ const MailLayout = () => {
     setLoading(false)
   }
 
-  // 初始加载邮件列表
-  useEffect(() => {
-    const init = async () => {
-      await loadMailList('inbox')
-      getContactList({ prefix: 'user_contact' })
-      getUserList()
-    }
-    init()
-  }, [])
-
-  //   滚动到顶部
-  const scrollToTop = () => {
-    const scrollContainer = tableRef?.current?.querySelector('.arco-table-body')
-    if (scrollContainer) {
-      // 使用平滑滚动回到顶部
-      scrollContainer.scrollTo({
-        top: 0,
-        behavior: 'smooth',
-      })
-    }
-  }
-
-  // 滚动加载
-  const throttledScrollHandler = useMemo(
-    () =>
-      throttle((e) => {
-        const { scrollTop, scrollHeight, clientHeight } = e.target
-        const distanceToBottom = scrollHeight - scrollTop - clientHeight
-
-        if (distanceToBottom <= 300 && !loading) {
-          let currentPage = Math.ceil(mailList.length / pageSize)
-          if (currentPage < totalPages) {
-            getMailList({
-              folder: currentFolder.folder,
-              keyword: searchWord,
-              page: currentPage + 1,
-              filter: filterKeys,
-              isRefresh: false,
-            })
-          }
-        }
-      }, 500),
-    [totalPages, mailList.length, searchWord]
-  )
-
-  const onScroll = useCallback(
-    (e) => {
-      throttledScrollHandler(e)
-    },
-    [throttledScrollHandler]
-  )
-
-  // 监听滚动事件
-  useEffect(() => {
-    const scrollContainer = tableRef?.current?.querySelector('.arco-table-body')
-
-    if (scrollContainer) {
-      scrollContainer.addEventListener('scroll', onScroll)
-    }
-
-    return () => {
-      if (scrollContainer) {
-        scrollContainer.removeEventListener('scroll', onScroll)
-      }
-      throttledScrollHandler.cancel()
-    }
-  }, [onScroll, throttledScrollHandler])
-
-  // 销毁定时器
-  useEffect(() => {
-    return () => {
-      if (timerRef.current) clearTimeout(timerRef.current)
-    }
-  }, [])
-
   // 选中筛选
   const onSelectFilter = (key) => {
     const item = flatTree(filterList).find((e) => e.value === key)
@@ -1027,8 +952,83 @@ const MailLayout = () => {
     })
   }
 
+  //   滚动到顶部
+  const scrollToTop = () => {
+    const scrollContainer = tableRef?.current?.querySelector('.arco-table-body')
+    if (scrollContainer) {
+      // 使用平滑滚动回到顶部
+      scrollContainer.scrollTo({
+        top: 0,
+        behavior: 'smooth',
+      })
+    }
+  }
+
+  // 滚动加载
+  const throttledScrollHandler = useMemo(
+    () =>
+      throttle((e) => {
+        const { scrollTop, scrollHeight, clientHeight } = e.target
+        const distanceToBottom = scrollHeight - scrollTop - clientHeight
+
+        if (distanceToBottom <= 300 && !loading) {
+          let currentPage = Math.ceil(mailList.length / pageSize)
+          if (currentPage < totalPages) {
+            getMailList({
+              folder: currentFolder.folder,
+              keyword: searchWord,
+              page: currentPage + 1,
+              filter: filterKeys,
+              isRefresh: false,
+            })
+          }
+        }
+      }, 500),
+    [totalPages, mailList.length, searchWord]
+  )
+
+  const onScroll = useCallback(
+    (e) => {
+      throttledScrollHandler(e)
+    },
+    [throttledScrollHandler]
+  )
+
+  // 监听邮件滚动加载事件
+  useEffect(() => {
+    const scrollContainer = tableRef?.current?.querySelector('.arco-table-body')
+
+    if (scrollContainer) {
+      scrollContainer.addEventListener('scroll', onScroll)
+    }
+
+    return () => {
+      if (scrollContainer) {
+        scrollContainer.removeEventListener('scroll', onScroll)
+      }
+      throttledScrollHandler.cancel()
+    }
+  }, [onScroll, throttledScrollHandler])
+
+  // 销毁定时器
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current)
+    }
+  }, [])
+
+  // 初始加载邮件列表
+  useEffect(() => {
+    const init = async () => {
+      await loadMailList('inbox')
+      getContactList({ prefix: 'user_contact' })
+      getUserList()
+    }
+    init()
+  }, [])
+
   return (
-    <Layout className='flex-1'>
+    <Layout className='min-w-265'>
       {/* 左列：文件夹导航 */}
       <Layout.Sider width={220} theme='light' className='mail-menu box-shadow-none bg-transparent!'>
         <div className='p-4'>
@@ -1248,12 +1248,12 @@ const MailLayout = () => {
           </Layout.Sider>
 
           {/* 右列：邮件详情 + 顶部操作按钮栏 */}
-          <Layout.Content className={`relative h-full flex-1 bg-white ${isTable && currentMail ? ' z-10 w-full' : ''}`}>
+          <Layout.Content className={`relative h-full bg-white ${isTable && currentMail ? ' z-10 w-full' : ''}`}>
             {currentMail && (
               <Spin block loading={currentLoading}>
                 {/* 邮件操作工具栏 */}
                 <div className='flex items-center justify-between gap-2 border-b border-gray-200 p-4'>
-                  <div className='flex items-center gap-2'>
+                  <div className='flex items-center gap-2 flex-wrap'>
                     {isTable && currentMail && (
                       <Button size='small' icon={<IconArrowLeft />} onClick={() => setCurrentMail()}>
                         返回
@@ -1303,7 +1303,7 @@ const MailLayout = () => {
                   </div>
 
                   {isTable && (
-                    <Button.Group type='text'>
+                    <Button.Group className="flex!" type='text'>
                       <Button
                         size='small'
                         icon={<IconLeft />}
@@ -1321,7 +1321,7 @@ const MailLayout = () => {
                     </Button.Group>
                   )}
                 </div>
-                <div className='h-[calc(100vh-117px)] flex-1 overflow-y-auto p-4'>
+                <div className='h-[calc(100vh-117px)] overflow-y-auto p-4'>
                   {/* 邮件头部信息 */}
                   <div className='mb-4 flex items-center gap-2'>
                     <span className='text-lg font-bold'>{currentMail.subject}</span>
@@ -1376,7 +1376,7 @@ const MailLayout = () => {
                           <span className='text-gray-400'>&nbsp;&lt;{currentMail.from}&gt;</span>
                         </div>
                       </Popover>
-                      <div className='flex items-start justify-between gap-2'>
+                      <div className='flex items-start justify-between gap-2 flex-wrap'>
                         <div className='flex-1'>
                           <div className='mb-1 flex'>
                             <div className='whitespace-nowrap text-gray-400'>收件人</div>
