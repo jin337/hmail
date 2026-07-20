@@ -13,8 +13,6 @@ export default defineConfig([
       ecmaVersion: 2020,
       globals: {
         ...globals.browser,
-        Http: 'readonly', // 添加 Http 作为全局变量
-        Hooks: 'readonly', // 添加 Hooks 作为全局变量
       },
       parserOptions: {
         ecmaVersion: 'latest',

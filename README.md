@@ -27,13 +27,16 @@
 
 ```
 hmail/
-├── email-server/          # 后端服务
+├── email-server/         # 后端服务
+│   ├── cache/           	# 缓存
 │   ├── config/           # 配置管理
 │   ├── controller/       # 控制器层
 │   ├── middleware/       # 中间件
 │   ├── model/            # 数据模型
 │   ├── router/           # 路由配置
 │   ├── service/          # 业务逻辑层
+│   ├── static/          	# 静态资源
+│   ├── test/          		# 测试
 │   ├── utils/            # 工具函数
 │   ├── .air.toml         # air热重载配置
 │   ├── .env              # 环境变量

@@ -1157,9 +1157,9 @@ const MailLayout = () => {
                         </Dropdown>
                       </div>
                       <Space>
-                        {selectedRowKeys.length > 0 && (
+                        {currentFolder.folder !== 'Star' && selectedRowKeys.length > 0 && (
                           <Button size='mini' icon={<IconDelete />} onClick={() => onDelMail(selectedRowKeys)}>
-                            {currentFolder.key === 'delete' ? '清空' : '删除'}
+                            {currentFolder.folder === 'Deleted' ? '清空' : '删除'}
                           </Button>
                         )}
                         <span className={`${isTable ? 'mr-9' : ''}`}>共 {total} 封</span>
