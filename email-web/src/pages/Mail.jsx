@@ -196,6 +196,7 @@ const MailLayout = () => {
   const tableRef = useRef(null) // 表格
   const pageSize = 25 // 每页显示的邮件数(不能低于22，否则滚动条不出现，无法实现滚动加载更多)
   const totalPages = Math.ceil(total / pageSize) // 总页数
+
   // 筛选后展示的名称
   const filterNames = filterKeys
     .map((key) => {
@@ -888,8 +889,8 @@ const MailLayout = () => {
   useEffect(() => {
     const init = async () => {
       await loadMailList('inbox')
-      await getContactList({ prefix: 'user_contact' })
-      await getUserList()
+      getContactList({ prefix: 'user_contact' })
+      getUserList()
     }
     init()
   }, [])
@@ -1089,7 +1090,7 @@ const MailLayout = () => {
             </div>
           )}
           {/* 搜索框 */}
-          <div className='fixed top-0 z-10 w-90 py-3'>
+          <div className='fixed top-0 z-10 w-98 py-3'>
             <Input.Search
               prefix={<IconSearch />}
               placeholder='搜索主题/发件人'
@@ -1267,7 +1268,10 @@ const MailLayout = () => {
                     <Button size='small' icon={<IconRedo />} onClick={onForward}>
                       转发
                     </Button>
-                    <Dropdown trigger='click' droplist={<Menu onClickMenuItem={onFlagMail}>{FlagList(currentMail?.flags)}</Menu>}>
+                    <Dropdown
+                      triggerProps={{ autoAlignPopupWidth: true }}
+                      trigger='click'
+                      droplist={<Menu onClickMenuItem={onFlagMail}>{FlagList(currentMail?.flags)}</Menu>}>
                       <Button size='small'>
                         <div className='flex items-center gap-2'>
                           <IconStar />
@@ -1277,6 +1281,7 @@ const MailLayout = () => {
                       </Button>
                     </Dropdown>
                     <Dropdown
+                      triggerProps={{ autoAlignPopupWidth: true }}
                       trigger='click'
                       droplist={
                         <Menu onClickMenuItem={onMoveMail}>
