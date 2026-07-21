@@ -2,17 +2,17 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router'
 
 import { Button, Card, Checkbox, Form, Input, Message } from '@arco-design/web-react'
+import dayjs from 'dayjs'
 
 import request from 'src/api/request'
 
-import dayjs from 'dayjs'
-
 import loginImg from '../assets/img_login.gif'
+
 const suffix = import.meta.env.VITE_SUFFIX
 const pageTitle = import.meta.env.VITE_PAGE_TITLE
 const baseUrl = import.meta.env.VITE_BASE_URL
 
-export default function Login() {
+const Login = () => {
   const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
 
@@ -98,3 +98,5 @@ export default function Login() {
     </div>
   )
 }
+
+export default Login

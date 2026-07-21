@@ -33,3 +33,4 @@ dist-ssr
 /email-web/node_modules
 /email-web/*.yaml
 /email-web/Web
+/hmail.zip
