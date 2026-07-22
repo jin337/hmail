@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react'
-import { Outlet, useNavigate } from 'react-router'
+import { useEffect, useRef, useState } from 'react'
+import { Outlet, useLocation, useNavigate } from 'react-router'
 
-import { Avatar, Button, Dropdown, Layout, Menu, Space, Tag } from '@arco-design/web-react'
-import { IconSettings } from '@arco-design/web-react/icon'
+import { Avatar, Button, Dropdown, Input, Layout, Menu, Space, Tag } from '@arco-design/web-react'
+import { IconSearch, IconSettings } from '@arco-design/web-react/icon'
 
 const pageTitle = import.meta.env.VITE_PAGE_TITLE
 const baseUrl = import.meta.env.VITE_BASE_URL
@@ -13,7 +13,9 @@ const Home = () => {
   const userToken = currentAccountId ? localStorage.getItem(`TOKEN_${currentAccountId}`) : null
 
   const navigate = useNavigate()
+  const location = useLocation()
   const [userInfo, setUserInfo] = useState(JSON.parse(localStorage.getItem(`USERINFO_${currentAccountId}`) || '{}'))
+  const [searchWord, setSearchWord] = useState('') // 搜索
 
   // 退出
   const onLogout = () => {
@@ -43,17 +45,45 @@ const Home = () => {
     userToken,
     setUserInfo,
     onLogout,
+    searchWord,
+    setSearchWord,
+    registerMethod: (name, fn) => {
+      childMethods.current[name] = fn
+    },
+  }
+
+  // 子页面事件
+  const childMethods = useRef({})
+  const onParentSearch = (val) => {
+    if (childMethods.current.onSearch) {
+      childMethods.current.onSearch(val)
+    }
   }
 
   return (
     <Layout className='h-screen w-screen overflow-y-hidden'>
       <Layout.Header className='z-10 flex h-14 items-center justify-between pr-6'>
-        {/* Logo */}
-        <div className='flex h-full w-55 cursor-pointer items-center justify-center'>
-          <div className='flex items-center gap-3' onClick={() => navigate('/')}>
+        <div className='flex h-full items-center'>
+          {/* Logo */}
+          <div className='flex w-55 cursor-pointer items-center justify-center gap-3' onClick={() => navigate('/')}>
             <div className='flex h-8 w-8 items-center justify-center rounded bg-blue-500 text-lg font-bold text-white'>H</div>
             <span className='text-lg font-bold text-gray-700'>{pageTitle}</span>
           </div>
+          {/* 搜索框 */}
+          {location.pathname === '/' && (
+            <div className='w-98'>
+              <Input.Search
+                prefix={<IconSearch />}
+                placeholder='搜索主题/发件人'
+                searchButton
+                allowClear
+                value={searchWord}
+                onChange={setSearchWord}
+                onSearch={onParentSearch}
+                onClear={onParentSearch}
+              />
+            </div>
+          )}
         </div>
 
         {/* 头像和退出登录按钮 */}

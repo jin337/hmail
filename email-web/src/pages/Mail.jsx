@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useOutletContext } from 'react-router'
+import { useLocation, useNavigate, useOutletContext } from 'react-router'
 
 import dayjs from 'dayjs'
 import 'dayjs/locale/zh-cn'
@@ -12,7 +12,6 @@ import {
   Card,
   Divider,
   Dropdown,
-  Input,
   Layout,
   Menu,
   Message,
@@ -42,7 +41,6 @@ import {
   IconRedo,
   IconReply,
   IconRight,
-  IconSearch,
   IconSend,
   IconSort,
   IconStar,
@@ -168,7 +166,9 @@ const showMailIcon = (flags) => {
 }
 
 const MailLayout = () => {
-  const { currentAccountId, userInfo } = useOutletContext()
+  const { currentAccountId, userInfo, searchWord, setSearchWord, registerMethod } = useOutletContext()
+  const location = useLocation()
+  const navigate = useNavigate()
 
   const [userList, setUserList] = useState({}) // 用户列表
   const [recentlyList, setRecentlyList] = useState([]) // 最近联系人
@@ -176,7 +176,6 @@ const MailLayout = () => {
 
   const [folderList, setFolderList] = useState(menuList) // 文件夹
   const [currentFolder, setCurrentFolder] = useState({}) // 当前文件夹
-  const [searchWord, setSearchWord] = useState('') // 搜索
 
   const [loading, setLoading] = useState(false) // 加载中
   const [mailList, setMailList] = useState([]) // 邮件列表
@@ -456,21 +455,6 @@ const MailLayout = () => {
     return doc.body.innerHTML
   }
 
-  // 搜索邮件
-  const onSearch = async (val) => {
-    setCurrentMail(null)
-    setSelectedRowKeys([])
-
-    getMailList({
-      folder: currentFolder.folder,
-      keyword: val,
-      page: 1,
-      filter: filterKeys,
-      isRefresh: false,
-    })
-
-    scrollToTop()
-  }
   // 获取邮件数据
   const getMailList = async (keys) => {
     const { isRefresh, ...item } = keys
@@ -964,6 +948,36 @@ const MailLayout = () => {
     }
   }
 
+  // 搜索邮件
+  const onSearch = (val) => {
+    let folder = currentFolder.folder
+    if (folder === 'DRAFTS') {
+      const item = folderList.find((item) => item.key === 'inbox')
+      folder = item.folder
+      setCurrentFolder(item)
+    }
+
+    setCurrentMail(null)
+    setSelectedRowKeys([])
+
+    getMailList({
+      folder: folder,
+      keyword: val,
+      page: 1,
+      filter: filterKeys,
+      isRefresh: false,
+    })
+
+    scrollToTop()
+  }
+
+  // 监控搜索事件
+  useEffect(() => {
+    if (registerMethod) {
+      registerMethod('onSearch', onSearch)
+    }
+  }, [onSearch, registerMethod])
+
   // 滚动加载
   const throttledScrollHandler = useMemo(
     () =>
@@ -1089,19 +1103,6 @@ const MailLayout = () => {
               <Button size='small' onClick={() => onChangeMode()} icon={isTable ? <IconLayout /> : <IconMenu />}></Button>
             </div>
           )}
-          {/* 搜索框 */}
-          <div className='fixed top-0 z-10 w-98 py-3'>
-            <Input.Search
-              prefix={<IconSearch />}
-              placeholder='搜索主题/发件人'
-              searchButton
-              allowClear
-              value={searchWord}
-              onChange={setSearchWord}
-              onSearch={onSearch}
-              onClear={onSearch}
-            />
-          </div>
           {/* 中列：邮件列表 */}
           <Layout.Sider
             ref={tableRef}
@@ -1253,7 +1254,7 @@ const MailLayout = () => {
               <Spin block loading={currentLoading}>
                 {/* 邮件操作工具栏 */}
                 <div className='flex items-center justify-between gap-2 border-b border-gray-200 p-4'>
-                  <div className='flex items-center gap-2 flex-wrap'>
+                  <div className='flex flex-wrap items-center gap-2'>
                     {isTable && currentMail && (
                       <Button size='small' icon={<IconArrowLeft />} onClick={() => setCurrentMail()}>
                         返回
@@ -1303,7 +1304,7 @@ const MailLayout = () => {
                   </div>
 
                   {isTable && (
-                    <Button.Group className="flex!" type='text'>
+                    <Button.Group className='flex!' type='text'>
                       <Button
                         size='small'
                         icon={<IconLeft />}
@@ -1376,7 +1377,7 @@ const MailLayout = () => {
                           <span className='text-gray-400'>&nbsp;&lt;{currentMail.from}&gt;</span>
                         </div>
                       </Popover>
-                      <div className='flex items-start justify-between gap-2 flex-wrap'>
+                      <div className='flex flex-wrap items-start justify-between gap-2'>
                         <div className='flex-1'>
                           <div className='mb-1 flex'>
                             <div className='whitespace-nowrap text-gray-400'>收件人</div>

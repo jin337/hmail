@@ -50,6 +50,7 @@ const Login = () => {
     setLoading(false)
   }
 
+  // 记住密码
   const remember = JSON.parse(localStorage.getItem('mail_remember') || '{}')
 
   return (
