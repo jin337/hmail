@@ -3,7 +3,10 @@ import { useEffect, useState } from 'react'
 
 import dayjs from 'dayjs'
 
-const baseUrl = import.meta.env.VITE_BASE_URL
+const ImgUrl =
+  import.meta.env.MODE === 'development'
+    ? import.meta.env.VITE_BASE_URL
+    : 'http://' + window.location.hostname + ':' + window.location.port
 
 const AvatarImage = ({ email, name }) => {
   const [imgError, setImgError] = useState(false)
@@ -20,7 +23,7 @@ const AvatarImage = ({ email, name }) => {
     return name?.slice(0, 1).toUpperCase() || '?'
   }
 
-  const url = baseUrl + `api/viewfile?url=static/avatars/${email}.webp?v=${time}`
+  const url = ImgUrl + `api/viewfile?url=static/avatars/${email}.webp?v=${time}`
 
   if (imgError) {
     return (

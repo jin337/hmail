@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useLocation, useNavigate, useOutletContext } from 'react-router'
+import { useOutletContext } from 'react-router'
 
 import dayjs from 'dayjs'
 import 'dayjs/locale/zh-cn'
@@ -402,7 +402,12 @@ const MailLayout = () => {
       folder: item.folder,
     }
 
-    const { code, data, msg } = await request.post('/api/mail/detail', params)
+    // .GetHeader("X-Client-Host")
+    const { code, data, msg } = await request.post('/api/mail/detail', params, {
+      headers: {
+        'X-Client-Host': window.location.host,
+      },
+    })
     if (code === 200) {
       const newData = {
         ...data,

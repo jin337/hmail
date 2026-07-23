@@ -8,6 +8,11 @@ import dayjs from 'dayjs'
 
 import request from 'src/api/request'
 
+const ImgUrl =
+  import.meta.env.MODE === 'development'
+    ? import.meta.env.VITE_BASE_URL
+    : 'http://' + window.location.hostname + ':' + window.location.port
+
 const Personal = () => {
   const { currentAccountId, baseUrl, userInfo, userToken, setUserInfo, onLogout } = useOutletContext()
   const [formPwd] = Form.useForm()
@@ -81,7 +86,7 @@ const Personal = () => {
                       if (response?.code === 200) {
                         setUserInfo((prev) => ({
                           ...prev,
-                          avatar: baseUrl + `api/viewfile?url=static/avatars/${userInfo?.email}.webp?v=${dayjs().unix()}`,
+                          avatar: ImgUrl + `api/viewfile?url=static/avatars/${userInfo?.email}.webp?v=${dayjs().unix()}`,
                         }))
                       }
                     }}

@@ -111,7 +111,14 @@ func MailDetail(c *gin.Context) {
 		c.JSON(200, gin.H{"code": 400, "msg": err.Error()})
 		return
 	}
-	host := c.Request.Host
+
+	host := c.GetHeader("X-Client-Host")
+	// 区分客户端请求源
+	envValue := config.GetConfig(constant.GinMode)
+	if envValue == "debug" {
+		host = c.Request.Host
+	}
+
 	mailItem, err := service.MailDetail(email.(string), pwd.(string), tokenStr, req.Folder, req.Uid, host)
 	if err != nil {
 		c.JSON(200, gin.H{"code": 500, "msg": "获取邮件详情失败: " + err.Error()})
