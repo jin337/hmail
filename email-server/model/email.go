@@ -195,8 +195,3 @@ type ContactReq struct {
 	Email  string `json:"email"`  // 邮箱
 	Name   string `json:"name"`   // 姓名
 }
-
-// 文件查看请求
-type ViewFileReq struct {
-	Url string `json:"url"`
-}
