@@ -166,7 +166,7 @@ const showMailIcon = (flags) => {
 }
 
 const MailLayout = () => {
-  const { currentAccountId, userInfo, searchWord, setSearchWord, registerMethod } = useOutletContext()
+  const { currentAccountId, ImgUrl, userInfo, searchWord, setSearchWord, registerMethod } = useOutletContext()
 
   const [userList, setUserList] = useState({}) // 用户列表
   const [recentlyList, setRecentlyList] = useState([]) // 最近联系人
@@ -1339,7 +1339,7 @@ const MailLayout = () => {
                   </div>
                   <div className='mb-4 flex items-start gap-3'>
                     {/* 头像 */}
-                    <AvatarImage email={currentMail?.from_info?.email} name={currentMail?.from_info?.name} />
+                    <AvatarImage ImgUrl={ImgUrl} email={currentMail?.from_info?.email} name={currentMail?.from_info?.name} />
                     <div className='flex-1 text-sm'>
                       <Popover
                         position='bl'
@@ -1349,7 +1349,11 @@ const MailLayout = () => {
                         content={
                           <div>
                             <div className='flex gap-2'>
-                              <AvatarImage email={currentMail?.from_info?.email} name={currentMail?.from_info?.name} />
+                              <AvatarImage
+                                ImgUrl={ImgUrl}
+                                email={currentMail?.from_info?.email}
+                                name={currentMail?.from_info?.name}
+                              />
                               <div>
                                 <div className='flex items-center gap-2 font-bold'>{currentMail?.from_info?.name}</div>
                                 <Typography.Text copyable>{currentMail.from}</Typography.Text>
@@ -1394,7 +1398,7 @@ const MailLayout = () => {
                                   content={
                                     <div>
                                       <div className='flex gap-2'>
-                                        <AvatarImage email={e?.email} name={e?.name} />
+                                        <AvatarImage ImgUrl={ImgUrl} email={e?.email} name={e?.name} />
                                         <div>
                                           <div className='flex items-center gap-2 font-bold'>{e?.name}</div>
                                           <Typography.Text copyable>{e?.email}</Typography.Text>
@@ -1440,7 +1444,7 @@ const MailLayout = () => {
                                     content={
                                       <div>
                                         <div className='flex gap-2'>
-                                          <AvatarImage email={e?.email} name={e?.name} />
+                                          <AvatarImage ImgUrl={ImgUrl} email={e?.email} name={e?.name} />
                                           <div>
                                             <div className='flex items-center gap-2 font-bold'>{e?.name}</div>
                                             <Typography.Text copyable>{e?.email}</Typography.Text>

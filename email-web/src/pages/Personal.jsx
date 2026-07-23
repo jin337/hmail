@@ -8,13 +8,8 @@ import dayjs from 'dayjs'
 
 import request from 'src/api/request'
 
-const ImgUrl =
-  import.meta.env.MODE === 'development'
-    ? import.meta.env.VITE_BASE_URL
-    : 'http://' + window.location.hostname + ':' + window.location.port
-
 const Personal = () => {
-  const { currentAccountId, baseUrl, userInfo, userToken, setUserInfo, onLogout } = useOutletContext()
+  const { currentAccountId, baseUrl, ImgUrl, userInfo, userToken, setUserInfo, onLogout } = useOutletContext()
   const [formPwd] = Form.useForm()
   const [file, setFile] = useState(null)
   const [edit, setEdit] = useState(false)
@@ -73,7 +68,7 @@ const Personal = () => {
                 label: '头像',
                 value: (
                   <Upload
-                    action={baseUrl + 'api/user/uploadavatar'}
+                    action={baseUrl + '/api/user/uploadavatar'}
                     headers={{
                       Authorization: userToken,
                     }}
@@ -86,7 +81,7 @@ const Personal = () => {
                       if (response?.code === 200) {
                         setUserInfo((prev) => ({
                           ...prev,
-                          avatar: ImgUrl + `api/viewfile?url=static/avatars/${userInfo?.email}.webp?v=${dayjs().unix()}`,
+                          avatar: ImgUrl + `/api/viewfile?url=static/avatars/${userInfo?.email}.webp?v=${dayjs().unix()}`,
                         }))
                       }
                     }}
