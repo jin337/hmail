@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Outlet, useLocation, useNavigate } from 'react-router'
 
-import { Avatar, Button, Dropdown, Input, Layout, Menu, Space, Tag } from '@arco-design/web-react'
+import { Avatar, Button, Dropdown, Input, Layout, Menu, Tag } from '@arco-design/web-react'
 import { IconSearch, IconSettings } from '@arco-design/web-react/icon'
 
 const pageTitle = import.meta.env.VITE_PAGE_TITLE
@@ -62,7 +62,7 @@ const Home = () => {
 
   return (
     <Layout className='h-screen w-screen overflow-y-hidden'>
-      <Layout.Header className='z-10 flex h-14 items-center justify-between pr-6'>
+      <Layout.Header className='z-10 flex h-14 items-center justify-between'>
         <div className='flex h-full items-center'>
           {/* Logo */}
           <div className='flex w-55 cursor-pointer items-center justify-center gap-3' onClick={() => navigate('/')}>
@@ -87,12 +87,13 @@ const Home = () => {
         </div>
 
         {/* 头像和退出登录按钮 */}
-        <Space>
+        <div className='flex items-center gap-2 wrap-break-word break-keep px-6'>
           <Avatar size={32}>
             <img alt='avatar' src={userInfo?.avatar} />
           </Avatar>
-          {userInfo?.full_name}&middot;
-          {userInfo?.email}
+          <span>{userInfo?.full_name}</span>
+          <span>&middot;</span>
+          <span>{userInfo?.email}</span>
           {userInfo.is_admin ? <Tag color='#165dff'>管理员</Tag> : <Tag color='#b8c8db'>用户</Tag>}
           <Dropdown
             position='br'
@@ -116,7 +117,7 @@ const Home = () => {
               设置
             </Button>
           </Dropdown>
-        </Space>
+        </div>
       </Layout.Header>
 
       <Outlet context={outletCtx} />

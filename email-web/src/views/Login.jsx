@@ -36,7 +36,7 @@ const Login = () => {
 
       const userInfo = {
         ...rest,
-        avatar: baseUrl + `static/avatars/${rest?.email}.webp?v=${dayjs().unix()}`,
+        avatar: baseUrl + `api/viewfile?url=static/avatars/${rest?.email}.webp?v=${dayjs().unix()}`,
       }
       localStorage.setItem(`USERINFO_${accountId}`, JSON.stringify(userInfo))
 

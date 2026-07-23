@@ -189,8 +189,14 @@ type EmailExtra struct {
 	XScheduleSend string `json:"x-schedule-send"` // 定时发送
 }
 
+// 联系人请求
 type ContactReq struct {
-	Prefix string `json:"prefix"`
-	Email  string `json:"email"`
-	Name   string `json:"name"`
+	Prefix string `json:"prefix"` // 联系人前缀
+	Email  string `json:"email"`  // 邮箱
+	Name   string `json:"name"`   // 姓名
+}
+
+// 文件查看请求
+type ViewFileReq struct {
+	Url string `json:"url"`
 }

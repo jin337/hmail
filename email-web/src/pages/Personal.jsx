@@ -81,7 +81,7 @@ const Personal = () => {
                       if (response?.code === 200) {
                         setUserInfo((prev) => ({
                           ...prev,
-                          avatar: baseUrl + `static/avatars/${userInfo?.email}.webp?v=${dayjs().unix()}`,
+                          avatar: baseUrl + `api/viewfile?url=static/avatars/${userInfo?.email}.webp?v=${dayjs().unix()}`,
                         }))
                       }
                     }}

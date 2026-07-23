@@ -26,6 +26,7 @@ func SetupRouter(r *gin.Engine) {
 
 	{
 		public.POST("/login", controller.Login)
+		public.GET("/viewfile", controller.ViewFile)
 
 		// 用户相关
 		user := public.Group("/user")

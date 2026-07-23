@@ -111,8 +111,8 @@ func MailDetail(c *gin.Context) {
 		c.JSON(200, gin.H{"code": 400, "msg": err.Error()})
 		return
 	}
-
-	mailItem, err := service.MailDetail(email.(string), pwd.(string), tokenStr, req.Folder, req.Uid)
+	host := c.Request.Host
+	mailItem, err := service.MailDetail(email.(string), pwd.(string), tokenStr, req.Folder, req.Uid, host)
 	if err != nil {
 		c.JSON(200, gin.H{"code": 500, "msg": "获取邮件详情失败: " + err.Error()})
 		return

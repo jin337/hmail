@@ -167,8 +167,6 @@ const showMailIcon = (flags) => {
 
 const MailLayout = () => {
   const { currentAccountId, userInfo, searchWord, setSearchWord, registerMethod } = useOutletContext()
-  const location = useLocation()
-  const navigate = useNavigate()
 
   const [userList, setUserList] = useState({}) // 用户列表
   const [recentlyList, setRecentlyList] = useState([]) // 最近联系人

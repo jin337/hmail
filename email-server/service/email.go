@@ -401,7 +401,7 @@ func StarMailList(email, pwd string, page, size int64, keyword string, filter []
 }
 
 // MailDetail 获取邮件详情
-func MailDetail(email, pwd string, token string, folder string, uid int64) (*model.MailDetail, error) {
+func MailDetail(email, pwd string, token string, folder string, uid int64, host string) (*model.MailDetail, error) {
 	// 验证用户
 	imapClient, err := utils.DialIMAPClient(email, pwd)
 	if err != nil {
@@ -491,11 +491,8 @@ func MailDetail(email, pwd string, token string, folder string, uid int64) (*mod
 				}
 
 				// 构建 HTTP 访问 URL
-				serverHost := config.GetConfig("mail.server.host")
-				serverPort := config.GetConfig("mail.server.port")
-				imageURL := fmt.Sprintf("http://%s:%s/static/images/%s/%s/%d/%s",
-					serverHost, serverPort, email, folder, uid, fileName)
-
+				imageURL := fmt.Sprintf("http://%s/api/viewfile?url=static/images/%s/%s/%d/%s",
+					host, email, folder, uid, fileName)
 				cidMap[contentID] = imageURL
 			}
 		}
@@ -524,11 +521,8 @@ func MailDetail(email, pwd string, token string, folder string, uid int64) (*mod
 				}
 
 				// 构建 HTTP 访问 URL
-				serverHost := config.GetConfig("mail.server.host")
-				serverPort := config.GetConfig("mail.server.port")
-				imageURL := fmt.Sprintf("http://%s:%s/static/images/%s/%s/%d/%s",
-					serverHost, serverPort, email, folder, uid, fileName)
-
+				imageURL := fmt.Sprintf("http://%s/api/viewfile?url=static/images/%s/%s/%d/%s",
+					host, email, folder, uid, fileName)
 				cidMap[contentID] = imageURL
 			}
 		}

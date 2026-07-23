@@ -6,6 +6,8 @@ import (
 	"email-server/model"
 	"email-server/service"
 	"email-server/utils"
+	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -275,4 +277,15 @@ func UploadAvatar(c *gin.Context) {
 		"code": 200,
 		"msg":  "更新头像成功",
 	})
+}
+
+// ViewFile 读取文件
+func ViewFile(c *gin.Context) {
+	url := c.Query("url")
+	if url == "" {
+		c.JSON(200, gin.H{"code": 500, "msg": "参数缺失 "})
+		return
+	}
+	cleanUrl := strings.Split(url, "?")[0]
+	http.ServeFile(c.Writer, c.Request, cleanUrl)
 }
