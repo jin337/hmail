@@ -2,10 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useOutletContext } from 'react-router'
 
 import dayjs from 'dayjs'
-import 'dayjs/locale/zh-cn'
-import relativeTime from 'dayjs/plugin/relativeTime'
-dayjs.extend(relativeTime)
-dayjs.locale('zh-cn')
 
 import {
   Button,
@@ -71,7 +67,7 @@ import IconStarUnselect from 'src/assets/mail_star.svg'
 import IconStarSelect from 'src/assets/mail_star_open.svg'
 import IconMailTimer from 'src/assets/mail_timer.svg'
 
-import { flatTree, getFileType, throttle } from 'src/utils/index'
+import { flatTree, formatMailTime, getFileType, throttle } from 'src/utils/index'
 
 // 左侧文件夹
 const menuList = [
@@ -1194,17 +1190,13 @@ const MailLayout = () => {
                             </div>
                             {record.has_attach ? <IconAttachment className='text-base text-gray-400!' /> : ''}
                           </div>
-                          <div className='flex w-[calc(100%-500px)] gap-2'>
+                          <div className='flex w-[calc(100%-456px)] gap-2'>
                             <div className={'max-w-1/2 truncate'}>{record?.subject || ''}</div>
                             <div className={'flex-1 truncate font-light text-gray-400'}>{record?.text || ''}</div>
                           </div>
-                          <div className='flex w-50 justify-end text-right'>
-                            {record.size}
-                            <div className='mr-2 w-20'>
-                              {dayjs(record?.send_time).isBefore(dayjs().subtract(1, 'week'))
-                                ? dayjs(record?.send_time).format('MM/DD')
-                                : dayjs(record?.send_time).fromNow()}
-                            </div>
+                          <div className='flex w-50 justify-end gap-2'>
+                            <div className='w-20'>{record.size}</div>
+                            <div className='w-20'>{formatMailTime(record?.send_time)}</div>
                             {record?.flags?.includes('Flagged') ? (
                               <IconStarSelect className='text-xl!' />
                             ) : (

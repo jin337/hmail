@@ -1,3 +1,8 @@
+import dayjs from 'dayjs'
+import relativeTime from 'dayjs/plugin/relativeTime'
+dayjs.extend(relativeTime)
+dayjs.locale('zh-cn')
+
 // 节流函数
 export function throttle(fn, delay) {
   let timer = null // 用于存储定时器
@@ -110,4 +115,16 @@ export function flatTree(treeList) {
     }
   }
   return result
+}
+
+// 时间格式化
+export const formatMailTime = (timeStr) => {
+  if (!timeStr) return ''
+  const sendTime = dayjs(timeStr)
+  const now = dayjs()
+
+  if (sendTime.isBefore(now.subtract(1, 'week'))) {
+    return sendTime.year() === now.year() ? sendTime.format('MM/DD') : sendTime.format('YYYY/MM/DD')
+  }
+  return sendTime.fromNow()
 }
