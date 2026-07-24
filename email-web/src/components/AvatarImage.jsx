@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 
 import dayjs from 'dayjs'
 
-const AvatarImage = ({ email, name, ImgUrl }) => {
+const AvatarImage = ({ email, name, baseUrl }) => {
   const [imgError, setImgError] = useState(false)
   const [time] = useState(dayjs().unix())
 
@@ -18,7 +18,7 @@ const AvatarImage = ({ email, name, ImgUrl }) => {
     return name?.slice(0, 1).toUpperCase() || '?'
   }
 
-  const url = ImgUrl + `/api/viewfile?url=static/avatars/${email}.webp?v=${time}`
+  const url = baseUrl + `/api/viewfile?url=static/avatars/${email}.webp?v=${time}`
 
   if (imgError) {
     return (

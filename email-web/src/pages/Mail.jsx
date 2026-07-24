@@ -166,7 +166,7 @@ const showMailIcon = (flags) => {
 }
 
 const MailLayout = () => {
-  const { currentAccountId, ImgUrl, userInfo, searchWord, setSearchWord, registerMethod } = useOutletContext()
+  const { currentAccountId, baseUrl, userInfo, searchWord, setSearchWord, registerMethod } = useOutletContext()
 
   const [userList, setUserList] = useState({}) // 用户列表
   const [recentlyList, setRecentlyList] = useState([]) // 最近联系人
@@ -402,11 +402,8 @@ const MailLayout = () => {
       folder: item.folder,
     }
 
-    // .GetHeader("X-Client-Host")
     const { code, data, msg } = await request.post('/api/mail/detail', params, {
-      headers: {
-        'X-Client-Host': window.location.host,
-      },
+      headers: { 'X-Client-Host': window.location.host },
     })
     if (code === 200) {
       const newData = {
@@ -633,6 +630,7 @@ const MailLayout = () => {
       to_info: currentMail.to_info.map((e) => ({ label: e.name, value: e.email })),
       cc_info: currentMail?.cc_info?.map((e) => ({ label: e.name, value: e.email })) || [],
       detail: {
+        cid_map: currentMail?.detail?.cid_map || {},
         content: currentMail?.cc ? FormContentCc : FormContent,
       },
       is_reply: true,
@@ -654,6 +652,7 @@ const MailLayout = () => {
       to_info: [],
       cc_info: [],
       detail: {
+        cid_map: currentMail?.detail?.cid_map || {},
         content: currentMail?.cc ? FormContentCc : FormContent,
       },
       is_forward: true,
@@ -794,6 +793,7 @@ const MailLayout = () => {
       })
     }
   }
+
   // 发送邮件&草稿
   const onSend = async (type, form, html, fileList, detail, customTime, setLoading) => {
     const values = form.getFieldsValue()
@@ -810,6 +810,7 @@ const MailLayout = () => {
     formData.append('cc', cc)
     formData.append('subject', values.subject)
     formData.append('content', html)
+
     if (detail?.uid) {
       formData.append('uid', detail.uid)
     }
@@ -1339,7 +1340,7 @@ const MailLayout = () => {
                   </div>
                   <div className='mb-4 flex items-start gap-3'>
                     {/* 头像 */}
-                    <AvatarImage ImgUrl={ImgUrl} email={currentMail?.from_info?.email} name={currentMail?.from_info?.name} />
+                    <AvatarImage baseUrl={baseUrl} email={currentMail?.from_info?.email} name={currentMail?.from_info?.name} />
                     <div className='flex-1 text-sm'>
                       <Popover
                         position='bl'
@@ -1350,7 +1351,7 @@ const MailLayout = () => {
                           <div>
                             <div className='flex gap-2'>
                               <AvatarImage
-                                ImgUrl={ImgUrl}
+                                baseUrl={baseUrl}
                                 email={currentMail?.from_info?.email}
                                 name={currentMail?.from_info?.name}
                               />
@@ -1398,7 +1399,7 @@ const MailLayout = () => {
                                   content={
                                     <div>
                                       <div className='flex gap-2'>
-                                        <AvatarImage ImgUrl={ImgUrl} email={e?.email} name={e?.name} />
+                                        <AvatarImage baseUrl={baseUrl} email={e?.email} name={e?.name} />
                                         <div>
                                           <div className='flex items-center gap-2 font-bold'>{e?.name}</div>
                                           <Typography.Text copyable>{e?.email}</Typography.Text>
@@ -1444,7 +1445,7 @@ const MailLayout = () => {
                                     content={
                                       <div>
                                         <div className='flex gap-2'>
-                                          <AvatarImage ImgUrl={ImgUrl} email={e?.email} name={e?.name} />
+                                          <AvatarImage baseUrl={baseUrl} email={e?.email} name={e?.name} />
                                           <div>
                                             <div className='flex items-center gap-2 font-bold'>{e?.name}</div>
                                             <Typography.Text copyable>{e?.email}</Typography.Text>

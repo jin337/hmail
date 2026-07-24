@@ -5,9 +5,10 @@ import { Avatar, Button, Dropdown, Input, Layout, Menu, Tag } from '@arco-design
 import { IconSearch, IconSettings } from '@arco-design/web-react/icon'
 
 const pageTitle = import.meta.env.VITE_PAGE_TITLE
-const baseUrl = import.meta.env.VITE_BASE_URL
-const ImgUrl =
-  import.meta.env.MODE === 'development' ? baseUrl : 'http://' + window.location.hostname + ':' + window.location.port
+const baseUrl =
+  import.meta.env.MODE === 'development'
+    ? import.meta.env.VITE_BASE_URL
+    : 'http://' + window.location.hostname + ':' + window.location.port
 
 const Home = () => {
   // 本地登录信息
@@ -42,7 +43,6 @@ const Home = () => {
   // 页面传递参数
   const outletCtx = {
     baseUrl,
-    ImgUrl,
     currentAccountId,
     userInfo,
     userToken,

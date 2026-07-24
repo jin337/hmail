@@ -11,7 +11,7 @@ import loginImg from '../assets/img_login.gif'
 const suffix = import.meta.env.VITE_SUFFIX
 const pageTitle = import.meta.env.VITE_PAGE_TITLE
 
-const ImgUrl =
+const baseUrl =
   import.meta.env.MODE === 'development'
     ? import.meta.env.VITE_BASE_URL
     : 'http://' + window.location.hostname + ':' + window.location.port
@@ -40,7 +40,7 @@ const Login = () => {
 
       const userInfo = {
         ...rest,
-        avatar: ImgUrl + `/api/viewfile?url=static/avatars/${rest?.email}.webp?v=${dayjs().unix()}`,
+        avatar: baseUrl + `/api/viewfile?url=static/avatars/${rest?.email}.webp?v=${dayjs().unix()}`,
       }
       localStorage.setItem(`USERINFO_${accountId}`, JSON.stringify(userInfo))
 
