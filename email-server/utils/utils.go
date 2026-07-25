@@ -211,3 +211,13 @@ func copyFile(src, dst string) error {
 	_, err = io.Copy(dstFile, srcFile)
 	return err
 }
+
+var htmlTagRegex = regexp.MustCompile(`<[^>]+>`)
+
+// StripHTML 去除HTML标签
+func StripHTML(html string) string {
+	txt := htmlTagRegex.ReplaceAllString(html, "")
+	txt = strings.ReplaceAll(txt, "&nbsp;", " ")
+	txt = regexp.MustCompile(`\s+`).ReplaceAllString(txt, " ")
+	return strings.TrimSpace(txt)
+}

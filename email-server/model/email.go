@@ -184,9 +184,26 @@ type UpdateMailFlagReq struct {
 
 // EmailExtra 邮件扩展附加参数
 type EmailExtra struct {
-	InReplyTo     string `json:"in_reply_to"`     // 回复
-	References    string `json:"references"`      // 引用
-	XScheduleSend string `json:"x-schedule-send"` // 定时发送
+	InReplyTo      string             `json:"in_reply_to"`     // 回复
+	References     string             `json:"references"`      // 引用
+	XScheduleSend  string             `json:"x-schedule-send"` // 定时发送
+	OriginInlines  []MailInline       `json:"origin_inlines"`  // 原始内联
+	OriginAttaches []MailOriginAttach `json:"origin_attaches"` // 原始附件
+}
+
+// MailInline 内联图片
+type MailInline struct {
+	CID         string `json:"cid"`          // 内联ID
+	FileName    string `json:"file_name"`    // 文件名
+	ContentType string `json:"content_type"` // 内容类型
+	Content     []byte `json:"content"`      // 内容
+}
+
+// MailOriginAttach 预加载附件（草稿保留附件 / 转发原邮件附件）
+type MailOriginAttach struct {
+	FileName    string `json:"file_name"`    // 文件名
+	ContentType string `json:"content_type"` // 内容类型
+	Content     []byte `json:"content"`      // 内容
 }
 
 // 联系人请求

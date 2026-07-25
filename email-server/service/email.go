@@ -20,6 +20,7 @@ import (
 	"email-server/model"
 	"email-server/utils"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/emersion/go-imap"
 	"github.com/emersion/go-message/mail"
 	"github.com/google/uuid"
@@ -459,7 +460,7 @@ func MailDetail(email, pwd string, token string, folder string, uid int64, host 
 
 	// 构建附件列表
 	var attachments []model.AttachmentInfo
-	for idx, att := range env.Attachments {
+	for _, att := range env.Attachments {
 		if att.Disposition == "attachment" {
 			filetype := strings.Split(att.FileName, ".")[1]
 			size := int64(len(att.Content))
@@ -475,7 +476,7 @@ func MailDetail(email, pwd string, token string, folder string, uid int64, host 
 			if contentID != "" && len(att.Content) > 0 {
 				// 生成本地文件路径
 				ext := filepath.Ext(att.FileName)
-				fileName := fmt.Sprintf("%s_%d%s", "image", idx, ext)
+				fileName := fmt.Sprintf("%s_%s%s", "image", att.PartID, ext)
 
 				// 保存到静态资源目录
 				staticDir := filepath.Join("static", "images", email, folder, fmt.Sprint(uid))
@@ -500,12 +501,12 @@ func MailDetail(email, pwd string, token string, folder string, uid int64, host 
 
 	// 处理内联图片
 	if content != "" && len(env.Inlines) > 0 {
-		for idx, inline := range env.Inlines {
+		for _, inline := range env.Inlines {
 			contentID := strings.Trim(inline.Header.Get("Content-Id"), "<>")
 			if contentID != "" && len(inline.Content) > 0 {
 				// 生成本地文件路径
 				ext := filepath.Ext(inline.FileName)
-				fileName := fmt.Sprintf("%s_%d%s", "image", idx, ext)
+				fileName := fmt.Sprintf("%s_%s%s", "image", inline.PartID, ext)
 
 				// 保存到静态资源目录
 				staticDir := filepath.Join("static", "images", email, folder, fmt.Sprint(uid))
@@ -519,7 +520,6 @@ func MailDetail(email, pwd string, token string, folder string, uid int64, host 
 					fmt.Printf("保存内联图片失败: %v\n", err)
 					continue
 				}
-
 				// 构建 HTTP 访问 URL
 				imageURL := fmt.Sprintf("http://%s/api/viewfile?url=static/images/%s/%s/%d/%s",
 					host, email, folder, uid, fileName)
@@ -528,10 +528,25 @@ func MailDetail(email, pwd string, token string, folder string, uid int64, host 
 		}
 	}
 
-	// 批量替换 HTML 中的 cid: 引用
-	for cid, imageURL := range cidMap {
-		content = strings.ReplaceAll(content, "cid:"+cid, imageURL)
-	}
+	// 批量给 cid 图片img标签追加 data-href，不修改原有src
+	re := regexp.MustCompile(`(?i)<img([^>]*?)src="cid:([^"]+)"([^>]*?)>`)
+	content = re.ReplaceAllStringFunc(content, func(match string) string {
+		sub := re.FindStringSubmatch(match)
+		if len(sub) != 4 {
+			return match
+		}
+		prefix := sub[1]
+		cidVal := sub[2]
+		suffix := sub[3]
+
+		targetUrl, ok := cidMap[cidVal]
+		if !ok {
+			return match
+		}
+		return fmt.Sprintf(`<img%s src="cid:%s" data-href="%s"%s>`, prefix, cidVal, targetUrl, suffix)
+	})
+
+	spew.Dump(cidMap)
 
 	var totalSize int64
 	for _, a := range env.Attachments {
@@ -733,200 +748,188 @@ func DeleteMail(email, pwd string, folder string, uids []int64) error {
 	return nil
 }
 
-// BuildRawEmail 构建原始邮件内容
-func BuildRawEmail(email, pwd, folder string, uid int64, partIDs string, from, to []string, cc []string, subject, body string, files []*multipart.FileHeader, extra model.EmailExtra) ([]byte, error) {
-	buf := &bytes.Buffer{}
+// BuildRawEmail 构建原始邮件报文
+func BuildRawEmail(email, pwd string, from, to []string, cc []string, subject, body string, files []*multipart.FileHeader, extra model.EmailExtra,
+) ([]byte, error) {
+	buf := new(bytes.Buffer)
 	writer := multipart.NewWriter(buf)
-	defer writer.Close()
-
-	// 设置邮件分隔符
+	defer func() { _ = writer.Close() }()
 	boundary := writer.Boundary()
-	_ = writer.SetBoundary(boundary)
 
-	//  写入邮件头
 	headers := make(map[string]string)
 	headers["MIME-Version"] = "1.0"
 	headers["Date"] = time.Now().UTC().Format(time.RFC1123)
-	headers["Subject"] = mime.BEncoding.Encode("utf-8", subject) // 中文不乱码
+	headers["Subject"] = mime.BEncoding.Encode("utf-8", subject)
 	headers["Content-Type"] = fmt.Sprintf("multipart/mixed; boundary=%s", boundary)
 	headers["Message-ID"] = fmt.Sprintf("<%s@%s>", uuid.NewString(), strings.Split(email, "@")[1])
 
-	// in-reply-to
 	if extra.InReplyTo != "" {
 		headers["In-Reply-To"] = extra.InReplyTo
 	}
-	// references
 	if extra.References != "" {
 		headers["References"] = extra.References
 	}
-	// X-Schedule-Send
 	if extra.XScheduleSend != "" {
-		t, _ := time.ParseInLocation("2006-01-02 15:04:05", extra.XScheduleSend, time.UTC)
-		headers["X-Schedule-Send"] = t.Format(time.RFC1123)
+		t, err := time.ParseInLocation("2006-01-02 15:04:05", extra.XScheduleSend, time.UTC)
+		if err == nil {
+			headers["X-Schedule-Send"] = t.Format(time.RFC1123)
+		}
 	}
 
 	// 发件人
-	headers["From"] = utils.FormatMailAddr(config.GetConfig(constant.AdminPassword), from[0])
-	// 收件人
-	var toAddrs []string
-	for _, email := range to {
-		name := utils.FormatMailAddr(config.GetConfig(constant.AdminPassword), email)
+	fromAddr := utils.FormatMailAddr(config.GetConfig(constant.AdminPassword), from[0])
+	headers["From"] = fromAddr
 
-		toAddrs = append(toAddrs, name)
+	// 收件人
+	toAddrs := make([]string, 0, len(to))
+	for _, addr := range to {
+		toAddrs = append(toAddrs, utils.FormatMailAddr(config.GetConfig(constant.AdminPassword), addr))
 	}
 	headers["To"] = strings.Join(toAddrs, ", ")
 
-	// 抄送人
+	// 抄送
 	if len(cc) > 0 {
-		var ccAddrs []string
-		for _, email := range cc {
-			name := utils.FormatMailAddr(config.GetConfig(constant.AdminPassword), email)
-			ccAddrs = append(ccAddrs, name)
+		ccAddrs := make([]string, 0, len(cc))
+		for _, addr := range cc {
+			ccAddrs = append(ccAddrs, utils.FormatMailAddr(config.GetConfig(constant.AdminPassword), addr))
 		}
 		headers["Cc"] = strings.Join(ccAddrs, ", ")
 	}
 
-	// 写入头
+	// 写入头部
 	for k, v := range headers {
 		_, _ = fmt.Fprintf(buf, "%s: %s\r\n", k, v)
 	}
-	// 头结束
 	_, _ = buf.WriteString("\r\n")
 
-	// 写入正文（HTML）
-	textBodyHeader := textproto.MIMEHeader{}
-	textBodyHeader.Set("Content-Type", "text/html; charset=utf-8")
-	textBodyHeader.Set("Content-Transfer-Encoding", "quoted-printable")
+	// base64 76字符自动换行
+	encodeBase64LineWrap := func(data []byte) string {
+		raw := base64.StdEncoding.EncodeToString(data)
+		var sb strings.Builder
+		sb.Grow(len(raw) + len(raw)/76*2)
+		for start := 0; start < len(raw); start += 76 {
+			end := start + 76
+			if end > len(raw) {
+				end = len(raw)
+			}
+			sb.WriteString(raw[start:end])
+			sb.WriteString("\r\n")
+		}
+		return sb.String()
+	}
+	// RFC2047 文件名编码
+	encodeFileName := func(name string) string {
+		return mime.QEncoding.Encode("utf-8", name)
+	}
 
-	part, err := writer.CreatePart(textBodyHeader)
+	// MIME正文
+	relBoundary := "rel_" + uuid.NewString()
+	relHeader := textproto.MIMEHeader{}
+	relHeader.Set("Content-Type", fmt.Sprintf("multipart/related; boundary=%s", relBoundary))
+	relPart, err := writer.CreatePart(relHeader)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("创建related part失败: %w", err)
 	}
-	// 正文编码
-	_, _ = part.Write([]byte(body))
+	relWriter := multipart.NewWriter(relPart)
+	relWriter.SetBoundary(relBoundary)
+	defer relWriter.Close()
 
-	// 旧附件（根据 partIDs 保留）
-	if uid > 0 && partIDs != "" && folder != "" {
-		// 解析需要保留的 partIDs
-		keepIDs := make(map[string]bool)
-		for _, idStr := range strings.Split(partIDs, ",") {
-			idStr = strings.TrimSpace(idStr)
-			if idStr != "" {
-				keepIDs[idStr] = true
-			}
-		}
+	altBoundary := "alt_" + uuid.NewString()
+	altHeader := textproto.MIMEHeader{}
+	altHeader.Set("Content-Type", fmt.Sprintf("multipart/alternative; boundary=%s", altBoundary))
+	altPart, err := relWriter.CreatePart(altHeader)
+	if err != nil {
+		return nil, fmt.Errorf("创建alternative part失败: %w", err)
+	}
+	altWriter := multipart.NewWriter(altPart)
+	altWriter.SetBoundary(altBoundary)
+	defer altWriter.Close()
 
-		// 获取旧邮件详情
-		imapClient, err := utils.DialIMAPClient(email, pwd)
-		if err == nil {
-			defer imapClient.Logout()
-
-			_, err = imapClient.Select(folder, false)
-			if err == nil {
-				uidSet := new(imap.SeqSet)
-				uidSet.AddNum(uint32(uid))
-
-				bodyMail := make(chan *imap.Message, 1)
-				done := make(chan error, 1)
-				go func() {
-					done <- imapClient.UidFetch(uidSet, []imap.FetchItem{
-						imap.FetchRFC822,
-						imap.FetchUid,
-					}, bodyMail)
-				}()
-
-				msg, ok := <-bodyMail
-				if ok {
-					section := &imap.BodySectionName{}
-					r := msg.GetBody(section)
-					if r != nil {
-						env, err := enmime.ReadEnvelope(r)
-						if err == nil {
-							// 写入需要保留的旧附件
-							for _, att := range env.Attachments {
-								if keepIDs[att.PartID] {
-									fileName := mime.QEncoding.Encode("utf-8", att.FileName)
-
-									attachHeader := textproto.MIMEHeader{}
-									attachHeader.Set("Content-Type", att.ContentType)
-									attachHeader.Set("Content-Transfer-Encoding", "base64")
-									attachHeader.Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, fileName))
-
-									part, err := writer.CreatePart(attachHeader)
-									if err == nil {
-										// Base64 编码
-										encodedContent := base64.StdEncoding.EncodeToString(att.Content)
-										var bufLines bytes.Buffer
-										for i := 0; i < len(encodedContent); i += 76 {
-											end := i + 76
-											if end > len(encodedContent) {
-												end = len(encodedContent)
-											}
-											bufLines.WriteString(encodedContent[i:end])
-											bufLines.WriteString("\r\n")
-										}
-										_, _ = part.Write(bufLines.Bytes())
-									}
-								}
-							}
-						}
-					}
-				}
-				<-done
-			}
-		}
+	// text/plain
+	plainHeader := textproto.MIMEHeader{}
+	plainHeader.Set("Content-Type", "text/plain; charset=utf-8")
+	plainHeader.Set("Content-Transfer-Encoding", "base64")
+	plainPart, err := altWriter.CreatePart(plainHeader)
+	if err == nil {
+		plainText := utils.StripHTML(body)
+		_, _ = plainPart.Write([]byte(encodeBase64LineWrap([]byte(plainText))))
 	}
 
-	// 写入新附件
+	// text/html
+	htmlHeader := textproto.MIMEHeader{}
+	htmlHeader.Set("Content-Type", "text/html; charset=utf-8")
+	htmlHeader.Set("Content-Transfer-Encoding", "base64")
+	htmlPart, err := altWriter.CreatePart(htmlHeader)
+	if err != nil {
+		return nil, fmt.Errorf("创建html part失败: %w", err)
+	}
+	_, _ = htmlPart.Write([]byte(encodeBase64LineWrap([]byte(body))))
+
+	// 写入内联图片
+	for _, inline := range extra.OriginInlines {
+		imgHeader := textproto.MIMEHeader{}
+		imgHeader.Set("Content-Type", inline.ContentType)
+		imgHeader.Set("Content-Transfer-Encoding", "base64")
+		imgHeader.Set("Content-ID", fmt.Sprintf("<%s>", inline.CID))
+		imgHeader.Set("Content-Disposition",
+			fmt.Sprintf(`inline; filename="%s"`, encodeFileName(inline.FileName)))
+
+		imgPart, err := relWriter.CreatePart(imgHeader)
+		if err != nil {
+			fmt.Printf("写入内联图片失败 cid=%s err=%v\n", inline.CID, err)
+			continue
+		}
+		_, _ = imgPart.Write([]byte(encodeBase64LineWrap(inline.Content)))
+	}
+
+	// 草稿保留附件 / 转发原邮件附件
+	for _, att := range extra.OriginAttaches {
+		attachHeader := textproto.MIMEHeader{}
+		attachHeader.Set("Content-Type", att.ContentType)
+		attachHeader.Set("Content-Transfer-Encoding", "base64")
+		attachHeader.Set("Content-Disposition",
+			fmt.Sprintf(`attachment; filename="%s"`, encodeFileName(att.FileName)))
+
+		attPart, err := writer.CreatePart(attachHeader)
+		if err != nil {
+			fmt.Printf("写入预加载附件失败 filename=%s err=%v\n", att.FileName, err)
+			continue
+		}
+		_, _ = attPart.Write([]byte(encodeBase64LineWrap(att.Content)))
+	}
+
+	// 新上传附件
 	for _, file := range files {
-		fileName := mime.QEncoding.Encode("utf-8", file.Filename)
-
-		// 读取附件内容
 		src, err := file.Open()
 		if err != nil {
-			return nil, err
+			fmt.Printf("打开上传附件失败: %s err=%v\n", file.Filename, err)
+			continue
 		}
 		content, err := io.ReadAll(src)
 		_ = src.Close()
 		if err != nil {
-			return nil, err
+			fmt.Printf("读取附件内容失败: %s err=%v\n", file.Filename, err)
+			continue
 		}
 
-		contentType := mime.TypeByExtension(strings.ToLower(file.Filename))
-		if contentType == "" {
-			contentType = mime.TypeByExtension(filepath.Ext(file.Filename))
-		}
-		// 如果依然无法识别，默认使用 octet-stream
+		ext := strings.ToLower(filepath.Ext(file.Filename))
+		contentType := mime.TypeByExtension(ext)
 		if contentType == "" {
 			contentType = "application/octet-stream"
 		}
-		// 附件头
+
 		attachHeader := textproto.MIMEHeader{}
 		attachHeader.Set("Content-Type", contentType)
 		attachHeader.Set("Content-Transfer-Encoding", "base64")
-		attachHeader.Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, fileName))
+		attachHeader.Set("Content-Disposition",
+			fmt.Sprintf(`attachment; filename="%s"`, encodeFileName(file.Filename)))
 
-		// 写入附件
-		part, err := writer.CreatePart(attachHeader)
+		attPart, err := writer.CreatePart(attachHeader)
 		if err != nil {
-			return nil, err
+			fmt.Printf("新建附件part失败: %s err=%v\n", file.Filename, err)
+			continue
 		}
-
-		//  Base64 编码
-		encodedContent := base64.StdEncoding.EncodeToString(content)
-		// SMTP 要求每行不超过 998 字符，MIME 建议 76 字符
-		var bufLines bytes.Buffer
-		for i := 0; i < len(encodedContent); i += 76 {
-			end := i + 76
-			if end > len(encodedContent) {
-				end = len(encodedContent)
-			}
-			bufLines.WriteString(encodedContent[i:end])
-			bufLines.WriteString("\r\n")
-		}
-
-		// 写入分行后的内容
-		_, _ = part.Write(bufLines.Bytes())
+		_, _ = attPart.Write([]byte(encodeBase64LineWrap(content)))
 	}
 
 	return buf.Bytes(), nil

@@ -67,7 +67,7 @@ import IconStarUnselect from 'src/assets/mail_star.svg'
 import IconStarSelect from 'src/assets/mail_star_open.svg'
 import IconMailTimer from 'src/assets/mail_timer.svg'
 
-import { flatTree, formatMailTime, getFileType, throttle } from 'src/utils/index'
+import { flatTree, formatMailTime, getFileType, throttle, transHtmlAttrs } from 'src/utils/index'
 
 // 左侧文件夹
 const menuList = [
@@ -159,6 +159,22 @@ const showMailIcon = (flags) => {
   if (flagArr.includes('Answered')) return <IconMailReply />
   if (flagArr.includes('Seen')) return <IconMailOpen />
   return <IconMailNormal />
+}
+
+//   图片src转src-href
+const TransImgSrc = (html) => {
+  const parser = new DOMParser()
+  const doc = parser.parseFromString(html, 'text/html')
+
+  doc.querySelectorAll('img').forEach((img) => {
+    const src = img.getAttribute('src')
+    const dataSrc = img.getAttribute('data-href')
+
+    if (dataSrc) img.setAttribute('src', dataSrc)
+    if (src) img.setAttribute('data-href', src)
+  })
+
+  return doc.body.innerHTML
 }
 
 const MailLayout = () => {
@@ -436,19 +452,24 @@ const MailLayout = () => {
   const transHtml = (html) => {
     const parser = new DOMParser()
     const doc = parser.parseFromString(html, 'text/html')
-    const divs = doc.body.querySelectorAll('div')
+
+    const divs = Array.from(doc.body.querySelectorAll('div'))
 
     divs.forEach((div) => {
-      const p = document.createElement('p')
-      for (let attr of div.attributes) {
+      const p = doc.createElement('p')
+
+      for (const attr of div.attributes) {
         p.setAttribute(attr.name, attr.value)
       }
+
       while (div.firstChild) {
         p.appendChild(div.firstChild)
       }
+
       div.parentNode.replaceChild(p, div)
     })
-    return doc.body.innerHTML
+
+    return transHtmlAttrs(doc.body.innerHTML, 'src', 'data-href')
   }
 
   // 获取邮件数据
@@ -626,7 +647,6 @@ const MailLayout = () => {
       to_info: currentMail.to_info.map((e) => ({ label: e.name, value: e.email })),
       cc_info: currentMail?.cc_info?.map((e) => ({ label: e.name, value: e.email })) || [],
       detail: {
-        cid_map: currentMail?.detail?.cid_map || {},
         content: currentMail?.cc ? FormContentCc : FormContent,
       },
       is_reply: true,
@@ -648,7 +668,6 @@ const MailLayout = () => {
       to_info: [],
       cc_info: [],
       detail: {
-        cid_map: currentMail?.detail?.cid_map || {},
         content: currentMail?.cc ? FormContentCc : FormContent,
       },
       is_forward: true,
@@ -805,7 +824,15 @@ const MailLayout = () => {
     formData.append('to', to)
     formData.append('cc', cc)
     formData.append('subject', values.subject)
-    formData.append('content', html)
+
+    if (detail?.is_reply || detail?.is_forward) {
+      formData.append('folder', detail?.folder)
+    } else {
+      formData.append('folder', detail?.uid ? 'Drafts' : type)
+    }
+
+    const content = transHtmlAttrs(html, 'data-href', 'src')
+    formData.append('content', content)
 
     if (detail?.uid) {
       formData.append('uid', detail.uid)
@@ -857,6 +884,7 @@ const MailLayout = () => {
         await request.post('/api/mail/status', params)
       }
     }
+
     if (url) {
       const { code, msg } = await request.post(url, formData, { headers: { 'Content-Type': 'multipart/form-data' } })
       if (code === 200) {

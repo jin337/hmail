@@ -128,3 +128,22 @@ export const formatMailTime = (timeStr) => {
   }
   return sendTime.fromNow()
 }
+
+// 互换 HTML 中 img 标签内两个指定属性的值
+export const transHtmlAttrs = (html, attr1, attr2) => {
+  if (!html) return html
+
+  const parser = new DOMParser()
+  const doc = parser.parseFromString(html, 'text/html')
+
+  doc.querySelectorAll('img').forEach((img) => {
+    const val1 = img.getAttribute(attr1)
+    const val2 = img.getAttribute(attr2)
+
+    // 互换属性值
+    if (val2 !== null) img.setAttribute(attr1, val2)
+    if (val1 !== null) img.setAttribute(attr2, val1)
+  })
+
+  return doc.body.innerHTML
+}

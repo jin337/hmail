@@ -8,6 +8,7 @@ import (
 	"email-server/utils"
 	"fmt"
 	"net/url"
+	"regexp"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -265,21 +266,21 @@ func SaveDraft(c *gin.Context) {
 	subject := c.PostForm("subject")
 	content := c.PostForm("content")
 
-	uidStr := c.PostForm("uid")
-	partIds := c.PostForm("part_ids")
-
-	// in-reply-to
-	inReplyTo := c.PostForm("in_reply_to")
-	// references
-	references := c.PostForm("references")
-
 	files := c.Request.MultipartForm.File["files"]
 	if len(files) == 0 {
 		files = nil
 	}
-
-	// 解析 UID
-	var uid uint32
+	// in-reply-to
+	inReplyTo := c.PostForm("in_reply_to")
+	// references
+	references := c.PostForm("references")
+	// 文件夹
+	folder := c.PostForm("folder")
+	// 根据 partIDs 保留旧附件
+	partIds := c.PostForm("part_ids")
+	// 旧草稿uid
+	uidStr := c.PostForm("uid")
+	var uid int64
 	if uidStr != "" {
 		if _, parseErr := fmt.Sscanf(uidStr, "%d", &uid); parseErr != nil {
 			c.JSON(200, gin.H{"code": 400, "msg": "无效的 UID 格式"})
@@ -287,14 +288,29 @@ func SaveDraft(c *gin.Context) {
 		}
 	}
 
-	extra := model.EmailExtra{
-		InReplyTo:  inReplyTo,
-		References: references,
+	// 获取旧邮件资源
+	var inlineList []model.MailInline
+	var keepAttachList []model.MailOriginAttach
+	if uidStr != "" && folder != "" {
+		inline, attach, err := utils.GetMailResource(email.(string), pwd.(string), folder, int64(uid), partIds)
+		if err != nil {
+			c.JSON(200, gin.H{"code": 500, "msg": "获取旧邮件资源失败: " + err.Error()})
+			return
+		}
+		inlineList = inline
+		keepAttachList = attach
 	}
+
 	// 构建邮件
 	toList := strings.Split(to, ",")
 	ccList := strings.Split(cc, ",")
-	raw, err := service.BuildRawEmail(email.(string), pwd.(string), config.FolderDrafts, int64(uid), partIds, []string{email.(string)}, toList, ccList, subject, content, files, extra)
+	extra := model.EmailExtra{
+		InReplyTo:      inReplyTo,
+		References:     references,
+		OriginInlines:  inlineList,
+		OriginAttaches: keepAttachList,
+	}
+	raw, err := service.BuildRawEmail(email.(string), pwd.(string), []string{email.(string)}, toList, ccList, subject, content, files, extra)
 	if err != nil {
 		c.JSON(200, gin.H{"code": 500, "msg": "构建邮件失败", "err": err.Error()})
 		return
@@ -336,25 +352,28 @@ func SendEmail(c *gin.Context) {
 	to := c.PostForm("to")
 	cc := c.PostForm("cc")
 	subject := c.PostForm("subject")
-	content := c.PostForm("content")
-
-	uidStr := c.PostForm("uid")
-	partIds := c.PostForm("part_ids")
-
-	// in-reply-to
-	inReplyTo := c.PostForm("in_reply_to")
-	// references
-	references := c.PostForm("references")
-
-	// 定时
-	xScheduleSend := c.PostForm("x-schedule-send")
-
 	files := c.Request.MultipartForm.File["files"]
 	if len(files) == 0 {
 		files = nil
 	}
 
-	// 解析 UID
+	content := c.PostForm("content")
+	// 删除img内的data-href
+	var imgDataHrefRegex = regexp.MustCompile(`\s+data-href=["'][^"']*["']`)
+	content = imgDataHrefRegex.ReplaceAllString(content, "")
+
+	// in-reply-to
+	inReplyTo := c.PostForm("in_reply_to")
+	// references
+	references := c.PostForm("references")
+	// 定时
+	xScheduleSend := c.PostForm("x-schedule-send")
+	// 文件夹
+	folder := c.PostForm("folder")
+	// 根据 partIDs 保留旧附件
+	partIds := c.PostForm("part_ids")
+	// 旧草稿uid
+	uidStr := c.PostForm("uid")
 	var uid int64
 	if uidStr != "" {
 		if _, parseErr := fmt.Sscanf(uidStr, "%d", &uid); parseErr != nil {
@@ -363,16 +382,30 @@ func SendEmail(c *gin.Context) {
 		}
 	}
 
-	extra := model.EmailExtra{
-		InReplyTo:     inReplyTo,
-		References:    references,
-		XScheduleSend: xScheduleSend,
+	// 获取旧邮件资源
+	var inlineList []model.MailInline
+	var keepAttachList []model.MailOriginAttach
+	if uidStr != "" && folder != "" {
+		inline, attach, err := utils.GetMailResource(email.(string), pwd.(string), folder, int64(uid), partIds)
+		if err != nil {
+			c.JSON(200, gin.H{"code": 500, "msg": "获取旧邮件资源失败: " + err.Error()})
+			return
+		}
+		inlineList = inline
+		keepAttachList = attach
 	}
 
 	// 构建邮件内容
 	toList := strings.Split(to, ",")
 	ccList := strings.Split(cc, ",")
-	raw, err := service.BuildRawEmail(email.(string), pwd.(string), config.FolderDrafts, int64(uid), partIds, []string{email.(string)}, toList, ccList, subject, content, files, extra)
+	extra := model.EmailExtra{
+		InReplyTo:      inReplyTo,
+		References:     references,
+		XScheduleSend:  xScheduleSend,
+		OriginInlines:  inlineList,
+		OriginAttaches: keepAttachList,
+	}
+	raw, err := service.BuildRawEmail(email.(string), pwd.(string), []string{email.(string)}, toList, ccList, subject, content, files, extra)
 	if err != nil {
 		c.JSON(200, gin.H{"code": 500, "msg": "构建邮件失败", "err": err.Error()})
 		return

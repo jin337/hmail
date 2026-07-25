@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"email-server/config"
 	"email-server/constant"
+	"email-server/model"
 	"fmt"
 	"io"
 	"mime"
@@ -17,6 +18,7 @@ import (
 	"github.com/emersion/go-message/mail"
 	"github.com/go-ole/go-ole"
 	"github.com/go-ole/go-ole/oleutil"
+	"github.com/jhillyerd/enmime"
 )
 
 // DialIMAPClient 连接IMAP服务器
@@ -399,3 +401,97 @@ func GetMailRawByUID(email, pwd, folder string, uid int64) ([]byte, error) {
 	return rawData, nil
 }
 
+// GetMailResource 加载内联图片 + 筛选附件
+func GetMailResource(email, pwd string, folder string, uid int64, partID string) ([]model.MailInline, []model.MailOriginAttach, error) {
+	imapClient, err := DialIMAPClient(email, pwd)
+	if err != nil {
+		return nil, nil, fmt.Errorf("连接IMAP服务器失败: %w", err)
+	}
+	defer imapClient.Logout()
+
+	// 选择文件夹
+	_, err = imapClient.Select(folder, false)
+	if err != nil {
+		return nil, nil, fmt.Errorf("选择文件夹 %s 失败: %w", folder, err)
+	}
+
+	uidSet := new(imap.SeqSet)
+	uidSet.AddNum(uint32(uid))
+
+	bodyMail := make(chan *imap.Message, 1)
+	done := make(chan error, 1)
+	go func() {
+		done <- imapClient.UidFetch(uidSet, []imap.FetchItem{
+			imap.FetchRFC822,
+			imap.FetchUid,
+			imap.FetchRFC822Size,
+		}, bodyMail)
+	}()
+
+	// 从channel中获取邮件消息
+	msg, ok := <-bodyMail
+	if !ok {
+		if err := <-done; err != nil {
+			return nil, nil, fmt.Errorf("获取邮件失败: %w", err)
+		}
+		return nil, nil, fmt.Errorf("未找到邮件 UID: %d", uid)
+	}
+
+	section := &imap.BodySectionName{}
+	r := msg.GetBody(section)
+	if r == nil {
+		return nil, nil, fmt.Errorf("无法获取邮件内容")
+	}
+
+	env, err := enmime.ReadEnvelope(r)
+	if err != nil {
+		return nil, nil, fmt.Errorf("解析邮件失败: %w", err)
+	}
+
+	// 获取内联图片
+	var inline []model.MailInline
+	for _, i := range env.Inlines {
+		inline = append(inline, model.MailInline{
+			CID:         i.ContentID,
+			Content:     i.Content,
+			ContentType: i.ContentType,
+			FileName:    i.FileName,
+		})
+	}
+
+	// 获取附件
+	var attach []model.MailOriginAttach
+	var keepPartSet map[string]bool
+	if partID != "" {
+		keepPartSet = make(map[string]bool)
+		parts := strings.Split(partID, ",")
+		for _, p := range parts {
+			keepPartSet[strings.TrimSpace(p)] = true
+		}
+	}
+	for _, a := range env.Attachments {
+		if keepPartSet != nil && keepPartSet[a.PartID] {
+			// 附件
+			if a.Disposition == "attachment" {
+				attach = append(attach, model.MailOriginAttach{
+					Content:     a.Content,
+					ContentType: a.ContentType,
+					FileName:    a.FileName,
+				})
+			} else {
+				// 邮件内嵌图片
+				contentID := strings.Trim(a.Header.Get("Content-Id"), "<>")
+				if contentID != "" && len(a.Content) > 0 {
+					inline = append(inline, model.MailInline{
+						CID:         a.ContentID,
+						Content:     a.Content,
+						ContentType: a.ContentType,
+						FileName:    a.FileName,
+					})
+				}
+			}
+		}
+	}
+
+	return inline, attach, nil
+}

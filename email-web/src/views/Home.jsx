@@ -90,7 +90,7 @@ const Home = () => {
         </div>
 
         {/* 头像和退出登录按钮 */}
-        <div className='flex items-center gap-2 px-6 wrap-break-word break-keep'>
+        <div className='flex items-center gap-2 px-6 whitespace-nowrap'>
           <Avatar size={32}>
             <img alt='avatar' src={userInfo?.avatar} />
           </Avatar>
