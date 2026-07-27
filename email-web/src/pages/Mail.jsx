@@ -161,22 +161,6 @@ const showMailIcon = (flags) => {
   return <IconMailNormal />
 }
 
-//   图片src转src-href
-const TransImgSrc = (html) => {
-  const parser = new DOMParser()
-  const doc = parser.parseFromString(html, 'text/html')
-
-  doc.querySelectorAll('img').forEach((img) => {
-    const src = img.getAttribute('src')
-    const dataSrc = img.getAttribute('data-href')
-
-    if (dataSrc) img.setAttribute('src', dataSrc)
-    if (src) img.setAttribute('data-href', src)
-  })
-
-  return doc.body.innerHTML
-}
-
 const MailLayout = () => {
   const { currentAccountId, baseUrl, userInfo, searchWord, setSearchWord, registerMethod } = useOutletContext()
 
@@ -647,6 +631,7 @@ const MailLayout = () => {
       to_info: currentMail.to_info.map((e) => ({ label: e.name, value: e.email })),
       cc_info: currentMail?.cc_info?.map((e) => ({ label: e.name, value: e.email })) || [],
       detail: {
+        ...currentMail?.detail,
         content: currentMail?.cc ? FormContentCc : FormContent,
       },
       is_reply: true,
@@ -668,6 +653,7 @@ const MailLayout = () => {
       to_info: [],
       cc_info: [],
       detail: {
+        ...currentMail?.detail,
         content: currentMail?.cc ? FormContentCc : FormContent,
       },
       is_forward: true,
@@ -809,6 +795,27 @@ const MailLayout = () => {
     }
   }
 
+  // 获取图片id
+  const getImageIds = (html) => {
+    if (!html) return []
+
+    const parser = new DOMParser()
+    const doc = parser.parseFromString(html, 'text/html')
+
+    const images = doc.querySelectorAll('img[data-href]')
+
+    const ids = []
+    images.forEach((img) => {
+      const href = img.getAttribute('data-href')
+      const match = href.match(/image_([\d.]+)\.(png|jpg|jpeg|gif|webp|bmp)$/i)
+      if (match && match[1]) {
+        ids.push(match[1])
+      }
+    })
+
+    return ids
+  }
+
   // 发送邮件&草稿
   const onSend = async (type, form, html, fileList, detail, customTime, setLoading) => {
     const values = form.getFieldsValue()
@@ -831,6 +838,7 @@ const MailLayout = () => {
       formData.append('folder', detail?.uid ? 'Drafts' : type)
     }
 
+    // 邮件内容
     const content = transHtmlAttrs(html, 'data-href', 'src')
     formData.append('content', content)
 
@@ -862,8 +870,13 @@ const MailLayout = () => {
         formData.append('files', file?.originFile)
       }
     })
-    if (partIds.length > 0) {
-      formData.append('part_ids', partIds.join(','))
+
+    // 提取 HTML 中的图片 ID
+    const imageIds = getImageIds(content)
+    const allPartIds = [...partIds, ...imageIds]
+    // 附件处理
+    if (allPartIds.length > 0) {
+      formData.append('part_ids', allPartIds.join(','))
     }
 
     setLoading(true)

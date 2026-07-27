@@ -20,7 +20,6 @@ import (
 	"email-server/model"
 	"email-server/utils"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/emersion/go-imap"
 	"github.com/emersion/go-message/mail"
 	"github.com/google/uuid"
@@ -472,7 +471,7 @@ func MailDetail(email, pwd string, token string, folder string, uid int64, host 
 				Size:        utils.FormatUnitSize(size),
 			})
 		} else {
-			contentID := strings.Trim(att.Header.Get("Content-Id"), "<>")
+			contentID := strings.Trim(att.Header.Get("Content-ID"), "<>")
 			if contentID != "" && len(att.Content) > 0 {
 				// 生成本地文件路径
 				ext := filepath.Ext(att.FileName)
@@ -502,7 +501,7 @@ func MailDetail(email, pwd string, token string, folder string, uid int64, host 
 	// 处理内联图片
 	if content != "" && len(env.Inlines) > 0 {
 		for _, inline := range env.Inlines {
-			contentID := strings.Trim(inline.Header.Get("Content-Id"), "<>")
+			contentID := strings.Trim(inline.Header.Get("Content-ID"), "<>")
 			if contentID != "" && len(inline.Content) > 0 {
 				// 生成本地文件路径
 				ext := filepath.Ext(inline.FileName)
@@ -545,8 +544,6 @@ func MailDetail(email, pwd string, token string, folder string, uid int64, host 
 		}
 		return fmt.Sprintf(`<img%s src="cid:%s" data-href="%s"%s>`, prefix, cidVal, targetUrl, suffix)
 	})
-
-	spew.Dump(cidMap)
 
 	var totalSize int64
 	for _, a := range env.Attachments {
@@ -751,16 +748,39 @@ func DeleteMail(email, pwd string, folder string, uids []int64) error {
 // BuildRawEmail 构建原始邮件报文
 func BuildRawEmail(email, pwd string, from, to []string, cc []string, subject, body string, files []*multipart.FileHeader, extra model.EmailExtra,
 ) ([]byte, error) {
+
+	// base64 76字符自动换行（保留你原有实现）
+	var encodeBase64LineWrap = func(data []byte) string {
+		raw := base64.StdEncoding.EncodeToString(data)
+		var sb strings.Builder
+		sb.Grow(len(raw) + len(raw)/76*2)
+		for start := 0; start < len(raw); start += 76 {
+			end := start + 76
+			if end > len(raw) {
+				end = len(raw)
+			}
+			sb.WriteString(raw[start:end])
+			sb.WriteString("\r\n")
+		}
+		return sb.String()
+	}
+
+	// RFC2047 文件名编码（保留你原有实现）
+	var encodeFileName = func(name string) string {
+		return mime.QEncoding.Encode("utf-8", name)
+	}
+
 	buf := new(bytes.Buffer)
-	writer := multipart.NewWriter(buf)
-	defer func() { _ = writer.Close() }()
-	boundary := writer.Boundary()
+
+	// 模仿QQ boundary命名规则
+	mixedBoundary := fmt.Sprintf("----=_NextPart_%s", strings.ReplaceAll(uuid.NewString(), "-", "_"))
 
 	headers := make(map[string]string)
 	headers["MIME-Version"] = "1.0"
 	headers["Date"] = time.Now().UTC().Format(time.RFC1123)
 	headers["Subject"] = mime.BEncoding.Encode("utf-8", subject)
-	headers["Content-Type"] = fmt.Sprintf("multipart/mixed; boundary=%s", boundary)
+	// 重点：换行 + Tab + 带引号boundary，和QQ格式一致
+	headers["Content-Type"] = fmt.Sprintf("multipart/mixed;\n\tboundary=\"%s\"", mixedBoundary)
 	headers["Message-ID"] = fmt.Sprintf("<%s@%s>", uuid.NewString(), strings.Split(email, "@")[1])
 
 	if extra.InReplyTo != "" {
@@ -801,55 +821,23 @@ func BuildRawEmail(email, pwd string, from, to []string, cc []string, subject, b
 		_, _ = fmt.Fprintf(buf, "%s: %s\r\n", k, v)
 	}
 	_, _ = buf.WriteString("\r\n")
+	_, _ = fmt.Fprintf(buf, "This is a multi-part message in MIME format.\r\n")
 
-	// base64 76字符自动换行
-	encodeBase64LineWrap := func(data []byte) string {
-		raw := base64.StdEncoding.EncodeToString(data)
-		var sb strings.Builder
-		sb.Grow(len(raw) + len(raw)/76*2)
-		for start := 0; start < len(raw); start += 76 {
-			end := start + 76
-			if end > len(raw) {
-				end = len(raw)
-			}
-			sb.WriteString(raw[start:end])
-			sb.WriteString("\r\n")
-		}
-		return sb.String()
-	}
-	// RFC2047 文件名编码
-	encodeFileName := func(name string) string {
-		return mime.QEncoding.Encode("utf-8", name)
-	}
-
-	// MIME正文
-	relBoundary := "rel_" + uuid.NewString()
-	relHeader := textproto.MIMEHeader{}
-	relHeader.Set("Content-Type", fmt.Sprintf("multipart/related; boundary=%s", relBoundary))
-	relPart, err := writer.CreatePart(relHeader)
-	if err != nil {
-		return nil, fmt.Errorf("创建related part失败: %w", err)
-	}
-	relWriter := multipart.NewWriter(relPart)
-	relWriter.SetBoundary(relBoundary)
-	defer relWriter.Close()
-
-	altBoundary := "alt_" + uuid.NewString()
+	// 内容
+	altBoundary := fmt.Sprintf("----=_NextPart_%s", strings.ReplaceAll(uuid.NewString(), "-", "_"))
 	altHeader := textproto.MIMEHeader{}
-	altHeader.Set("Content-Type", fmt.Sprintf("multipart/alternative; boundary=%s", altBoundary))
-	altPart, err := relWriter.CreatePart(altHeader)
+	altHeader.Set("Content-Type", fmt.Sprintf("multipart/alternative;\n\tboundary=\"%s\"", altBoundary))
+
+	altPart, err := createMimePart(buf, altHeader, mixedBoundary)
 	if err != nil {
-		return nil, fmt.Errorf("创建alternative part失败: %w", err)
+		return nil, err
 	}
-	altWriter := multipart.NewWriter(altPart)
-	altWriter.SetBoundary(altBoundary)
-	defer altWriter.Close()
 
 	// text/plain
 	plainHeader := textproto.MIMEHeader{}
-	plainHeader.Set("Content-Type", "text/plain; charset=utf-8")
+	plainHeader.Set("Content-Type", "text/plain;\n\tcharset=\"utf-8\"")
 	plainHeader.Set("Content-Transfer-Encoding", "base64")
-	plainPart, err := altWriter.CreatePart(plainHeader)
+	plainPart, err := createMimePart(altPart, plainHeader, altBoundary)
 	if err == nil {
 		plainText := utils.StripHTML(body)
 		_, _ = plainPart.Write([]byte(encodeBase64LineWrap([]byte(plainText))))
@@ -857,24 +845,26 @@ func BuildRawEmail(email, pwd string, from, to []string, cc []string, subject, b
 
 	// text/html
 	htmlHeader := textproto.MIMEHeader{}
-	htmlHeader.Set("Content-Type", "text/html; charset=utf-8")
+	htmlHeader.Set("Content-Type", "text/html;\n\tcharset=\"utf-8\"")
 	htmlHeader.Set("Content-Transfer-Encoding", "base64")
-	htmlPart, err := altWriter.CreatePart(htmlHeader)
+	htmlPart, err := createMimePart(altPart, htmlHeader, altBoundary)
 	if err != nil {
 		return nil, fmt.Errorf("创建html part失败: %w", err)
 	}
 	_, _ = htmlPart.Write([]byte(encodeBase64LineWrap([]byte(body))))
 
-	// 写入内联图片
+	// 闭合 alternative
+	_, _ = fmt.Fprintf(altPart, "\r\n--%s--\r\n", altBoundary)
+
+	// 内联图片 inline
 	for _, inline := range extra.OriginInlines {
 		imgHeader := textproto.MIMEHeader{}
-		imgHeader.Set("Content-Type", inline.ContentType)
+		imgHeader.Set("Content-Type", fmt.Sprintf("%s;\n\tname=\"%s\"", inline.ContentType, encodeFileName(inline.FileName)))
 		imgHeader.Set("Content-Transfer-Encoding", "base64")
 		imgHeader.Set("Content-ID", fmt.Sprintf("<%s>", inline.CID))
-		imgHeader.Set("Content-Disposition",
-			fmt.Sprintf(`inline; filename="%s"`, encodeFileName(inline.FileName)))
+		imgHeader.Set("Content-Disposition", fmt.Sprintf("inline;\n\tfilename=\"%s\"", encodeFileName(inline.FileName)))
 
-		imgPart, err := relWriter.CreatePart(imgHeader)
+		imgPart, err := createMimePart(buf, imgHeader, mixedBoundary)
 		if err != nil {
 			fmt.Printf("写入内联图片失败 cid=%s err=%v\n", inline.CID, err)
 			continue
@@ -882,15 +872,14 @@ func BuildRawEmail(email, pwd string, from, to []string, cc []string, subject, b
 		_, _ = imgPart.Write([]byte(encodeBase64LineWrap(inline.Content)))
 	}
 
-	// 草稿保留附件 / 转发原邮件附件
+	// 原邮件附件
 	for _, att := range extra.OriginAttaches {
 		attachHeader := textproto.MIMEHeader{}
-		attachHeader.Set("Content-Type", att.ContentType)
+		attachHeader.Set("Content-Type", fmt.Sprintf("%s;\n\tname=\"%s\"", att.ContentType, encodeFileName(att.FileName)))
 		attachHeader.Set("Content-Transfer-Encoding", "base64")
-		attachHeader.Set("Content-Disposition",
-			fmt.Sprintf(`attachment; filename="%s"`, encodeFileName(att.FileName)))
+		attachHeader.Set("Content-Disposition", fmt.Sprintf("attachment;\n\tfilename=\"%s\"", encodeFileName(att.FileName)))
 
-		attPart, err := writer.CreatePart(attachHeader)
+		attPart, err := createMimePart(buf, attachHeader, mixedBoundary)
 		if err != nil {
 			fmt.Printf("写入预加载附件失败 filename=%s err=%v\n", att.FileName, err)
 			continue
@@ -898,7 +887,7 @@ func BuildRawEmail(email, pwd string, from, to []string, cc []string, subject, b
 		_, _ = attPart.Write([]byte(encodeBase64LineWrap(att.Content)))
 	}
 
-	// 新上传附件
+	// 本次新上传附件
 	for _, file := range files {
 		src, err := file.Open()
 		if err != nil {
@@ -919,12 +908,11 @@ func BuildRawEmail(email, pwd string, from, to []string, cc []string, subject, b
 		}
 
 		attachHeader := textproto.MIMEHeader{}
-		attachHeader.Set("Content-Type", contentType)
+		attachHeader.Set("Content-Type", fmt.Sprintf("%s;\n\tname=\"%s\"", contentType, encodeFileName(file.Filename)))
 		attachHeader.Set("Content-Transfer-Encoding", "base64")
-		attachHeader.Set("Content-Disposition",
-			fmt.Sprintf(`attachment; filename="%s"`, encodeFileName(file.Filename)))
+		attachHeader.Set("Content-Disposition", fmt.Sprintf("attachment;\n\tfilename=\"%s\"", encodeFileName(file.Filename)))
 
-		attPart, err := writer.CreatePart(attachHeader)
+		attPart, err := createMimePart(buf, attachHeader, mixedBoundary)
 		if err != nil {
 			fmt.Printf("新建附件part失败: %s err=%v\n", file.Filename, err)
 			continue
@@ -932,7 +920,27 @@ func BuildRawEmail(email, pwd string, from, to []string, cc []string, subject, b
 		_, _ = attPart.Write([]byte(encodeBase64LineWrap(content)))
 	}
 
+	_, _ = fmt.Fprintf(buf, "\r\n--%s--\r\n", mixedBoundary)
+
 	return buf.Bytes(), nil
+}
+
+// 创建MIME分隔
+func createMimePart(w io.Writer, header textproto.MIMEHeader, boundary string) (io.Writer, error) {
+	_, err := fmt.Fprintf(w, "\r\n--%s\r\n", boundary)
+	if err != nil {
+		return nil, err
+	}
+	for k, vals := range header {
+		for _, v := range vals {
+			_, err = fmt.Fprintf(w, "%s: %s\r\n", k, v)
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+	_, err = w.Write([]byte("\r\n"))
+	return w, err
 }
 
 // ScheduleSendEmail 定时发送邮件

@@ -4,6 +4,7 @@ import (
 	"email-server/model"
 	"fmt"
 	"io"
+	"log"
 	"net/mail"
 	"os"
 	"path/filepath"
@@ -220,4 +221,46 @@ func StripHTML(html string) string {
 	txt = strings.ReplaceAll(txt, "&nbsp;", " ")
 	txt = regexp.MustCompile(`\s+`).ReplaceAllString(txt, " ")
 	return strings.TrimSpace(txt)
+}
+
+// CleanDirExpire 删除目录
+func CleanDirExpire(dirPath string, expireDuration time.Duration) error {
+	info, err := os.Stat(dirPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			log.Printf("【清理】目录不存在，跳过：%s", dirPath)
+			return nil
+		}
+		return fmt.Errorf("读取目录失败: %w", err)
+	}
+	if !info.IsDir() {
+		return fmt.Errorf("%s 不是目录", dirPath)
+	}
+
+	entries, err := os.ReadDir(dirPath)
+	if err != nil {
+		return fmt.Errorf("遍历目录失败: %w", err)
+	}
+
+	now := time.Now()
+	var deleteCount int
+	for _, entry := range entries {
+		fullPath := filepath.Join(dirPath, entry.Name())
+		stat, err := entry.Info()
+		if err != nil {
+			log.Printf("【清理】获取文件信息失败 %s: %v", fullPath, err)
+			continue
+		}
+
+		// 文件超过有效期则删除
+		if now.Sub(stat.ModTime()) > expireDuration {
+			if err := os.RemoveAll(fullPath); err != nil {
+				log.Printf("【清理】删除失败 %s: %v", fullPath, err)
+			} else {
+				deleteCount++
+			}
+		}
+	}
+	log.Printf("【清理】目录%s 本次清理过期文件总数：%d", dirPath, deleteCount)
+	return nil
 }

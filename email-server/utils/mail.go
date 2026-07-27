@@ -469,6 +469,7 @@ func GetMailResource(email, pwd string, folder string, uid int64, partID string)
 			keepPartSet[strings.TrimSpace(p)] = true
 		}
 	}
+
 	for _, a := range env.Attachments {
 		if keepPartSet != nil && keepPartSet[a.PartID] {
 			// 附件
@@ -480,7 +481,7 @@ func GetMailResource(email, pwd string, folder string, uid int64, partID string)
 				})
 			} else {
 				// 邮件内嵌图片
-				contentID := strings.Trim(a.Header.Get("Content-Id"), "<>")
+				contentID := strings.Trim(a.Header.Get("Content-ID"), "<>")
 				if contentID != "" && len(a.Content) > 0 {
 					inline = append(inline, model.MailInline{
 						CID:         a.ContentID,

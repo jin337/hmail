@@ -176,7 +176,6 @@ export default function WriteMail({
   // 自动回填
   useEffect(() => {
     if (!detail?.uid) return
-
     const init = async () => {
       form.setFieldsValue(detail)
       setAddCC(detail?.cc_email?.length > 0)
@@ -239,7 +238,6 @@ export default function WriteMail({
         const pureTime = str.replace(/\s.+?(\d{2}:\d{2})$/, ' $1')
         time = dayjs(pureTime, 'YYYY-MM-DD HH:mm').format('YYYY-MM-DD HH:mm:ss')
       }
-
       onSend(type, form, html, fileList, detail, time, setLoading)
     }
   }
@@ -567,7 +565,9 @@ export default function WriteMail({
                   onCreated={setEditor}
                   onChange={(editor) => {
                     setHtml(editor.getHtml())
-                    onChangeMail(null, detail)
+                    form.setFieldsValue({
+                      html: editor.getHtml(),
+                    })
                   }}
                   mode='default'
                 />
