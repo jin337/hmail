@@ -147,3 +147,27 @@ export const transHtmlAttrs = (html, attr1, attr2) => {
 
   return doc.body.innerHTML
 }
+
+// 转换HTML内容
+export const transHtml = (html) => {
+  const parser = new DOMParser()
+  const doc = parser.parseFromString(html, 'text/html')
+
+  const divs = Array.from(doc.body.querySelectorAll('div'))
+
+  divs.forEach((div) => {
+    const p = doc.createElement('p')
+
+    for (const attr of div.attributes) {
+      p.setAttribute(attr.name, attr.value)
+    }
+
+    while (div.firstChild) {
+      p.appendChild(div.firstChild)
+    }
+
+    div.parentNode.replaceChild(p, div)
+  })
+
+  return transHtmlAttrs(doc.body.innerHTML, 'src', 'data-href')
+}

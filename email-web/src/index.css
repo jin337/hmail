@@ -20,22 +20,19 @@ strong {
   text-align: right;
   margin-top: 12px;
 }
-.mail-menu .arco-menu-item {
+.mail-wrap .arco-menu-item {
   display: flex;
   justify-content: space-between;
   align-items: center;
   background-color: transparent;
-  color: #13181d;
 }
-.mail-menu .arco-menu-light .arco-menu-item.arco-menu-selected {
-  background-color: #c6dcf5;
+.mail-wrap .arco-menu-item.arco-menu-selected {
+  background-color: rgb(var(--primary-2));
   font-weight: bold;
-  color: #13181d;
   border-radius: 4px;
 }
-.mail-menu .arco-menu-light .arco-menu-item .arco-icon {
-  color: #13181d;
-}
+
+/* 以下为历史 */
 .email-list thead .arco-table-th {
   background-color: #fff;
 }
@@ -44,7 +41,7 @@ strong {
 }
 
 .email-list .arco-table-th-item {
-  padding: 16px 16px 16px 7px
+  padding: 16px 16px 16px 7px;
 }
 .email-list .arco-table-td {
   padding-left: 0;

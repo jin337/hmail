@@ -1264,11 +1264,7 @@ const MailLayout = () => {
                               )}
                               {record.has_attach ? <IconAttachment className='text-base text-gray-400!' /> : ''}
                             </div>
-                            <div className='w-18 text-right'>
-                              {dayjs(record?.send_time).isBefore(dayjs().subtract(1, 'week'))
-                                ? dayjs(record?.send_time).format('MM/DD')
-                                : dayjs(record?.send_time).fromNow()}
-                            </div>
+                            <div className='w-18 text-right'>{formatMailTime(record?.send_time)}</div>
                           </div>
                           <div className='truncate'>{record?.subject || ''}</div>
                           <div className='flex h-5.5 items-center justify-between'>
