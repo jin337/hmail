@@ -4,13 +4,8 @@ import (
 	"email-server/config"
 	"email-server/constant"
 	"email-server/router"
-	"email-server/task"
 	"email-server/utils"
 	"fmt"
-	"log"
-	"os"
-	"os/signal"
-	"syscall"
 	"time"
 
 	"github.com/gin-contrib/cors"
@@ -28,30 +23,6 @@ func main() {
 	}
 	defer utils.CloseDB()
 
-	// 定时任务，文件超过24小时自动清理
-	imageDir := "./static/images"
-	fileExpire := 24 * time.Hour
-
-	// 服务启动立刻执行一次过期清理
-	task.CleanExpireImageDir(imageDir, fileExpire)
-
-	// 初始化定时任务：每日0点清理
-	cronScheduler := task.InitCronTask(imageDir, fileExpire)
-
-	go func() {
-		sigChan := make(chan os.Signal, 1)
-		signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
-		<-sigChan
-
-		ctx := cronScheduler.Stop()
-		select {
-		case <-ctx.Done():
-		case <-time.After(30 * time.Second):
-		}
-		log.Println("定时任务已退出")
-		os.Exit(0)
-	}()
-
 	r := gin.Default()
 	r.Use(cors.New(cors.Config{
 		AllowOrigins:     []string{"*"},
@@ -62,7 +33,7 @@ func main() {
 		MaxAge:           12 * time.Hour,
 	}))
 
-	r.MaxMultipartMemory = 20 << 20
+	r.MaxMultipartMemory = 20 << 20 // 20M
 	router.SetupRouter(r)
 
 	r.Run(fmt.Sprintf(":%s", config.GetConfig(constant.MailServerPort)))
