@@ -47,6 +47,7 @@ import { isSvg } from 'src/utils'
 export default function WriteMail({
   detail,
   onClose,
+  onChange,
   onSend,
   userList = [],
   recentlyList = [],
@@ -175,7 +176,7 @@ export default function WriteMail({
   // 自动回填
   useEffect(() => {
     if (!detail?.uid) return
-    const init = () => {
+    const init = async () => {
       form.setFieldsValue(detail)
       setAddCC(detail?.cc_email?.length > 0)
 
@@ -191,7 +192,7 @@ export default function WriteMail({
         editor?.focus() //获取焦点
       }
     }
-    form && init()
+    init()
   }, [detail, form, editor])
 
   // 销毁编辑器
@@ -237,18 +238,7 @@ export default function WriteMail({
         const pureTime = str.replace(/\s.+?(\d{2}:\d{2})$/, ' $1')
         time = dayjs(pureTime, 'YYYY-MM-DD HH:mm').format('YYYY-MM-DD HH:mm:ss')
       }
-
-      const { detail: detailProps, ...rest } = detail || {}
-      const mailInfo = {
-        ...rest,
-        ...form.getFieldsValue(),
-        detail: {
-          ...detailProps,
-          content: html,
-          attachments: fileList,
-        },
-      }
-      onSend(type, mailInfo, time)
+      onSend(type, form, html, fileList, detail, time, setLoading)
     }
   }
 
@@ -283,7 +273,7 @@ export default function WriteMail({
       },
     }
 
-    console.log(newValues)
+    onChange(newValues)
   }
 
   // 清空我的联系人

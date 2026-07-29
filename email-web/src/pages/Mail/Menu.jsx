@@ -6,12 +6,14 @@ import { IconClose, IconEdit } from '@arco-design/web-react/icon'
 import { useMailContext } from './MailContext'
 
 const MenuLayout = () => {
-  const { folderList, currentFolder, setCurrentFolder, onEdit, onCloseEdit } = useMailContext()
+  const { setSearchWord, folderList, currentFolder, setCurrentFolder, onEdit, onCloseEdit, setSelectedRowKeys } = useMailContext()
 
   // 点击菜单
   const onSelectMenu = (key) => {
     const item = folderList.find((item) => item.key === key)
     setCurrentFolder(item)
+    setSearchWord()
+    setSelectedRowKeys([])
   }
 
   return (
