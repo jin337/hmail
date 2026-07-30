@@ -1,6 +1,6 @@
-import { } from 'react'
+import {} from 'react'
 
-import { Button, Card, Divider, Dropdown, Menu, Popover, Space, Typography } from '@arco-design/web-react'
+import { Button, Card, Divider, Dropdown, Menu, Popover, Space, Spin, Typography } from '@arco-design/web-react'
 import {
   IconArrowLeft,
   IconAttachment,
@@ -64,6 +64,7 @@ const Detail = () => {
     userInfo,
     mailList,
     currentMail,
+    mailLoading,
     setCurrentMail,
     onCutMail,
     currentFolder,
@@ -75,7 +76,8 @@ const Detail = () => {
     onRead,
     onDelMail,
     onMoveMail,
-    onReplyForward
+    onReplyForward,
+    onUnSchedule
   } = useMailContext()
 
   // 标记邮件
@@ -134,7 +136,7 @@ const Detail = () => {
                 返回
               </Button>
             )}
-            <Button size='small' icon={<IconDelete />} onClick={() => onDelMail([currentMail.uid])}>
+            <Button size='small' icon={<IconDelete />} onClick={() => onDelMail([currentMail])}>
               {currentFolder.folder === 'Deleted' ? '彻底删除' : '删除'}
             </Button>
             <Button size='small' icon={<IconReply />} onClick={() => onReplyForward('is_reply')}>
@@ -198,7 +200,7 @@ const Detail = () => {
           )}
         </div>
         {/* 邮件详情 */}
-        <div className='h-[calc(100vh-117px)] overflow-y-auto p-4'>
+        <Spin block loading={mailLoading} className='h-[calc(100vh-117px)] overflow-y-auto p-4'>
           <div className='mb-4 flex items-center gap-2'>
             <span className='text-lg font-bold'>{currentMail.subject}</span>
             <Button size='mini' type='text' onClick={() => onStar(currentMail)}>
@@ -361,7 +363,7 @@ const Detail = () => {
               此邮件是定时邮件，将在
               <span className='mx-2 text-blue-500'>{dayjs(currentMail.schedule).format('YYYY年MM月DD日 HH:mm:ss')}</span>
               发出。
-              <Button type='text' size='mini'>
+              <Button type='text' size='mini' onClick={() => onUnSchedule(currentMail)}>
                 取消发送
               </Button>
             </div>
@@ -420,7 +422,7 @@ const Detail = () => {
               </div>
             </Card>
           )}
-        </div>
+        </Spin>
       </>
     )
 

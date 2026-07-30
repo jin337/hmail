@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useOutletContext } from 'react-router'
 
 import { Layout, Message, Modal } from '@arco-design/web-react'
@@ -15,7 +15,7 @@ import { MailProvider } from './MailContext'
 
 import request from 'src/api/request'
 
-import { getFileType, transHtml, transHtmlAttrs } from 'src/utils/index'
+import { getFileType, throttle, transHtml, transHtmlAttrs } from 'src/utils/index'
 
 // 目录菜单
 const menuList = [
@@ -117,16 +117,41 @@ const MailLayout = () => {
   const [currentFolder, setCurrentFolder] = useState({}) // 当前文件夹
 
   const [mailList, setMailList] = useState({}) // 邮件列表
+  const [listLoading, setListLoading] = useState(false) // 列表加载中
   const [filterKeys, setFilterKeys] = useState(['all', 'date_desc']) // 已筛选参数
   const [selectedRowKeys, setSelectedRowKeys] = useState([]) // 已选择行
 
   const [isTable, setIsTable] = useState(() => localStorage.getItem('isTable') === 'true') // 表格模式
 
   const [currentMail, setCurrentMail] = useState(null) // 当前邮件
+  const [mailLoading, setMailLoading] = useState(false) // 邮件加载中
 
   const [userList, setUserList] = useState([]) // 用户列表
   const [recentlyList, setRecentlyList] = useState([]) // 最近联系人
   const [contactList, setContactList] = useState([]) // 联系人
+
+  const pageSize = 25 // 每页数量
+
+  // 取消发送
+  const onUnSchedule = async (item, type = 2) => {
+    const params = {
+      uid: item.uid,
+      folder: item.folder,
+      status: 'Draft',
+      type,
+    }
+    const { code } = await request.post('/api/mail/un-schedule', params)
+    if (code === 200) {
+      setCurrentMail(null)
+      getMailList({
+        folder: item.folder,
+        filter: filterKeys,
+        keyword: searchWord,
+        page: 1,
+        size: pageSize,
+      })
+    }
+  }
 
   // 发送邮件&草稿
   const onSend = async (type, detailProps, customTime) => {
@@ -304,7 +329,10 @@ const MailLayout = () => {
   }
 
   // 删除邮件
-  const onDelMail = async (ids) => {
+  const onDelMail = async (items) => {
+    const ids = items.map((e) => e.uid)
+    const folder = items?.length === 1 ? items[0].folder : currentFolder.folder
+
     Modal.confirm({
       title: '提示',
       content: '是否确定删除?',
@@ -312,13 +340,13 @@ const MailLayout = () => {
       onOk: async () => {
         setSelectedRowKeys([])
 
-        if (currentFolder.folder === 'Deleted') {
+        if (folder === 'Deleted') {
           const { code } = await request.post('/api/mail/delete', { folder: 'Deleted', uids: ids })
           if (code === 200) {
             Message.success('邮件已彻底删除')
           }
         } else {
-          if (currentFolder.folder === 'Drafts') {
+          if (folder === 'Drafts') {
             // 判断是否是定时邮件
             const isSchedule = mailList.filter((e) => ids.includes(e.uid) && Array.isArray(e.flags) && e.flags.includes('Draft'))
             if (isSchedule?.length > 0) {
@@ -329,7 +357,7 @@ const MailLayout = () => {
           // 其他文件夹：移动到垃圾箱
           const { code } = await request.post('/api/mail/move', {
             uids: ids,
-            from_folder: currentFolder.folder,
+            from_folder: folder,
             to_folder: 'Deleted',
           })
           if (code === 200) {
@@ -342,7 +370,7 @@ const MailLayout = () => {
           keyword: searchWord,
           filter: filterKeys,
           page: 1,
-          size: 25,
+          size: pageSize,
         })
       },
     })
@@ -366,7 +394,7 @@ const MailLayout = () => {
       keyword: searchWord,
       filter: filterKeys,
       page: 1,
-      size: 25,
+      size: pageSize,
     })
   }
 
@@ -526,6 +554,7 @@ const MailLayout = () => {
       uid: item.uid,
       folder: item.folder,
     }
+    setMailLoading(true)
     const { code, data, msg } = await request.post('/api/mail/detail', params, {
       headers: { 'X-Client-Host': window.location.host },
     })
@@ -559,6 +588,8 @@ const MailLayout = () => {
     } else {
       Message.error(msg)
     }
+
+    setMailLoading(false)
   }
 
   // 获取邮件列表
@@ -576,6 +607,7 @@ const MailLayout = () => {
       }
     }
 
+    setListLoading(true)
     let { code, data, msg } = await request.post(url, params)
     if (code === 200) {
       const list = (data?.list || []).map((e) => {
@@ -589,13 +621,21 @@ const MailLayout = () => {
         }
       })
 
-      setMailList({
-        ...data,
-        list,
-      })
+      if (item.page === 1) {
+        setMailList({
+          ...data,
+          list,
+        })
+      } else {
+        setMailList({
+          ...data,
+          list: [...mailList.list, ...list],
+        })
+      }
     } else {
       Message.error(msg)
     }
+    setListLoading(false)
   }
 
   // 切换选中邮件
@@ -640,8 +680,9 @@ const MailLayout = () => {
     getMailList({
       folder: currentFolder.folder,
       keyword: searchWord,
-      page: 1,
       filter: filter,
+      page: 1,
+      size: pageSize,
     })
   }
 
@@ -656,6 +697,53 @@ const MailLayout = () => {
       })
     }
   }
+
+  // 滚动加载
+  const totalPages = Math.ceil(mailList?.total / pageSize)
+  const throttledScrollHandler = useMemo(
+    () =>
+      throttle((e) => {
+        const { scrollTop, scrollHeight, clientHeight } = e.target
+        const distanceToBottom = scrollHeight - scrollTop - clientHeight
+
+        if (distanceToBottom <= 300 && !listLoading) {
+          let currentPage = Math.ceil(mailList.list.length / pageSize)
+          if (currentPage < totalPages) {
+            getMailList({
+              folder: currentFolder.folder,
+              keyword: searchWord,
+              filter: filterKeys,
+              page: currentPage + 1,
+              size: pageSize,
+            })
+          }
+        }
+      }, 500),
+    [totalPages, mailList.list, searchWord]
+  )
+
+  const onScroll = useCallback(
+    (e) => {
+      throttledScrollHandler(e)
+    },
+    [throttledScrollHandler]
+  )
+
+  // 监听邮件滚动加载事件
+  useEffect(() => {
+    const scrollContainer = tableRef?.current
+
+    if (scrollContainer) {
+      scrollContainer.addEventListener('scroll', onScroll)
+    }
+
+    return () => {
+      if (scrollContainer) {
+        scrollContainer.removeEventListener('scroll', onScroll)
+      }
+      throttledScrollHandler.cancel()
+    }
+  }, [onScroll, throttledScrollHandler])
 
   // 搜索邮件
   const onSearch = (val) => {
@@ -674,7 +762,6 @@ const MailLayout = () => {
       keyword: val,
       page: 1,
       filter: filterKeys,
-      isRefresh: false,
     })
 
     scrollToTop()
@@ -706,7 +793,7 @@ const MailLayout = () => {
           keyword: searchWord,
           filter: filterKeys,
           page: 1,
-          size: 25,
+          size: pageSize,
         })
       }
     }
@@ -740,6 +827,7 @@ const MailLayout = () => {
 
       tableRef, // 表格容器
       mailList, // 邮件列表
+      listLoading, // 列表加载中
       filterList, // 筛选列表
       filterKeys, // 筛选参数
       onSelectFilter, // 筛选事件
@@ -751,6 +839,8 @@ const MailLayout = () => {
 
       currentMail, // 当前邮件
       setCurrentMail, // 设置当前邮件
+      mailLoading, // 邮件加载中
+      onUnSchedule, // 取消定时
 
       onCutMail, // 切换邮件
       onStar, // 添加星标

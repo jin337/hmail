@@ -774,7 +774,7 @@ const MailLayout = () => {
     }
   }
 
-  // 标记已读
+  // 取消发送
   const onUnSchedule = async (item, type = 2) => {
     const params = {
       uid: item.uid,

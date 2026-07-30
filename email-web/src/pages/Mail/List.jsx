@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 
-import { Button, Checkbox, Dropdown, Empty, Menu, Space } from '@arco-design/web-react'
+import { Button, Checkbox, Dropdown, Empty, Menu, Space, Spin } from '@arco-design/web-react'
 import { IconAttachment, IconCheck, IconClose, IconDelete, IconSort } from '@arco-design/web-react/icon'
 
 import dayjs from 'dayjs'
@@ -77,6 +77,7 @@ const ListLayout = () => {
   const {
     currentFolder,
     mailList,
+    listLoading,
     filterList,
     filterKeys,
     onSelectFilter,
@@ -102,6 +103,11 @@ const ListLayout = () => {
     if (inx === -1) return
     const groupMails = mailData.slice(inx + 1, inx + 1 + item.total)
     const uidList = groupMails.map((mail) => mail.uid)
+
+    if (isSelected(uidList[0])) {
+      setValueSelected(uidList, false)
+      return
+    }
     setValueSelected(uidList, true)
   }
 
@@ -210,14 +216,17 @@ const ListLayout = () => {
         </div>
         <Space>
           {currentFolder.folder !== 'Star' && selectedRowKeys.length > 0 && (
-            <Button size='mini' icon={<IconDelete />} onClick={() => onDelMail(selectedRowKeys)}>
+            <Button size='mini' icon={<IconDelete />} onClick={() => {
+              const list = mailData.filter((x) => selectedRowKeys.includes(x.uid))
+              onDelMail(list)
+            }}>
               {currentFolder.folder === 'Deleted' ? '清空' : '删除'}
             </Button>
           )}
           <span className={`${isTable ? 'mr-10' : ''}`}>共 {mailList?.total || 0} 封</span>
         </Space>
       </div>
-      <div className='h-[calc(100vh-116px)] overflow-auto' ref={tableRef}>
+      <Spin block loading={listLoading} className='h-[calc(100vh-116px)] overflow-auto' ref={tableRef}>
         {mailData?.map((item) =>
           item.key ? (
             <div
@@ -237,6 +246,7 @@ const ListLayout = () => {
                 value={item.uid}
                 onChange={(checked, e) => {
                   e.stopPropagation()
+                  e.preventDefault()
                   setValueSelected(item.uid, checked)
                 }}
               />
@@ -305,14 +315,13 @@ const ListLayout = () => {
             </div>
           )
         )}
-
         {/* 列表为空 */}
         {mailData?.length === 0 && (
           <div className='flex h-full w-full items-center justify-center'>
             <Empty description='暂无数据' />
           </div>
         )}
-      </div>
+      </Spin>
     </>
   )
 }

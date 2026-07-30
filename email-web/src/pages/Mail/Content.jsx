@@ -8,10 +8,11 @@ import List from './List'
 import { useMailContext } from './MailContext'
 
 const Content = () => {
-  const { isTable, setIsTable, currentMail } = useMailContext()
+  const { isTable, setIsTable, currentMail, setCurrentMail } = useMailContext()
 
-  // 切换模式s
+  // 切换模式
   const cutTable = () => {
+    setCurrentMail(null)
     setIsTable(!isTable)
     localStorage.setItem('isTable', !isTable)
   }
