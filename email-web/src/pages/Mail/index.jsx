@@ -442,7 +442,7 @@ const MailLayout = () => {
   }
 
   // 标记星标
-  const onStar = async (item) => {
+  const onStar = async (item, isOpen = 1) => {
     const type = item?.flags?.includes('Flagged') ? 2 : 1 // 1:添加 2:取消
     const params = {
       uid: item.uid,
@@ -474,20 +474,22 @@ const MailLayout = () => {
         }
       })
 
-      setCurrentMail((prev) => {
-        let newItem = { ...prev }
-        let flags = newItem?.flags || []
-        if (type === 1) {
-          flags.push('Flagged')
-        } else {
-          flags = flags?.filter((item) => item !== 'Flagged')
-        }
-        newItem.flags = flags
-        if (currentFolder.folder === 'Star') {
-          newItem = null
-        }
-        return newItem
-      })
+      if (isOpen === 1) {
+        setCurrentMail((prev) => {
+          let newItem = { ...prev }
+          let flags = newItem?.flags || []
+          if (type === 1) {
+            flags.push('Flagged')
+          } else {
+            flags = flags?.filter((item) => item !== 'Flagged')
+          }
+          newItem.flags = flags
+          if (currentFolder.folder === 'Star') {
+            newItem = null
+          }
+          return newItem
+        })
+      }
     }
   }
 

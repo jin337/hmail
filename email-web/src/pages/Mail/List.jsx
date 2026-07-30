@@ -7,7 +7,7 @@ import dayjs from 'dayjs'
 
 import { useMailContext } from './MailContext'
 
-import { flatTree, formatMailTime } from 'src/utils/index'
+import { flatTree, formatMailTime, isSvg } from 'src/utils/index'
 
 import IconMailNormal from 'src/assets/mail_normal.svg'
 import IconMailOpen from 'src/assets/mail_open.svg'
@@ -88,6 +88,7 @@ const ListLayout = () => {
     selectedRowKeys,
     setSelectedRowKeys,
     onDelMail,
+    onStar,
   } = useMailContext()
   const [mailData, setMailData] = useState([])
 
@@ -109,6 +110,7 @@ const ListLayout = () => {
       return
     }
     setValueSelected(uidList, true)
+    setCurrentMail(null)
   }
 
   // 筛选后展示的名称
@@ -127,9 +129,7 @@ const ListLayout = () => {
 
   // 监控邮件选中
   useEffect(() => {
-    if (selected?.length > 0) {
-      setSelectedRowKeys(selected)
-    }
+    setSelectedRowKeys(selected)
   }, [selected])
 
   // 监控邮件列表
@@ -145,7 +145,7 @@ const ListLayout = () => {
 
   return (
     <>
-      <div className='flex items-center justify-between gap-2 px-3 py-4'>
+      <div className='flex items-center justify-between gap-2 p-4'>
         <div className='flex items-center gap-2'>
           <Checkbox
             className='p-0!'
@@ -158,7 +158,11 @@ const ListLayout = () => {
             }}
             checked={mailList?.list?.length === 0 ? false : isAllSelected()}
             indeterminate={isPartialSelected()}>
-            <span className='ml-3 inline-block text-base font-bold'>{currentFolder.title}</span>
+            {selected.length ? (
+              <span className='ml-3 inline-block font-bold'>已选中 {selected.length} 封邮件</span>
+            ) : (
+              <span className='ml-3 inline-block text-base font-bold'>{currentFolder.title}</span>
+            )}
           </Checkbox>
           <Dropdown
             trigger='click'
@@ -216,30 +220,50 @@ const ListLayout = () => {
         </div>
         <Space>
           {currentFolder.folder !== 'Star' && selectedRowKeys.length > 0 && (
-            <Button size='mini' icon={<IconDelete />} onClick={() => {
-              const list = mailData.filter((x) => selectedRowKeys.includes(x.uid))
-              onDelMail(list)
-            }}>
+            <Button
+              size='mini'
+              icon={<IconDelete />}
+              onClick={() => {
+                const list = mailData.filter((x) => selectedRowKeys.includes(x.uid))
+                onDelMail(list)
+              }}>
               {currentFolder.folder === 'Deleted' ? '清空' : '删除'}
             </Button>
           )}
           <span className={`${isTable ? 'mr-10' : ''}`}>共 {mailList?.total || 0} 封</span>
         </Space>
       </div>
-      <Spin block loading={listLoading} className='h-[calc(100vh-116px)] overflow-auto' ref={tableRef}>
+      <Spin block loading={listLoading} className='mail-list h-[calc(100vh-116px)] overflow-auto px-1' ref={tableRef}>
         {mailData?.map((item) =>
           item.key ? (
-            <div
-              className='cursor-pointer px-3 pt-2 text-(--color-text-2) underline-offset-3 hover:underline'
-              key={item.key}
-              onClick={() => onSelectGroup(item)}>
-              {item.title}&nbsp;({item.total}&nbsp;封)
+            <div className='cursor-pointer px-3 pt-2 text-(--color-text-2) underline-offset-3 hover:underline' key={item.key}>
+              <span onClick={() => onSelectGroup(item)}>
+                {item.title}&nbsp;({item.total}&nbsp;封)
+              </span>
             </div>
           ) : (
             <div
               key={item.uid}
-              className={`flex w-full cursor-pointer border-b border-(--color-neutral-3) px-3 py-2 hover:bg-(--color-fill-2) ${item?.uid === currentMail?.uid ? 'bg-(--color-fill-2)' : ''} ${!item?.flags?.includes('Seen') && item.folder === 'INBOX' ? 'font-bold' : ''}`}
-              onClick={() => currentMail?.uid !== item?.uid && setCurrentMail(item)}>
+              className={`flex w-full cursor-pointer border-b border-(--color-neutral-3) px-3 py-2 hover:bg-(--color-fill-2) ${selected?.includes(item?.uid) || item?.uid === currentMail?.uid ? 'selelct-mail' : ''} ${!item?.flags?.includes('Seen') && item.folder === 'INBOX' ? 'font-bold' : ''}`}
+              onClick={(e) => {
+                if (currentMail?.uid !== item?.uid) {
+                  // 排除干扰点击
+                  const targetElement = e?.target
+
+                  const isCheckboxClick = targetElement
+                    ? targetElement?.classList.contains('arco-checkbox') ||
+                      targetElement?.classList.contains('arco-checkbox-input') ||
+                      targetElement?.closest('.arco-checkbox')
+                    : false
+
+                  const isStar = isSvg(e)
+
+                  // 排除非跳转项
+                  if (isCheckboxClick || isStar) return
+                  setCurrentMail(item)
+                  unSelectAll()
+                }
+              }}>
               <Checkbox
                 className='mr-4 p-0!'
                 checked={isSelected(item.uid)}
@@ -251,6 +275,7 @@ const ListLayout = () => {
                 }}
               />
               {isTable ? (
+                // 列表模式
                 <div className='flex w-full gap-2 overflow-hidden'>
                   <div className='flex w-60 items-center justify-between gap-1.5'>
                     <div className='flex flex-1 gap-1.5 overflow-hidden'>
@@ -277,14 +302,20 @@ const ListLayout = () => {
                   <div className='flex w-50 justify-end gap-2'>
                     <div className='w-20'>{item.size}</div>
                     <div className='w-20'>{formatMailTime(item?.send_time)}</div>
-                    {item?.flags?.includes('Flagged') ? (
-                      <IconStarSelect className='text-xl!' />
-                    ) : (
-                      <IconStarUnselect className='text-xl!' />
-                    )}
+                    <Button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        e.preventDefault()
+                        onStar(item, false)
+                      }}
+                      type='text'
+                      size='mini'
+                      icon={item?.flags?.includes('Flagged') ? <IconStarSelect /> : <IconStarUnselect />}
+                    />
                   </div>
                 </div>
               ) : (
+                // 详情模式
                 <div className='w-[calc(100%-30px)] leading-6'>
                   <div className='mb-1 flex justify-between gap-2'>
                     <div className='flex w-[calc(100%-72px)] items-center gap-1.5'>

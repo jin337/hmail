@@ -24,7 +24,7 @@ const MenuLayout = () => {
         </Button>
       </div>
 
-      <Menu className='mail-wrap bg-transparent! px-2' selectedKeys={[currentFolder?.key || '']} onClickMenuItem={onSelectMenu}>
+      <Menu className='mail-menu bg-transparent! px-2' selectedKeys={[currentFolder?.key || '']} onClickMenuItem={onSelectMenu}>
         {folderList?.map((item) => (
           <Menu.Item key={item.key} className='leading-8! text-(--color-text-1)!'>
             <div className='flex items-center'>
