@@ -663,6 +663,8 @@ const MailLayout = () => {
     if (record?.uid) {
       compose.title = record.subject
       setCurrentMail(record)
+    } else {
+      setCurrentMail(null)
     }
 
     setCurrentFolder(compose)
