@@ -27,13 +27,13 @@ strong {
   background-color: transparent;
 }
 .mail-menu .arco-menu-item.arco-menu-selected {
-  background-color: rgb(var(--primary-2));
+  background-color: rgba(15, 122, 245, 0.149);
   font-weight: bold;
   border-radius: 4px;
 }
 .mail-list .selelct-mail,
 .mail-list .selelct-mail :hover {
-  background-color: rgb(var(--primary-2));
+  background-color: rgba(15, 122, 245, 0.149);
 }
 .mail-list .selelct-mail {
   border-radius: 0;
