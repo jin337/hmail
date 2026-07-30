@@ -653,6 +653,7 @@ const MailLayout = () => {
 
   // 写信
   const onEdit = (record) => {
+    setCurrentMail(null)
     const isComposeExist = folderList.some((item) => item.key === 'compose')
     if (isComposeExist) {
       return Message.warning('写邮件页已打开，请先关闭')

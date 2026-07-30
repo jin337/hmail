@@ -159,7 +159,7 @@ const ListLayout = () => {
             checked={mailList?.list?.length === 0 ? false : isAllSelected()}
             indeterminate={isPartialSelected()}>
             {selected.length ? (
-              <span className='ml-3 inline-block font-bold'>已选中 {selected.length} 封邮件</span>
+              <span className='ml-3 inline-block font-bold'>已选 {selected.length} 封</span>
             ) : (
               <span className='ml-3 inline-block text-base font-bold'>{currentFolder.title}</span>
             )}
