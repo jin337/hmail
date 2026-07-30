@@ -199,7 +199,7 @@ export default function WriteMail({
     return () => {
       if (editor) editor.destroy()
     }
-  }, [])
+  }, [editor])
 
   // 写信，默认获取焦点
   useEffect(() => {

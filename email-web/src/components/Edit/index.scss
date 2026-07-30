@@ -1,0 +1,11 @@
+.y-mail-wrap {
+  line-height: 1.43;
+  user-select: text;
+  color: #000;
+  background-color: #fff;
+  border: 1px solid var(--color-gray-300);
+  .y-mail-content {
+    padding: 10px;
+    min-height: 100px;
+  }
+}
