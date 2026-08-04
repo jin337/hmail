@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useRef } from 'react'
+import { useEffect, useRef } from 'react'
 
-import ToolBar from './ToolBar'
 import './index.scss'
+import ToolBar from './ToolBar'
 
 // 图标导入
 import align from './icons/align.svg'
@@ -134,6 +134,7 @@ const Edit = (props) => {
   const undoStack = useRef([]) // 撤销栈
   const redoStack = useRef([]) // 重做栈
   const isUndoing = useRef(false) // 是否正在撤销
+  const debounceTimer = useRef(null) //防抖的定时器引用
 
   // 获取选区
   const getSelectionRange = () => {
@@ -149,8 +150,26 @@ const Edit = (props) => {
 
     let startNode = range.startContainer
     let endNode = range.endContainer
-    if (startNode.nodeType === Node.TEXT_NODE) startNode = startNode.parentElement
-    if (endNode.nodeType === Node.TEXT_NODE) endNode = endNode.parentElement
+
+    // 处理纯文本
+    const wrapIfDirectTextChild = (node) => {
+      if (node.nodeType === Node.TEXT_NODE) {
+        const parent = node.parentElement
+        const editorContent = editorRef.current
+        if (parent && parent === editorContent) {
+          const div = document.createElement('div')
+          parent.insertBefore(div, node)
+          div.appendChild(node)
+          return div
+        }
+      }
+      return node.nodeType === Node.TEXT_NODE ? node.parentElement : node
+    }
+
+    startNode = wrapIfDirectTextChild(startNode)
+    endNode = wrapIfDirectTextChild(endNode)
+
+    if (!startNode || !endNode) return []
 
     const findBlockParent = (node) => {
       let current = node
@@ -169,6 +188,7 @@ const Edit = (props) => {
 
     const startBlock = findBlockParent(startNode)
     const endBlock = findBlockParent(endNode)
+
     if (!startBlock || !endBlock) return []
 
     const blocks = []
@@ -344,7 +364,7 @@ const Edit = (props) => {
   }
 
   // 记录内容变化
-  const recordChange = useCallback((html) => {
+  const recordChange = (html) => {
     if (isUndoing.current) return
 
     if (undoStack.current[undoStack.current.length - 1] === html) return
@@ -356,23 +376,22 @@ const Edit = (props) => {
     if (undoStack.current.length > 50) {
       undoStack.current.shift()
     }
-  }, [])
+  }
 
   // 撤销
   const handleUndo = () => {
-    if (undoStack.current.length === 0) return
-
+    if (undoStack.current.length <= 1) return
     isUndoing.current = true
     const currentState = undoStack.current.pop()
     redoStack.current.push(currentState)
 
     const prevHtml = undoStack.current[undoStack.current.length - 1]
     editorRef.current.innerHTML = prevHtml
-    onChange?.(editorRef.current)
+    onChange?.(prevHtml)
 
-    setTimeout(() => {
+    requestAnimationFrame(() => {
       isUndoing.current = false
-    }, 0)
+    })
   }
 
   // 重做
@@ -386,9 +405,9 @@ const Edit = (props) => {
     editorRef.current.innerHTML = nextHtml
     onChange?.(nextHtml)
 
-    setTimeout(() => {
+    requestAnimationFrame(() => {
       isUndoing.current = false
-    }, 0)
+    })
   }
 
   // 命令入口
@@ -546,7 +565,12 @@ const Edit = (props) => {
 
     const html = editor.innerHTML
     onChange?.(html)
-    recordChange(html)
+    if (debounceTimer.current) {
+      clearTimeout(debounceTimer.current)
+    }
+    debounceTimer.current = setTimeout(() => {
+      recordChange(html)
+    }, 500)
   }
 
   // 数据回填
@@ -554,16 +578,18 @@ const Edit = (props) => {
   useEffect(() => {
     const dom = editorRef.current
     if (!dom) return
+    const initialContent = initialValue || ''
     if (isInitialMount.current) {
-      if (initialValue) {
-        dom.innerHTML = initialValue
-      }
+      dom.innerHTML = initialContent
+      undoStack.current = [initialContent]
       isInitialMount.current = false
       return
     }
 
     if (dom.innerHTML === '' && initialValue) {
       dom.innerHTML = initialValue
+      undoStack.current = [initialValue]
+      redoStack.current = []
     }
   }, [initialValue])
 
