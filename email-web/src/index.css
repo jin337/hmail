@@ -49,41 +49,6 @@ strong {
   border-bottom-right-radius: 4px;
 }
 
-/* 以下为历史 */
-.email-list thead .arco-table-th {
-  background-color: #fff;
-}
-.email-list .arco-table-header {
-  overflow-y: auto !important;
-}
-
-.email-list .arco-table-th-item {
-  padding: 16px 16px 16px 7px;
-}
-.email-list .arco-table-td {
-  padding-left: 0;
-  vertical-align: baseline;
-}
-.email-table .arco-table-td {
-  vertical-align: middle;
-}
-.select-row .arco-table-td {
-  background-color: var(--color-fill-2);
-}
-
-.mail-detail {
-  min-height: 100px;
-}
-.mail-detail blockquote {
-  background-color: var(--w-e-textarea-slight-bg-color);
-  border-left: 8px solid var(--w-e-textarea-selected-border-color);
-  display: block;
-  font-size: 100%;
-  line-height: 1.5;
-  margin: 10px 0;
-  padding: 10px;
-}
-
 /* jit-viewer全屏按钮隐藏  */
 .jv-toolbar-btn--fullscreen {
   display: none !important;

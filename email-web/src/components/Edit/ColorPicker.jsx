@@ -1,4 +1,4 @@
-import {} from 'react'
+import { } from 'react'
 
 const colorList = [
   'rgb(46, 48, 51)',
@@ -42,10 +42,12 @@ const colorList = [
   'rgb(24, 78, 119)',
   'rgb(83, 14, 111)',
 ]
-const ColorPicker = ({ onChange }) => {
+const ColorPicker = (props) => {
+  const { defaultColor, onChange } = props
+
   return (
     <div className='color-picker'>
-      <div className='title' onClick={() => onChange(colorList[0])}>
+      <div className='title' onClick={() => onChange(defaultColor)}>
         默认颜色
       </div>
       <div className='color-list'>

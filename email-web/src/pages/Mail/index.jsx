@@ -125,6 +125,7 @@ const MailLayout = () => {
 
   const [currentMail, setCurrentMail] = useState(null) // 当前邮件
   const [mailLoading, setMailLoading] = useState(false) // 邮件加载中
+  const [newMailInfo, setNewMailInfo] = useState(null) // 已改变的邮件内容
 
   const [userList, setUserList] = useState([]) // 用户列表
   const [recentlyList, setRecentlyList] = useState([]) // 最近联系人
@@ -247,49 +248,45 @@ const MailLayout = () => {
     }
   }
 
-  // 邮件原内容
-  const FormContent = `<p style="line-height: 1;"><br></p>
-    <p style="line-height: 1;"><br></p>
-    <p style="line-height: 1;">
-    <span style="color: rgb(140, 140, 140);">— </span>
-    <span style="font-size: 12px; color: rgb(140, 140, 140);">原始邮件</span>
-    <span style="color: rgb(140, 140, 140);"> ————————————</span>
-    </p>
-    <blockquote>
-    <span style="color: rgb(140, 140, 140); font-size: 12px;">发件人：</span>
-    <span style="font-size: 12px;">${currentMail?.from_info?.name} &lt;${currentMail?.from}&gt; </span>
-    <span style="color: rgb(140, 140, 140); font-size: 12px;"><br>发件时间：</span>
-    <span style="font-size: 12px;">${dayjs(currentMail?.date).format('YYYY年MM月DD日 HH:mm:ss')}</span>
-    <span style="color: rgb(140, 140, 140); font-size: 12px;"><br>收件人：</span>
-    <span style="font-size: 12px;">${currentMail?.to_reply}</span>
-    <span style="color: rgb(140, 140, 140); font-size: 12px;"><br>主题：</span>
-    <span style="font-size: 12px;">${currentMail?.subject}</span>
-    </blockquote>${currentMail?.detail?.content || ''}`
-
-  const FormContentCc = `<p style="line-height: 1;"><br></p>
-    <p style="line-height: 1;"><br></p>
-    <p style="line-height: 1;">
-    <span style="color: rgb(140, 140, 140);">— </span>
-    <span style="font-size: 12px; color: rgb(140, 140, 140);">原始邮件</span>
-    <span style="color: rgb(140, 140, 140);"> ————————————</span>
-    </p>
-    <blockquote>
-    <span style="color: rgb(140, 140, 140); font-size: 12px;">发件人：</span>
-    <span style="font-size: 12px;">${currentMail?.from_info?.name} &lt;${currentMail?.from}&gt;</span>
-    <span style="color: rgb(140, 140, 140); font-size: 12px;"><br>发件时间：</span>
-    <span style="font-size: 12px;">${dayjs(currentMail?.date).format('YYYY年MM月DD日 HH:mm:ss')}</span>
-    <span style="color: rgb(140, 140, 140); font-size: 12px;"><br>收件人：</span>
-    <span style="font-size: 12px;">${currentMail?.to_reply}</span>
-    <span style="color: rgb(140, 140, 140); font-size: 12px;"><br>抄送：</span>
-    <span style="font-size: 12px;">${currentMail?.cc_reply}</span>
-    <span style="color: rgb(140, 140, 140); font-size: 12px;"><br>主题：</span>
-    <span style="font-size: 12px;">${currentMail?.subject}</span>
-    </blockquote>${currentMail?.detail?.content || ''}`
-
   // 回复、转发
   const onReplyForward = (key) => {
     if (!currentMail) return
     let newMail = null
+
+    const to_reply = currentMail?.to_info
+      ?.map((t) => `<span style="color: rgb(0, 0, 0);">${t.name}</span>` + ' &lt;' + t.email + '&gt;')
+      .join(', ')
+
+    const cc_reply = currentMail?.cc
+      ? currentMail?.cc_info
+          ?.map((t) => `<span style="color: rgb(0, 0, 0);">${t.name}</span>` + ' &lt;' + t.email + '&gt;')
+          .join(', ')
+      : ''
+
+    // 邮件原内容
+    const FormContent = `<div><br></div>
+    <div><br></div>
+    <article>
+      <div style="display:flex;align-items:center;padding-top:8px">
+        <span style="color:#959DA6;font-size:12px;line-height:30px">原始邮件</span>
+        <hr style="flex-grow:1;border-top:1px solid rgba(21, 46, 74, 0.07);margin-left:8px">
+      </div>
+      <div style="line-height: 20px; border-radius: 6px; background-color: rgba(20, 46, 77, 0.05); color: rgb(92, 97, 102); margin: 0px; padding: 8px; width: 100%;">
+        <div style="line-height: 20px; font-size: 12px;">
+          发件人：<span style="color: rgb(0, 0, 0);">${currentMail?.from_info?.name}</span>&lt;${currentMail?.from}&gt;
+        </div>
+        <div style="line-height: 20px; font-size: 12px;">
+          发件时间：<span style="color: rgb(0, 0, 0);">${dayjs(currentMail?.date).format('YYYY年MM月DD日 HH:mm:ss')}</span>
+        </div>
+        <div style="line-height: 20px; font-size: 12px;">收件人：${to_reply}</div>
+        ${currentMail?.cc ? `<div style="line-height: 20px; font-size: 12px;">抄送：${cc_reply}</div>` : ''}
+        <div style="line-height: 20px; font-size: 12px;">
+          主题：<span style="color: rgb(0, 0, 0);">${currentMail?.subject}</span>
+        </div>
+      </div>
+      <div><br></div>
+      <div>${currentMail?.detail?.content}</div>
+    </article>`
 
     // 回复
     if (key == 'is_reply') {
@@ -300,7 +297,7 @@ const MailLayout = () => {
         cc_info: currentMail?.cc_info?.map((e) => ({ label: e.name, value: e.email })) || [],
         detail: {
           ...currentMail?.detail,
-          content: currentMail?.cc ? FormContentCc : FormContent,
+          content: FormContent,
         },
         is_reply: true,
       }
@@ -319,7 +316,7 @@ const MailLayout = () => {
         cc_info: [],
         detail: {
           ...currentMail?.detail,
-          content: currentMail?.cc ? FormContentCc : FormContent,
+          content: FormContent,
         },
         is_forward: true,
       }
@@ -348,7 +345,7 @@ const MailLayout = () => {
         } else {
           if (folder === 'Drafts') {
             // 判断是否是定时邮件
-            const isSchedule = mailList.filter((e) => ids.includes(e.uid) && Array.isArray(e.flags) && e.flags.includes('Draft'))
+            const isSchedule = mailList?.list?.filter((e) => ids.includes(e.uid) && Array.isArray(e.flags) && e.flags.includes('Draft'))
             if (isSchedule?.length > 0) {
               return Message.error('请先取消定时邮件后再进行删除操作')
             }
@@ -612,16 +609,7 @@ const MailLayout = () => {
     setListLoading(true)
     let { code, data, msg } = await request.post(url, params)
     if (code === 200) {
-      const list = (data?.list || []).map((e) => {
-        const to_reply = e?.to_info?.map((t) => t.name + ' &lt;' + t.email + '&gt;').join(', ')
-        const cc_reply = e.cc ? e?.cc_info?.map((t) => t.name + ' &lt;' + t.email + '&gt;').join(', ') : ''
-
-        return {
-          ...e,
-          to_reply,
-          cc_reply,
-        }
-      })
+      const list = data?.list || []
 
       if (item.page === 1) {
         setMailList({
@@ -675,6 +663,9 @@ const MailLayout = () => {
     const record = key ? folderList.find((item) => item.key === key) : false
     setCurrentFolder(record || menuList[0])
     setFolderList((prev) => prev.filter((item) => item.key !== 'compose'))
+
+    // 清空草稿信息
+    setNewMailInfo(null)
   }
 
   // 筛选事件
@@ -780,7 +771,7 @@ const MailLayout = () => {
   // 监听选中邮件
   useEffect(() => {
     const init = async () => {
-      if (!currentMail?.uid) return
+      if (!currentMail?.uid || newMailInfo) return
       await getCurrentMail(currentMail)
     }
     init()
@@ -798,6 +789,8 @@ const MailLayout = () => {
           page: 1,
           size: pageSize,
         })
+      } else {
+        newMailInfo && setCurrentMail(newMailInfo)
       }
     }
     init()
@@ -880,6 +873,7 @@ const MailLayout = () => {
             onEditContact={onEditContact} // 添加编辑联系人
             onDeleteContact={onDeleteContact} // 删除联系人
             onClearContact={onClearContact} // 清空联系人
+            onChange={setNewMailInfo} // 监控内容变化
           />
         ) : (
           //   右列：邮件列表 邮件详情

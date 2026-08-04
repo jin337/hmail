@@ -169,9 +169,12 @@ func MailList(email, pwd, folder string, page, size int64, keyword string, filte
 		}
 
 		// 处理邮件正文
-		showText := strings.TrimSpace(env.Text)
-		showText = regexp.MustCompile(`\s+`).ReplaceAllString(showText, "")
-		showText = strings.ReplaceAll(showText, "*", "")
+		showText := ""
+		if env.Text != "" {
+			showText = strings.TrimSpace(env.Text)
+			showText = regexp.MustCompile(`\s+`).ReplaceAllString(showText, "")
+			showText = strings.ReplaceAll(showText, "*", "")
+		}
 
 		fromMail, formInfo, _ := utils.FormatMailName(env.GetHeader("From"))
 		toMail, toInfo, _ := utils.FormatMailName(env.GetHeader("To"))
@@ -329,9 +332,12 @@ func StarMailList(email, pwd string, page, size int64, keyword string, filter []
 			}
 
 			// 处理邮件正文
-			showText := strings.TrimSpace(env.Text)
-			showText = regexp.MustCompile(`\s+`).ReplaceAllString(showText, "")
-			showText = strings.ReplaceAll(showText, "*", "")
+			showText := ""
+			if env.Text != "" {
+				showText = strings.TrimSpace(env.Text)
+				showText = regexp.MustCompile(`\s+`).ReplaceAllString(showText, "")
+				showText = strings.ReplaceAll(showText, "*", "")
+			}
 
 			fromMail, formInfo, _ := utils.FormatMailName(env.GetHeader("From"))
 			toMail, toInfo, _ := utils.FormatMailName(env.GetHeader("To"))
@@ -749,7 +755,7 @@ func DeleteMail(email, pwd string, folder string, uids []int64) error {
 func BuildRawEmail(email, pwd string, from, to []string, cc []string, subject, body string, files []*multipart.FileHeader, extra model.EmailExtra,
 ) ([]byte, error) {
 
-	// base64 76字符自动换行（保留你原有实现）
+	// base64 76字符自动换行
 	var encodeBase64LineWrap = func(data []byte) string {
 		raw := base64.StdEncoding.EncodeToString(data)
 		var sb strings.Builder
@@ -765,9 +771,54 @@ func BuildRawEmail(email, pwd string, from, to []string, cc []string, subject, b
 		return sb.String()
 	}
 
-	// RFC2047 文件名编码（保留你原有实现）
+	// RFC2047 文件名编码
 	var encodeFileName = func(name string) string {
 		return mime.QEncoding.Encode("utf-8", name)
+	}
+
+	// 返回替换后的 HTML 和 提取出的内联图片列表
+	var processInlineBase64Images = func(htmlBody string) (string, []model.MailInline) {
+		var images []model.MailInline
+		// 匹配 data:image/xxx;base64,YYYY
+		re := regexp.MustCompile(`(?i)(src\s*=\s*["'])data:image/([a-zA-Z0-9]+);base64,([^"']+)["']`)
+
+		newHTML := re.ReplaceAllStringFunc(htmlBody, func(match string) string {
+			submatches := re.FindStringSubmatch(match)
+			if len(submatches) < 4 {
+				return match
+			}
+
+			prefix := submatches[1]                   // src="
+			imgType := strings.ToLower(submatches[2]) // png, jpeg 等
+			b64Data := submatches[3]                  // base64 字符串
+
+			// 解码 base64
+			decoded, err := base64.StdEncoding.DecodeString(b64Data)
+			if err != nil {
+				// 如果解码失败，保留原始 data URI
+				return match
+			}
+
+			// 生成唯一 CID
+			cid := uuid.NewString()
+
+			// 推断 Content-Type
+			contentType := "image/" + imgType
+			if imgType == "png" {
+				contentType = "image/png"
+			}
+
+			images = append(images, model.MailInline{
+				CID:         cid,
+				ContentType: contentType,
+				Content:     decoded,
+			})
+
+			// 替换为 cid 引用
+			return fmt.Sprintf(`%scid:%s"`, prefix, cid)
+		})
+
+		return newHTML, images
 	}
 
 	buf := new(bytes.Buffer)
@@ -779,7 +830,7 @@ func BuildRawEmail(email, pwd string, from, to []string, cc []string, subject, b
 	headers["MIME-Version"] = "1.0"
 	headers["Date"] = time.Now().UTC().Format(time.RFC1123)
 	headers["Subject"] = mime.BEncoding.Encode("utf-8", subject)
-	// 重点：换行 + Tab + 带引号boundary，和QQ格式一致
+	// 重点：换行 + Tab + 带引号boundary
 	headers["Content-Type"] = fmt.Sprintf("multipart/mixed;\n\tboundary=\"%s\"", mixedBoundary)
 	headers["Message-ID"] = fmt.Sprintf("<%s@%s>", uuid.NewString(), strings.Split(email, "@")[1])
 
@@ -844,6 +895,7 @@ func BuildRawEmail(email, pwd string, from, to []string, cc []string, subject, b
 	}
 
 	// text/html
+	processedHTML, inlineImages := processInlineBase64Images(body)
 	htmlHeader := textproto.MIMEHeader{}
 	htmlHeader.Set("Content-Type", "text/html;\n\tcharset=\"utf-8\"")
 	htmlHeader.Set("Content-Transfer-Encoding", "base64")
@@ -851,10 +903,26 @@ func BuildRawEmail(email, pwd string, from, to []string, cc []string, subject, b
 	if err != nil {
 		return nil, fmt.Errorf("创建html part失败: %w", err)
 	}
-	_, _ = htmlPart.Write([]byte(encodeBase64LineWrap([]byte(body))))
+	_, _ = htmlPart.Write([]byte(encodeBase64LineWrap([]byte(processedHTML))))
 
 	// 闭合 alternative
 	_, _ = fmt.Fprintf(altPart, "\r\n--%s--\r\n", altBoundary)
+
+	// 从 HTML 中提取的内联图片
+	for _, img := range inlineImages {
+		imgHeader := textproto.MIMEHeader{}
+		imgHeader.Set("Content-Type", fmt.Sprintf("%s;\n\tname=\"%s\"", img.ContentType, encodeFileName(img.CID)))
+		imgHeader.Set("Content-Transfer-Encoding", "base64")
+		imgHeader.Set("Content-ID", fmt.Sprintf("<%s>", img.CID))
+		imgHeader.Set("Content-Disposition", fmt.Sprintf("inline;\n\tfilename=\"%s\"", encodeFileName(img.CID)))
+
+		imgPart, err := createMimePart(buf, imgHeader, mixedBoundary)
+		if err != nil {
+			fmt.Printf("写入HTML提取的内联图片失败 cid=%s err=%v\n", img.CID, err)
+			continue
+		}
+		_, _ = imgPart.Write([]byte(encodeBase64LineWrap(img.Content)))
+	}
 
 	// 内联图片 inline
 	for _, inline := range extra.OriginInlines {

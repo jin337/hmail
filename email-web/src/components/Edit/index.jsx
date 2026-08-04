@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 
 import ToolBar from './ToolBar'
 import './index.scss'
@@ -31,6 +31,7 @@ const toolBar = [
     type: 'font',
     icon: null,
     children: [
+      { title: '默认字体', type: 'font-default', icon: null },
       { title: '黑体', type: 'font-hei-ti', icon: null },
       { title: '仿宋', type: 'font-song-ti', icon: null },
       { title: '楷体', type: 'font-kai-ti', icon: null },
@@ -69,9 +70,12 @@ const toolBar = [
     type: 'line-height',
     icon: line_height,
     children: [
+      { title: '1.0', type: 'leading-1.0', icon: null },
+      { title: '1.15', type: 'leading-1.15', icon: null },
+      { title: '1.3', type: 'leading-1.3', icon: null },
       { title: '1.5', type: 'leading-1.5', icon: null },
-      { title: '2', type: 'leading-2', icon: null },
-      { title: '2.5', type: 'leading-2.5', icon: null },
+      { title: '2.0', type: 'leading-2.0', icon: null },
+      { title: '3.0', type: 'leading-3.0', icon: null },
     ],
   },
   { title: null, type: 'divider', icon: null },
@@ -87,7 +91,7 @@ const toolBar = [
       {
         title: '颜色选择',
         type: 'color-picker',
-        icon: null,
+        color: 'rgb(0, 0, 0)',
       },
     ],
   },
@@ -99,7 +103,7 @@ const toolBar = [
       {
         title: '颜色选择',
         type: 'color-picker',
-        icon: null,
+        color: 'rgb(255, 255, 255)',
       },
     ],
   },
@@ -124,27 +128,12 @@ const toolBar = [
 ]
 
 const Edit = (props) => {
-  const { value, onChange } = props
+  const { value: initialValue, onChange, height = 300 } = props
   const editorRef = useRef(null)
 
-  const undoStack = useRef([])
-  const redoStack = useRef([])
-  const isUndoing = useRef(false)
-
-  // 记录内容变化
-  const recordChange = useCallback((html) => {
-    if (isUndoing.current) return
-
-    if (undoStack.current[undoStack.current.length - 1] === html) return
-
-    undoStack.current.push(html)
-    redoStack.current = []
-
-    // 保留最近 50 步
-    if (undoStack.current.length > 50) {
-      undoStack.current.shift()
-    }
-  }, [])
+  const undoStack = useRef([]) // 撤销栈
+  const redoStack = useRef([]) // 重做栈
+  const isUndoing = useRef(false) // 是否正在撤销
 
   // 获取选区
   const getSelectionRange = () => {
@@ -154,7 +143,7 @@ const Edit = (props) => {
   }
 
   // 获取所选节点
-  const getSelectedBlocks = (targetTags = ['DIV', 'LI'], stopAtList = false) => {
+  const getSelectedBlocks = (targetTags = ['DIV', 'LI', 'P'], stopAtList = false) => {
     const range = getSelectionRange()
     if (!range) return []
 
@@ -198,7 +187,7 @@ const Edit = (props) => {
 
   // 设置样式
   const setStyle = (styleObj) => {
-    const nodesToStyle = getSelectedBlocks(['DIV', 'LI'])
+    const nodesToStyle = getSelectedBlocks(['DIV', 'LI', 'P'])
     if (nodesToStyle.length === 0) return
 
     nodesToStyle.forEach((node) => {
@@ -257,7 +246,7 @@ const Edit = (props) => {
         current = current.nextElementSibling
       }
     } else {
-      blocksToConvert = getSelectedBlocks(['DIV', 'LI'], true)
+      blocksToConvert = getSelectedBlocks(['DIV', 'LI', 'P'], true)
     }
 
     if (blocksToConvert.length === 0) return
@@ -354,9 +343,24 @@ const Edit = (props) => {
     })
   }
 
-  // 执行撤销
-  const handleUndo = useCallback(() => {
-    if (undoStack.current.length <= 1) return
+  // 记录内容变化
+  const recordChange = useCallback((html) => {
+    if (isUndoing.current) return
+
+    if (undoStack.current[undoStack.current.length - 1] === html) return
+
+    undoStack.current.push(html)
+    redoStack.current = []
+
+    // 保留最近 50 步
+    if (undoStack.current.length > 50) {
+      undoStack.current.shift()
+    }
+  }, [])
+
+  // 撤销
+  const handleUndo = () => {
+    if (undoStack.current.length === 0) return
 
     isUndoing.current = true
     const currentState = undoStack.current.pop()
@@ -364,15 +368,15 @@ const Edit = (props) => {
 
     const prevHtml = undoStack.current[undoStack.current.length - 1]
     editorRef.current.innerHTML = prevHtml
-    onChange?.(prevHtml)
+    onChange?.(editorRef.current)
 
     setTimeout(() => {
       isUndoing.current = false
     }, 0)
-  }, [onChange])
+  }
 
-  // 执行重做
-  const handleRedo = useCallback(() => {
+  // 重做
+  const handleRedo = () => {
     if (redoStack.current.length === 0) return
 
     isUndoing.current = true
@@ -385,7 +389,7 @@ const Edit = (props) => {
     setTimeout(() => {
       isUndoing.current = false
     }, 0)
-  }, [onChange])
+  }
 
   // 命令入口
   const onCommand = (option) => {
@@ -427,6 +431,9 @@ const Edit = (props) => {
         break
 
       // 字体
+      case 'font-default':
+        setStyle({ fontFamily: '' })
+        break
       case 'font-hei-ti':
         setStyle({ fontFamily: 'SimHei' })
         break
@@ -473,14 +480,23 @@ const Edit = (props) => {
         break
 
       // 行高
+      case 'leading-1.0':
+        setStyle({ lineHeight: '1.0' })
+        break
+      case 'leading-1.15':
+        setStyle({ lineHeight: '1.15' })
+        break
+      case 'leading-1.3':
+        setStyle({ lineHeight: '1.3' })
+        break
       case 'leading-1.5':
         setStyle({ lineHeight: '1.5' })
         break
-      case 'leading-2':
-        setStyle({ lineHeight: '2' })
+      case 'leading-2.0':
+        setStyle({ lineHeight: '2.0' })
         break
-      case 'leading-2.5':
-        setStyle({ lineHeight: '2.5' })
+      case 'leading-3.0':
+        setStyle({ lineHeight: '3.0' })
         break
 
       // 对齐
@@ -523,24 +539,46 @@ const Edit = (props) => {
     }, 0)
   }
 
-  // 绑定输入事件
-  const handleInput = (e) => {
-    const html = e.target.innerHTML
-    onChange?.(e)
+  // 输入事件
+  const handleInput = () => {
+    const editor = editorRef.current
+    if (!editor) return
+
+    const html = editor.innerHTML
+    onChange?.(html)
     recordChange(html)
   }
+
+  // 数据回填
+  const isInitialMount = useRef(true)
+  useEffect(() => {
+    const dom = editorRef.current
+    if (!dom) return
+    if (isInitialMount.current) {
+      if (initialValue) {
+        dom.innerHTML = initialValue
+      }
+      isInitialMount.current = false
+      return
+    }
+
+    if (dom.innerHTML === '' && initialValue) {
+      dom.innerHTML = initialValue
+    }
+  }, [initialValue])
 
   return (
     <div className='y-mail-wrap'>
       <ToolBar items={toolBar} onCommand={onCommand} />
 
       <div
+        style={{ height: `${height}px` }}
         ref={editorRef}
         className='y-mail-content'
         contentEditable='true'
+        data-placeholder='请输入内容...'
         suppressContentEditableWarning={true}
-        onInput={(e) => handleInput(e)}
-        dangerouslySetInnerHTML={{ __html: value }}
+        onInput={handleInput}
       />
     </div>
   )

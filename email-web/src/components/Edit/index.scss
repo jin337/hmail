@@ -12,23 +12,30 @@
     min-height: 200px;
     outline: none;
     font-size: 14px;
+    position: relative;
+    overflow-y: auto;
+    &:empty::before {
+      content: attr(data-placeholder);
+      color: #999;
+      pointer-events: none;
+    }
   }
 
   .y-mail-toolbar {
     background-color: rgba(20, 46, 77, 0.05);
     padding: 8px;
-    margin-bottom: 8px;
     display: flex;
     align-items: center;
     gap: 2px;
     position: relative;
     flex-wrap: wrap;
 
-    // 图标通用样式
+    // 图标
     .toolbar-icon {
       width: 20px;
       height: 20px;
       display: block;
+      color: #4e5969;
     }
 
     // 普通按钮
@@ -57,7 +64,7 @@
       margin: 0 4px;
     }
 
-    // 下拉菜单容器
+    // 下拉菜单
     .toolbar-dropdown-wrap {
       position: relative;
 
@@ -127,7 +134,7 @@
     line-height: 28px;
     border: 1px solid rgba(20, 46, 77, 0.05);
     cursor: pointer;
-    &:hover{
+    &:hover {
       background-color: rgba(20, 46, 77, 0.05);
     }
   }

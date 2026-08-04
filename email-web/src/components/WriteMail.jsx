@@ -35,8 +35,8 @@ import {
   IconUpload,
 } from '@arco-design/web-react/icon'
 
-// 引入 wangEditor
-import { Editor, Toolbar } from '@wangeditor/editor-for-react'
+// 引入 富文本编辑器
+import Edit from 'src/components/Edit'
 
 // 时间处理
 import dayjs from 'dayjs'
@@ -54,6 +54,7 @@ export default function WriteMail({
   onEditContact,
   onDeleteContact,
   onClearContact,
+  onChange,
 }) {
   const separator = '#_#'
   const [form] = Form.useForm()
@@ -63,8 +64,6 @@ export default function WriteMail({
   const [addCC, setAddCC] = useState(false)
 
   const [fileList, setFileList] = useState([])
-  const [editor, setEditor] = useState(null)
-  const [html, setHtml] = useState('')
 
   // 自定义时间
   const [customTimeVisible, setCustomTimeVisible] = useState(false)
@@ -158,9 +157,9 @@ export default function WriteMail({
 
     const valueslist = form.getFieldValue(lastFocus) || []
     const list = valueslist.filter((e) => e.value !== targetEmail.value)
-    if (!list.includes(targetEmail)) {
-      form.setFieldValue(lastFocus, [...list, targetEmail])
-    }
+    form.setFieldValue(lastFocus, [...list, targetEmail])
+    const values = form.getFieldsValue()
+    onChangeMail(null, { ...detail, ...values })
   }
 
   // 打开CC
@@ -174,32 +173,24 @@ export default function WriteMail({
 
   // 自动回填
   useEffect(() => {
-    if (!detail?.uid) return
     const init = () => {
       form.setFieldsValue(detail)
-      setAddCC(detail?.cc_email?.length > 0)
+      if (detail?.uid) {
+        setAddCC(detail?.cc_email?.length > 0)
 
-      const list = (detail?.detail?.attachments || []).map((e) => ({
-        ...e,
-        name: e.file_name,
-        uid: e.part_id,
-      }))
-      setFileList(list)
+        const list = (detail?.detail?.attachments || []).map((e) => ({
+          ...e,
+          name: e.file_name,
+          uid: e.part_id,
+        }))
+        setFileList(list)
 
-      if (editor) {
-        editor?.setHtml(`${detail?.detail?.content || ''}`)
-        editor?.focus() //获取焦点
+        // 默认执行一次数据监控
+        onChangeMail(null, detail)
       }
     }
     form && init()
-  }, [detail, form, editor])
-
-  // 销毁编辑器
-  useEffect(() => {
-    return () => {
-      if (editor) editor.destroy()
-    }
-  }, [editor])
+  }, [detail, form])
 
   // 写信，默认获取焦点
   useEffect(() => {
@@ -238,13 +229,13 @@ export default function WriteMail({
         time = dayjs(pureTime, 'YYYY-MM-DD HH:mm').format('YYYY-MM-DD HH:mm:ss')
       }
 
-      const { detail: detailProps, ...rest } = detail || {}
+      const values = form.getFieldsValue()
+      const { detail: detailProps, ...rest } = { ...detail, ...values }
       const mailInfo = {
         ...rest,
         ...form.getFieldsValue(),
         detail: {
           ...detailProps,
-          content: html,
           attachments: fileList,
         },
       }
@@ -252,6 +243,7 @@ export default function WriteMail({
     }
   }
 
+  // 提取邮箱前缀
   function getEmailPrefix(str) {
     if (!str) return str
     const emailReg = /^[\w.-]+@[\w.-]+\.\w+$/
@@ -273,17 +265,18 @@ export default function WriteMail({
       form.setFieldValue('cc_info', newCcInfo)
     }
 
+    const { detail: detailProps, ...rest } = values || {}
     const newValues = {
-      ...values,
+      ...rest,
       to_info: newToInfo,
       cc_info: newCcInfo,
       detail: {
-        content: html || detail?.detail?.content,
-        attachments: values?.files || fileList?.length > 0 ? fileList : detail?.detail?.attachments,
+        ...detailProps,
+        attachments: fileList,
       },
     }
 
-    console.log(newValues)
+    onChange(newValues)
   }
 
   // 清空我的联系人
@@ -519,7 +512,7 @@ export default function WriteMail({
                 ref={toRef}
                 prefix={
                   <div className='focus-box flex w-15 cursor-pointer items-center gap-1' onClick={() => openContact('to_info')}>
-                    <span>收件人</span>
+                    <span className='text-(--color-text-2)'>收件人</span>
                     <IconPlusCircle />
                   </div>
                 }
@@ -554,34 +547,8 @@ export default function WriteMail({
                 }
               />
             </Form.Item>
-            {/* 富文本编辑器 */}
-            <Form.Item>
-              <div className='z-100 overflow-hidden rounded border border-gray-300'>
-                <Toolbar
-                  editor={editor}
-                  defaultConfig={{
-                    excludeKeys: ['group-video', 'group-image', 'insertTable', 'codeBlock', 'group-more-style'],
-                    insertKeys: {
-                      index: 30,
-                      keys: ['clearStyle'],
-                    },
-                  }}
-                  mode='default'
-                  className='border-b border-gray-300'
-                />
-                <Editor
-                  className='h-80 overflow-y-auto'
-                  defaultConfig={{ placeholder: '输入正文...' }}
-                  onCreated={setEditor}
-                  onChange={(editor) => {
-                    setHtml(editor.getHtml())
-                    form.setFieldsValue({
-                      html: editor.getHtml(),
-                    })
-                  }}
-                  mode='default'
-                />
-              </div>
+            <Form.Item field='detail.content'>
+              <Edit />
             </Form.Item>
             <Form.Item field='files'>
               <Upload

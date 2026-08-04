@@ -5,7 +5,7 @@ import Down from './icons/down.svg'
 import ColorPicker from './ColorPicker'
 
 const ToolBar = (props) => {
-  const { items, onCommand } = props
+  const { items, onCommand, undo, redo } = props
   const wrapRef = useRef()
   const [openType, setOpenType] = useState(null)
 
@@ -20,7 +20,8 @@ const ToolBar = (props) => {
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
-  const handleItemClick = (item) => {
+  // 点击事件
+  const onItemClick = (item) => {
     if (item.children && item.children.length > 0) {
       setOpenType(openType === item.type ? null : item.type)
     } else {
@@ -46,7 +47,7 @@ const ToolBar = (props) => {
               <div
                 className={`toolbar-dropdown-trigger ${isOpen ? 'active' : ''}`}
                 title={item.title || ''}
-                onClick={() => handleItemClick(item)}>
+                onClick={() => onItemClick(item)}>
                 {item.icon ? <item.icon className='toolbar-icon' /> : <span>{item.title}</span>}
                 <span className='toolbar-arrow-icon'>
                   <Down />
@@ -55,9 +56,14 @@ const ToolBar = (props) => {
 
               {isOpen && (
                 <div className='toolbar-dropdown-panel'>
+                  {/* 颜色选择器 */}
                   {item.children[0].type === 'color-picker' ? (
-                    <ColorPicker onChange={(e) => onCommand({ type: item.type, title: item.title, color: e })} />
+                    <ColorPicker
+                      defaultColor={item.children[0].color}
+                      onChange={(e) => onCommand({ type: item.type, title: item.title, color: e })}
+                    />
                   ) : (
+                    // 下拉菜单项
                     item.children.map((child) => (
                       <div key={child.type} className='toolbar-dropdown-item' onClick={() => onCommand(child)}>
                         {child.title}
@@ -72,7 +78,7 @@ const ToolBar = (props) => {
 
         // 普通按钮
         return (
-          <div className='toolbar-btn' key={key} title={item.title || ''} onClick={() => handleItemClick(item)}>
+          <div className='toolbar-btn' key={key} title={item.title || ''} onClick={() => onItemClick(item)}>
             {/* 渲染图标组件 */}
             {item.icon ? <item.icon className='toolbar-icon' /> : item.title}
           </div>
