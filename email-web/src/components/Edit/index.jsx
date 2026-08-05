@@ -307,6 +307,8 @@ const Edit = (props) => {
     r.setEnd(ep.node, ep.offset)
     sel.removeAllRanges()
     sel.addRange(r)
+
+    handleInput()
   }
 
   // 设置列表
@@ -436,6 +438,8 @@ const Edit = (props) => {
     r.setEnd(ep.node, ep.offset)
     sel.removeAllRanges()
     sel.addRange(r)
+
+    handleInput()
   }
 
   // 分割线
@@ -461,6 +465,8 @@ const Edit = (props) => {
       range.deleteContents()
       range.insertNode(line)
     }
+
+    handleInput()
   }
 
   // 清除格式
@@ -793,6 +799,8 @@ const Edit = (props) => {
     r.setEnd(ep.node, ep.offset)
     sel.removeAllRanges()
     sel.addRange(r)
+
+    handleInput()
   }
 
   // 记录内容变化
