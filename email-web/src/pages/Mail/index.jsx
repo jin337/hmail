@@ -15,7 +15,7 @@ import { MailProvider } from './MailContext'
 
 import request from 'src/api/request'
 
-import { getFileType, throttle, transHtml, transHtmlAttrs } from 'src/utils/index'
+import { getFileType, throttle, transHtmlAttrs } from 'src/utils/index'
 
 // 目录菜单
 const menuList = [
@@ -241,7 +241,8 @@ const MailLayout = () => {
       const { code, msg } = await request.post(url, formData, { headers: { 'Content-Type': 'multipart/form-data' } })
       if (code === 200) {
         Message.success(msg)
-        onCloseEdit(type === 'Sent' ? 'sent' : 'drafts')
+        onCloseEdit(type === 'Sent' ? 'sent' : 'drafts') // 关闭邮件，跳转到发导航
+        getContactList({ prefix: 'user_sent' }) // 更新联系人
       } else {
         Message.error(msg)
       }
@@ -269,7 +270,7 @@ const MailLayout = () => {
     <article>
       <div style="display:flex;align-items:center;padding-top:8px">
         <span style="color:#959DA6;font-size:12px;line-height:30px">原始邮件</span>
-        <hr style="flex-grow:1;border-top:1px solid rgba(21, 46, 74, 0.07);margin-left:8px">
+        <span style="flex-grow:1;border-top:1px solid rgba(21, 46, 74, 0.07);margin-left:8px"></span>
       </div>
       <div style="line-height: 20px; border-radius: 6px; background-color: rgba(20, 46, 77, 0.05); color: rgb(92, 97, 102); margin: 0px; padding: 8px; width: 100%;">
         <div style="line-height: 20px; font-size: 12px;">
@@ -345,7 +346,9 @@ const MailLayout = () => {
         } else {
           if (folder === 'Drafts') {
             // 判断是否是定时邮件
-            const isSchedule = mailList?.list?.filter((e) => ids.includes(e.uid) && Array.isArray(e.flags) && e.flags.includes('Draft'))
+            const isSchedule = mailList?.list?.filter(
+              (e) => ids.includes(e.uid) && Array.isArray(e.flags) && e.flags.includes('Draft')
+            )
             if (isSchedule?.length > 0) {
               return Message.error('请先取消定时邮件后再进行删除操作')
             }
@@ -566,7 +569,7 @@ const MailLayout = () => {
           file_type: getFileType(e.file_type),
         })),
       }
-      newData.content = transHtml(newData.content)
+      newData.content = transHtmlAttrs(newData.content, 'src', 'data-href')
       setCurrentMail({ ...item, detail: newData })
 
       // 标记已读

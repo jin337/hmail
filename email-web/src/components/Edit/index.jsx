@@ -136,75 +136,6 @@ const Edit = (props) => {
   const isUndoing = useRef(false) // 是否正在撤销
   const debounceTimer = useRef(null) //防抖的定时器引用
 
-  // 获取选区
-  const getSelectionRange = () => {
-    const sel = window.getSelection()
-    if (!sel || !sel.rangeCount || sel.isCollapsed) return null
-    return sel.getRangeAt(0)
-  }
-
-  // 获取所选节点
-  const getSelectedBlocks = (targetTags = ['DIV', 'LI', 'P'], stopAtList = false) => {
-    const range = getSelectionRange()
-    if (!range) return []
-
-    let startNode = range.startContainer
-    let endNode = range.endContainer
-
-    // 处理纯文本
-    const wrapIfDirectTextChild = (node) => {
-      if (node.nodeType === Node.TEXT_NODE) {
-        const parent = node.parentElement
-        const editorContent = editorRef.current
-        if (parent && parent === editorContent) {
-          const div = document.createElement('div')
-          parent.insertBefore(div, node)
-          div.appendChild(node)
-          return div
-        }
-      }
-      return node.nodeType === Node.TEXT_NODE ? node.parentElement : node
-    }
-
-    startNode = wrapIfDirectTextChild(startNode)
-    endNode = wrapIfDirectTextChild(endNode)
-
-    if (!startNode || !endNode) return []
-
-    const findBlockParent = (node) => {
-      let current = node
-      while (current && current !== editorRef.current) {
-        if (current.nodeType === Node.ELEMENT_NODE && targetTags.includes(current.tagName)) {
-          if (stopAtList && ['UL', 'OL'].includes(current.tagName)) {
-            current = current.parentElement
-            continue
-          }
-          return current
-        }
-        current = current.parentElement
-      }
-      return null
-    }
-
-    const startBlock = findBlockParent(startNode)
-    const endBlock = findBlockParent(endNode)
-
-    if (!startBlock || !endBlock) return []
-
-    const blocks = []
-    if (startBlock === endBlock) {
-      blocks.push(startBlock)
-    } else {
-      let current = startBlock
-      while (current) {
-        blocks.push(current)
-        if (current === endBlock) break
-        current = current.nextElementSibling
-      }
-    }
-    return blocks
-  }
-
   // 设置样式
   const setStyle = (styleObj) => {
     const nodesToStyle = getSelectedBlocks(['DIV', 'LI', 'P'])
@@ -361,6 +292,74 @@ const Edit = (props) => {
 
       listToUnwrap.parentNode.replaceChild(fragment, listToUnwrap)
     })
+  }
+  // 获取所选节点
+  const getSelectedBlocks = (targetTags = ['DIV', 'LI', 'P'], stopAtList = false) => {
+    const range = getSelectionRange()
+    if (!range) return []
+
+    let startNode = range.startContainer
+    let endNode = range.endContainer
+
+    // 处理纯文本
+    const wrapIfDirectTextChild = (node) => {
+      if (node.nodeType === Node.TEXT_NODE) {
+        const parent = node.parentElement
+        const editorContent = editorRef.current
+        if (parent && parent === editorContent) {
+          const div = document.createElement('div')
+          parent.insertBefore(div, node)
+          div.appendChild(node)
+          return div
+        }
+      }
+      return node.nodeType === Node.TEXT_NODE ? node.parentElement : node
+    }
+
+    startNode = wrapIfDirectTextChild(startNode)
+    endNode = wrapIfDirectTextChild(endNode)
+
+    if (!startNode || !endNode) return []
+
+    const findBlockParent = (node) => {
+      let current = node
+      while (current && current !== editorRef.current) {
+        if (current.nodeType === Node.ELEMENT_NODE && targetTags.includes(current.tagName)) {
+          if (stopAtList && ['UL', 'OL'].includes(current.tagName)) {
+            current = current.parentElement
+            continue
+          }
+          return current
+        }
+        current = current.parentElement
+      }
+      return null
+    }
+
+    const startBlock = findBlockParent(startNode)
+    const endBlock = findBlockParent(endNode)
+
+    if (!startBlock || !endBlock) return []
+
+    const blocks = []
+    if (startBlock === endBlock) {
+      blocks.push(startBlock)
+    } else {
+      let current = startBlock
+      while (current) {
+        blocks.push(current)
+        if (current === endBlock) break
+        current = current.nextElementSibling
+      }
+    }
+    return blocks
+  }
+
+  // 获取选区
+  const getSelectionRange = () => {
+    const sel = window.getSelection()
+    if (!sel || !sel.rangeCount || sel.isCollapsed) return null
+    return sel.getRangeAt(0)
   }
 
   // 记录内容变化

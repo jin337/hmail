@@ -1,4 +1,4 @@
-import {} from 'react'
+import { } from 'react'
 
 import { Button, Card, Divider, Dropdown, Menu, Popover, Space, Spin, Typography } from '@arco-design/web-react'
 import {
@@ -368,7 +368,6 @@ const Detail = () => {
               </Button>
             </div>
           )}
-
           {/* 邮件内容 */}
           <div
             className='mail-detail'
