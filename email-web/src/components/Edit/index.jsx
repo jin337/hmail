@@ -248,7 +248,7 @@ const Edit = (props) => {
     const editor = editorRef.current
     if (!editor) return
     const range = getSelectionRange()
-    const hr = document.createElement('hr')
+    const hr = document.createElement('div')
     hr.style.margin = '16px 0px'
     hr.style.borderTop = '1px solid rgb(230, 232, 235)'
     if (range) {
