@@ -44,6 +44,16 @@ import dayjs from 'dayjs'
 // 公共事件
 import { isSvg } from 'src/utils'
 
+// 提取邮箱前缀
+const getEmailPrefix = (str) => {
+  if (!str) return str
+  const emailReg = /^[\w.-]+@[\w.-]+\.\w+$/
+  if (emailReg.test(str)) {
+    return str.split('@')[0]
+  }
+  return str
+}
+
 export default function WriteMail({
   detail,
   onClose,
@@ -89,6 +99,57 @@ export default function WriteMail({
       title: '自定义时间发送...',
     },
   ]
+
+  // 发送邮件&草稿
+  const handleSend = async (type) => {
+    // 调用父组件传递的发送函数
+    if (onSend) {
+      let time = ''
+      if (customTime) {
+        let str = customTime?.date + ' ' + customTime?.time
+        const pureTime = str.replace(/\s.+?(\d{2}:\d{2})$/, ' $1')
+        time = dayjs(pureTime, 'YYYY-MM-DD HH:mm').format('YYYY-MM-DD HH:mm:ss')
+      }
+
+      const values = form.getFieldsValue()
+      const { detail: detailProps, ...rest } = { ...detail, ...values }
+      const mailInfo = {
+        ...rest,
+        ...form.getFieldsValue(),
+        detail: {
+          ...detailProps,
+          attachments: fileList,
+        },
+      }
+      onSend(type, mailInfo, time)
+    }
+  }
+
+  // 监控数据变化
+  const onChangeMail = (_, values) => {
+    const newToInfo = values?.to_info?.map((e) => ({ ...e, label: getEmailPrefix(e.label) }))
+    if (newToInfo !== values?.to_info) {
+      form.setFieldValue('to_info', newToInfo)
+    }
+
+    const newCcInfo = values?.cc_info?.map((e) => ({ ...e, label: getEmailPrefix(e.label) }))
+    if (newCcInfo !== values?.cc_info) {
+      form.setFieldValue('cc_info', newCcInfo)
+    }
+
+    const { detail: detailProps, ...rest } = values || {}
+    const newValues = {
+      ...rest,
+      to_info: newToInfo,
+      cc_info: newCcInfo,
+      detail: {
+        ...detailProps,
+        attachments: fileList,
+      },
+    }
+
+    onChange(newValues)
+  }
 
   // 打开联系人
   const openContact = (key) => {
@@ -184,9 +245,6 @@ export default function WriteMail({
           uid: e.part_id,
         }))
         setFileList(list)
-
-        // 默认执行一次数据监控
-        onChangeMail(null, detail)
       }
     }
     form && init()
@@ -216,67 +274,6 @@ export default function WriteMail({
     }
 
     callback()
-  }
-
-  // 发送邮件&草稿
-  const handleSend = async (type) => {
-    // 调用父组件传递的发送函数
-    if (onSend) {
-      let time = ''
-      if (customTime) {
-        let str = customTime?.date + ' ' + customTime?.time
-        const pureTime = str.replace(/\s.+?(\d{2}:\d{2})$/, ' $1')
-        time = dayjs(pureTime, 'YYYY-MM-DD HH:mm').format('YYYY-MM-DD HH:mm:ss')
-      }
-
-      const values = form.getFieldsValue()
-      const { detail: detailProps, ...rest } = { ...detail, ...values }
-      const mailInfo = {
-        ...rest,
-        ...form.getFieldsValue(),
-        detail: {
-          ...detailProps,
-          attachments: fileList,
-        },
-      }
-      onSend(type, mailInfo, time)
-    }
-  }
-
-  // 提取邮箱前缀
-  function getEmailPrefix(str) {
-    if (!str) return str
-    const emailReg = /^[\w.-]+@[\w.-]+\.\w+$/
-    if (emailReg.test(str)) {
-      return str.split('@')[0]
-    }
-    return str
-  }
-
-  // 监控数据变化
-  const onChangeMail = (_, values) => {
-    const newToInfo = values?.to_info?.map((e) => ({ ...e, label: getEmailPrefix(e.label) }))
-    if (newToInfo !== values?.to_info) {
-      form.setFieldValue('to_info', newToInfo)
-    }
-
-    const newCcInfo = values?.cc_info?.map((e) => ({ ...e, label: getEmailPrefix(e.label) }))
-    if (newCcInfo !== values?.cc_info) {
-      form.setFieldValue('cc_info', newCcInfo)
-    }
-
-    const { detail: detailProps, ...rest } = values || {}
-    const newValues = {
-      ...rest,
-      to_info: newToInfo,
-      cc_info: newCcInfo,
-      detail: {
-        ...detailProps,
-        attachments: fileList,
-      },
-    }
-
-    onChange(newValues)
   }
 
   // 清空我的联系人

@@ -493,6 +493,13 @@ const MailLayout = () => {
     }
   }
 
+  // 监控内容变化
+  const onChangeNewMail = (item) => {
+    if (currentFolder.key === 'compose') {
+      setNewMailInfo(item)
+    }
+  }
+
   // 清空联系人
   const onClearContact = async (params) => {
     const { code, msg } = await request.post('/api/user/contact/clear', params)
@@ -645,6 +652,7 @@ const MailLayout = () => {
   // 写信
   const onEdit = (record) => {
     setCurrentMail(null)
+    setNewMailInfo(null)
     const isComposeExist = folderList.some((item) => item.key === 'compose')
     if (isComposeExist) {
       return Message.warning('写邮件页已打开，请先关闭')
@@ -774,7 +782,7 @@ const MailLayout = () => {
   // 监听选中邮件
   useEffect(() => {
     const init = async () => {
-      if (!currentMail?.uid || newMailInfo) return
+      if (!currentMail?.uid) return
       await getCurrentMail(currentMail)
     }
     init()
@@ -782,7 +790,7 @@ const MailLayout = () => {
 
   // 监听切换目录 / 搜索 / 筛选变化，重新加载
   useEffect(() => {
-    const init = async () => {
+    const init = () => {
       if (!currentFolder?.folder) return
       if (currentFolder.key !== 'compose') {
         getMailList({
@@ -793,7 +801,7 @@ const MailLayout = () => {
           size: pageSize,
         })
       } else {
-        newMailInfo && setCurrentMail(newMailInfo)
+        setCurrentMail(newMailInfo)
       }
     }
     init()
@@ -876,7 +884,7 @@ const MailLayout = () => {
             onEditContact={onEditContact} // 添加编辑联系人
             onDeleteContact={onDeleteContact} // 删除联系人
             onClearContact={onClearContact} // 清空联系人
-            onChange={setNewMailInfo} // 监控内容变化
+            onChange={onChangeNewMail} // 监控内容变化
           />
         ) : (
           //   右列：邮件列表 邮件详情

@@ -77,7 +77,7 @@ const Detail = () => {
     onDelMail,
     onMoveMail,
     onReplyForward,
-    onUnSchedule
+    onUnSchedule,
   } = useMailContext()
 
   // 标记邮件
@@ -262,7 +262,7 @@ const Detail = () => {
                         <Popover
                           position='bl'
                           trigger='hover'
-                          key={e.email}
+                          key={e.email + '_' + index}
                           triggerProps={{ mouseEnterDelay: 500, showArrow: false }}
                           content={
                             <div>
@@ -308,7 +308,7 @@ const Detail = () => {
                           <Popover
                             position='bl'
                             trigger='hover'
-                            key={e.email}
+                            key={e.email + '_' + index}
                             triggerProps={{ mouseEnterDelay: 500, showArrow: false }}
                             content={
                               <div>
