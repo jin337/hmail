@@ -138,228 +138,661 @@ const Edit = (props) => {
 
   // 设置样式
   const setStyle = (styleObj) => {
-    const nodesToStyle = getSelectedBlocks(['DIV', 'LI', 'P'])
-    if (nodesToStyle.length === 0) return
+    const sel = window.getSelection()
+    if (!sel || !sel.rangeCount || sel.isCollapsed) return
+    const editor = editorRef.current
+    if (!editor) return
 
-    nodesToStyle.forEach((node) => {
-      Object.entries(styleObj).forEach(([key, value]) => {
-        const hasSameStyle = node.style[key] === value
+    const styleStr = Object.entries(styleObj)
+      .map(([k, v]) => {
+        const prop = k.replace(/([A-Z])/g, '-$1').toLowerCase()
+        return `${prop}: ${v}`
+      })
+      .join('; ')
 
-        if (hasSameStyle) {
-          node.style[key] = ''
-          if (!node.getAttribute('style')) node.removeAttribute('style')
+    if (!styleStr) return
+
+    const blockTags = new Set(['DIV', 'P', 'UL', 'OL', 'LI'])
+
+    // ---- 工具函数 ----
+
+    // 计算某个 DOM 位置在编辑器纯文本中的字符偏移量
+    const getOffset = (container, offset) => {
+      let count = 0
+      const walker = document.createTreeWalker(editor, NodeFilter.SHOW_ALL)
+      let node = walker.nextNode()
+      while (node) {
+        if (node === container) {
+          if (container.nodeType === Node.TEXT_NODE) return count + offset
+          let idx = 0
+          let child = container.firstChild
+          while (child && idx < offset) {
+            if (child.nodeType === Node.TEXT_NODE) count += child.textContent.length
+            else if (child.tagName === 'BR') count += 1
+            idx++
+            child = child.nextSibling
+          }
+          return count
+        }
+        if (node.nodeType === Node.TEXT_NODE) count += node.textContent.length
+        else if (node.tagName === 'BR') count += 1
+        node = walker.nextNode()
+      }
+      return count
+    }
+
+    // 根据字符偏移量找到对应的 DOM 位置和文本节点
+    const resolveOffset = (targetOffset) => {
+      let count = 0
+      const walker = document.createTreeWalker(editor, NodeFilter.SHOW_ALL)
+      let node = walker.nextNode()
+      while (node) {
+        if (node.nodeType === Node.TEXT_NODE) {
+          const len = node.textContent.length
+          if (count + len >= targetOffset) return { node, offset: targetOffset - count }
+          count += len
+        } else if (node.tagName === 'BR') {
+          if (count === targetOffset)
+            return { node: node.parentNode, offset: Array.from(node.parentNode.childNodes).indexOf(node) }
+          count += 1
+        }
+        node = walker.nextNode()
+      }
+      return { node: editor, offset: editor.childNodes.length }
+    }
+
+    // ---- Step 1: 规范化前，保存选区的字符偏移量 ----
+    const range = sel.getRangeAt(0)
+    const savedStart = getOffset(range.startContainer, range.startOffset)
+    const savedEnd = getOffset(range.endContainer, range.endOffset)
+
+    // ---- Step 2: 规范化 DOM —— 将顶层裸文本/内联节点包裹进 div ----
+    {
+      const children = Array.from(editor.childNodes)
+      let group = []
+      const flush = () => {
+        if (group.length === 0) return
+        const div = document.createElement('div')
+        editor.insertBefore(div, group[0])
+        group.forEach((n) => div.appendChild(n))
+        group = []
+      }
+      children.forEach((child) => {
+        const isBlock = child.nodeType === Node.ELEMENT_NODE && blockTags.has(child.tagName)
+        if (isBlock) {
+          flush()
         } else {
-          node.style[key] = value
+          group.push(child)
         }
       })
+      flush()
+    }
+
+    // ---- Step 3: 通过偏移量恢复选区 ----
+    const startPos = resolveOffset(savedStart)
+    const endPos = resolveOffset(savedEnd)
+    const newRange = document.createRange()
+    newRange.setStart(startPos.node, startPos.offset)
+    newRange.setEnd(endPos.node, endPos.offset)
+    sel.removeAllRanges()
+    sel.addRange(newRange)
+
+    const startContainer = newRange.startContainer
+    const endContainer = newRange.endContainer
+
+    // ---- Step 4: 同一文本节点内选区，精确拆分包裹 ----
+    if (startContainer === endContainer && startContainer.nodeType === Node.TEXT_NODE) {
+      const node = startContainer
+      const startOffset = newRange.startOffset
+      const endOffset = newRange.endOffset
+      if (startOffset === endOffset) return
+
+      const len = node.textContent.length
+      if (endOffset < len) node.splitText(endOffset)
+      if (startOffset > 0) node.splitText(startOffset)
+
+      const middle = startOffset > 0 ? node.nextSibling : node
+      const span = document.createElement('span')
+      span.setAttribute('style', styleStr)
+      middle.parentNode.insertBefore(span, middle)
+      span.appendChild(middle)
+
+      sel.removeAllRanges()
+      return
+    }
+
+    // ---- Step 5: 跨节点选区，收集所有文本节点后逐个包裹 ----
+    const textNodes = []
+    const treeWalker = document.createTreeWalker(newRange.commonAncestorContainer, NodeFilter.SHOW_TEXT, (node) =>
+      newRange.intersectsNode(node) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT
+    )
+    let current = treeWalker.nextNode()
+    while (current) {
+      if (current.textContent.trim().length > 0 || current === startContainer || current === endContainer) {
+        textNodes.push(current)
+      }
+      current = treeWalker.nextNode()
+    }
+    if (textNodes.length === 0) return
+
+    textNodes.forEach((node) => {
+      if (node === endContainer && endContainer.nodeType === Node.TEXT_NODE) {
+        const endOffset = newRange.endOffset
+        if (endOffset > 0 && endOffset < node.textContent.length) {
+          node.splitText(endOffset)
+        }
+      }
+
+      if (node === startContainer && startContainer.nodeType === Node.TEXT_NODE) {
+        const startOffset = newRange.startOffset
+        if (startOffset > 0 && startOffset < node.textContent.length) {
+          node.splitText(startOffset)
+          node = node.nextSibling
+        }
+      }
+
+      if (!node || node.textContent.length === 0) return
+
+      const span = document.createElement('span')
+      span.setAttribute('style', styleStr)
+      node.parentNode.insertBefore(span, node)
+      span.appendChild(node)
     })
+
+    // 恢复选区
+    const sp = resolveOffset(savedStart)
+    const ep = resolveOffset(savedEnd)
+    const r = document.createRange()
+    r.setStart(sp.node, sp.offset)
+    r.setEnd(ep.node, ep.offset)
+    sel.removeAllRanges()
+    sel.addRange(r)
   }
 
   // 设置列表
   const setList = (type) => {
-    const range = getSelectionRange()
-    if (!range) return
-
-    const startContainer = range.startContainer
-    const startOffset = range.startOffset
-    const endContainer = range.endContainer
-    const endOffset = range.endOffset
-
-    const currentListBlocks = getSelectedBlocks(['UL', 'OL'], false)
-    const isInList = currentListBlocks.length > 0 && ['UL', 'OL'].includes(currentListBlocks[0].tagName)
-
-    let blocksToConvert = []
-    let anchorNode = null
-
-    if (isInList) {
-      const listToUnwrap = currentListBlocks[0]
-      const fragment = document.createDocumentFragment()
-
-      Array.from(listToUnwrap.children).forEach((li) => {
-        const div = document.createElement('div')
-        div.style.cssText = li.style.cssText
-        while (li.firstChild) div.appendChild(li.firstChild)
-        fragment.appendChild(div)
-      })
-
-      anchorNode = fragment.firstChild
-      listToUnwrap.parentNode.replaceChild(fragment, listToUnwrap)
-    }
-
-    if (isInList && currentListBlocks[0].tagName === type) {
-      return
-    }
-
-    if (anchorNode) {
-      let current = anchorNode
-      while (current) {
-        blocksToConvert.push(current)
-        current = current.nextElementSibling
-      }
-    } else {
-      blocksToConvert = getSelectedBlocks(['DIV', 'LI', 'P'], true)
-    }
-
-    if (blocksToConvert.length === 0) return
-
-    const listElement = document.createElement(type)
-    listElement.style.paddingLeft = '28px'
-    listElement.style.listStyleType = type === 'UL' ? 'disc' : 'decimal'
-
-    blocksToConvert.forEach((block) => {
-      const li = document.createElement('li')
-      if (block.style.cssText) li.style.cssText = block.style.cssText
-      while (block.firstChild) li.appendChild(block.firstChild)
-      listElement.appendChild(li)
-    })
-
-    const firstBlock = blocksToConvert[0]
-    firstBlock.parentNode.insertBefore(listElement, firstBlock)
-
-    blocksToConvert.forEach((block) => {
-      if (!block.hasChildNodes()) block.remove()
-    })
-
     const sel = window.getSelection()
-    const newRange = document.createRange()
+    if (!sel || !sel.rangeCount || sel.isCollapsed) return
+    const editor = editorRef.current
+    if (!editor) return
 
-    try {
-      if (document.contains(startContainer) && document.contains(endContainer)) {
-        newRange.setStart(startContainer, startOffset)
-        newRange.setEnd(endContainer, endOffset)
-      } else {
-        newRange.selectNodeContents(listElement)
-        newRange.collapse(false)
+    const blockTags = new Set(['DIV', 'P', 'UL', 'OL', 'LI'])
+
+    // ---- 工具函数 ----
+
+    const getOffset = (container, offset) => {
+      let count = 0
+      const walker = document.createTreeWalker(editor, NodeFilter.SHOW_ALL)
+      let node = walker.nextNode()
+      while (node) {
+        if (node === container) {
+          if (container.nodeType === Node.TEXT_NODE) return count + offset
+          let idx = 0
+          let child = container.firstChild
+          while (child && idx < offset) {
+            if (child.nodeType === Node.TEXT_NODE) count += child.textContent.length
+            else if (child.tagName === 'BR') count += 1
+            idx++
+            child = child.nextSibling
+          }
+          return count
+        }
+        if (node.nodeType === Node.TEXT_NODE) count += node.textContent.length
+        else if (node.tagName === 'BR') count += 1
+        node = walker.nextNode()
       }
-
-      sel.removeAllRanges()
-      sel.addRange(newRange)
-    } catch (e) {
-      console.error('恢复选区失败：', e)
-      newRange.selectNodeContents(listElement)
-      newRange.collapse(false)
-      sel.removeAllRanges()
-      sel.addRange(newRange)
+      return count
     }
+
+    const resolveOffset = (targetOffset) => {
+      let count = 0
+      const walker = document.createTreeWalker(editor, NodeFilter.SHOW_ALL)
+      let node = walker.nextNode()
+      while (node) {
+        if (node.nodeType === Node.TEXT_NODE) {
+          const len = node.textContent.length
+          if (count + len >= targetOffset) return { node, offset: targetOffset - count }
+          count += len
+        } else if (node.tagName === 'BR') {
+          if (count === targetOffset)
+            return { node: node.parentNode, offset: Array.from(node.parentNode.childNodes).indexOf(node) }
+          count += 1
+        }
+        node = walker.nextNode()
+      }
+      return { node: editor, offset: editor.childNodes.length }
+    }
+
+    // ---- Step 1: 保存选区偏移量 ----
+    const range = sel.getRangeAt(0)
+    const savedStart = getOffset(range.startContainer, range.startOffset)
+    const savedEnd = getOffset(range.endContainer, range.endOffset)
+
+    // ---- Step 2: 规范化 DOM —— 顶层裸文本/内联节点包裹进 div ----
+    {
+      const children = Array.from(editor.childNodes)
+      let group = []
+      const flush = () => {
+        if (group.length === 0) return
+        const div = document.createElement('div')
+        editor.insertBefore(div, group[0])
+        group.forEach((n) => div.appendChild(n))
+        group = []
+      }
+      children.forEach((child) => {
+        const isBlock = child.nodeType === Node.ELEMENT_NODE && blockTags.has(child.tagName)
+        if (isBlock) {
+          flush()
+        } else {
+          group.push(child)
+        }
+      })
+      flush()
+    }
+
+    // ---- Step 3: 恢复选区 ----
+    const startPos = resolveOffset(savedStart)
+    const endPos = resolveOffset(savedEnd)
+    const newRange = document.createRange()
+    newRange.setStart(startPos.node, startPos.offset)
+    newRange.setEnd(endPos.node, endPos.offset)
+    sel.removeAllRanges()
+    sel.addRange(newRange)
+
+    // ---- Step 4: 收集选区命中的编辑器顶层块元素 ----
+    const selectedBlocks = []
+    Array.from(editor.childNodes).forEach((child) => {
+      if (child.nodeType === Node.ELEMENT_NODE && newRange.intersectsNode(child)) {
+        selectedBlocks.push(child)
+      }
+    })
+
+    if (selectedBlocks.length === 0) return
+
+    // ---- Step 5: 创建列表，将每个块的内容移入 <li> ----
+    const list = document.createElement(type)
+    list.style.marginLeft = '20px'
+    if (type === 'UL') {
+      list.style.listStyleType = 'disc'
+    } else if (type === 'OL') {
+      list.style.listStyleType = 'decimal'
+    }
+    editor.insertBefore(list, selectedBlocks[0])
+
+    selectedBlocks.forEach((block) => {
+      const li = document.createElement('li')
+      while (block.firstChild) {
+        li.appendChild(block.firstChild)
+      }
+      list.appendChild(li)
+      block.remove()
+    })
+
+    // ---- Step 6: 恢复选区 ----
+    const sp = resolveOffset(savedStart)
+    const ep = resolveOffset(savedEnd)
+    const r = document.createRange()
+    r.setStart(sp.node, sp.offset)
+    r.setEnd(ep.node, ep.offset)
+    sel.removeAllRanges()
+    sel.addRange(r)
   }
 
   // 分割线
   const setHr = () => {
     const editor = editorRef.current
     if (!editor) return
-    const range = getSelectionRange()
-    const hr = document.createElement('div')
-    hr.style.margin = '16px 0px'
-    hr.style.borderTop = '1px solid rgb(230, 232, 235)'
-    if (range) {
-      range.insertNode(hr)
+    const sel = window.getSelection()
+    if (!sel || !sel.rangeCount) return
+
+    const line = document.createElement('div')
+    line.style.margin = '16px 0px'
+    line.style.borderTop = '1px solid rgb(230, 232, 235)'
+
+    if (sel.isCollapsed) {
+      const range = sel.getRangeAt(0)
+      if (editor.contains(range.startContainer)) {
+        range.insertNode(line)
+      } else {
+        editor.appendChild(line)
+      }
     } else {
-      editor.appendChild(hr)
+      const range = sel.getRangeAt(0)
+      range.deleteContents()
+      range.insertNode(line)
     }
   }
 
   // 清除格式
   const clearFormat = () => {
-    const blocks = getSelectedBlocks(['DIV', 'LI', 'UL', 'OL'])
-    if (blocks.length === 0) return
-    const listsToUnwrap = new Set()
-    blocks.forEach((block) => {
-      const tagName = block.tagName
-
-      if (tagName === 'UL' || tagName === 'OL') {
-        listsToUnwrap.add(block)
-      }
-      if (tagName === 'DIV' || tagName === 'LI') {
-        block.removeAttribute('style')
-
-        if (tagName === 'LI' && block.parentElement) {
-          const parentList = block.parentElement
-          if (parentList.tagName === 'UL' || parentList.tagName === 'OL') {
-            listsToUnwrap.add(parentList)
-          }
-        }
-      }
-    })
-
-    listsToUnwrap.forEach((listToUnwrap) => {
-      const fragment = document.createDocumentFragment()
-
-      Array.from(listToUnwrap.children).forEach((li) => {
-        const div = document.createElement('div')
-        while (li.firstChild) div.appendChild(li.firstChild)
-        fragment.appendChild(div)
-      })
-
-      listToUnwrap.parentNode.replaceChild(fragment, listToUnwrap)
-    })
-  }
-  // 获取所选节点
-  const getSelectedBlocks = (targetTags = ['DIV', 'LI', 'P'], stopAtList = false) => {
-    const range = getSelectionRange()
-    if (!range) return []
-
-    let startNode = range.startContainer
-    let endNode = range.endContainer
-
-    // 处理纯文本
-    const wrapIfDirectTextChild = (node) => {
-      if (node.nodeType === Node.TEXT_NODE) {
-        const parent = node.parentElement
-        const editorContent = editorRef.current
-        if (parent && parent === editorContent) {
-          const div = document.createElement('div')
-          parent.insertBefore(div, node)
-          div.appendChild(node)
-          return div
-        }
-      }
-      return node.nodeType === Node.TEXT_NODE ? node.parentElement : node
-    }
-
-    startNode = wrapIfDirectTextChild(startNode)
-    endNode = wrapIfDirectTextChild(endNode)
-
-    if (!startNode || !endNode) return []
-
-    const findBlockParent = (node) => {
-      let current = node
-      while (current && current !== editorRef.current) {
-        if (current.nodeType === Node.ELEMENT_NODE && targetTags.includes(current.tagName)) {
-          if (stopAtList && ['UL', 'OL'].includes(current.tagName)) {
-            current = current.parentElement
-            continue
-          }
-          return current
-        }
-        current = current.parentElement
-      }
-      return null
-    }
-
-    const startBlock = findBlockParent(startNode)
-    const endBlock = findBlockParent(endNode)
-
-    if (!startBlock || !endBlock) return []
-
-    const blocks = []
-    if (startBlock === endBlock) {
-      blocks.push(startBlock)
-    } else {
-      let current = startBlock
-      while (current) {
-        blocks.push(current)
-        if (current === endBlock) break
-        current = current.nextElementSibling
-      }
-    }
-    return blocks
-  }
-
-  // 获取选区
-  const getSelectionRange = () => {
     const sel = window.getSelection()
-    if (!sel || !sel.rangeCount || sel.isCollapsed) return null
-    return sel.getRangeAt(0)
+    if (!sel || !sel.rangeCount || sel.isCollapsed) return
+    const editor = editorRef.current
+    if (!editor) return
+
+    const blockTags = new Set(['DIV', 'P', 'UL', 'OL', 'LI'])
+
+    // ---- 工具函数 ----
+
+    const getOffset = (container, offset) => {
+      let count = 0
+      const walker = document.createTreeWalker(editor, NodeFilter.SHOW_ALL)
+      let node = walker.nextNode()
+      while (node) {
+        if (node === container) {
+          if (container.nodeType === Node.TEXT_NODE) return count + offset
+          let idx = 0
+          let child = container.firstChild
+          while (child && idx < offset) {
+            if (child.nodeType === Node.TEXT_NODE) count += child.textContent.length
+            else if (child.tagName === 'BR') count += 1
+            idx++
+            child = child.nextSibling
+          }
+          return count
+        }
+        if (node.nodeType === Node.TEXT_NODE) count += node.textContent.length
+        else if (node.tagName === 'BR') count += 1
+        node = walker.nextNode()
+      }
+      return count
+    }
+
+    const resolveOffset = (targetOffset) => {
+      let count = 0
+      const walker = document.createTreeWalker(editor, NodeFilter.SHOW_ALL)
+      let node = walker.nextNode()
+      while (node) {
+        if (node.nodeType === Node.TEXT_NODE) {
+          const len = node.textContent.length
+          if (count + len >= targetOffset) return { node, offset: targetOffset - count }
+          count += len
+        } else if (node.tagName === 'BR') {
+          if (count === targetOffset)
+            return { node: node.parentNode, offset: Array.from(node.parentNode.childNodes).indexOf(node) }
+          count += 1
+        }
+        node = walker.nextNode()
+      }
+      return { node: editor, offset: editor.childNodes.length }
+    }
+
+    // ---- Step 1: 保存选区偏移量 ----
+    const range = sel.getRangeAt(0)
+    const savedStart = getOffset(range.startContainer, range.startOffset)
+    const savedEnd = getOffset(range.endContainer, range.endOffset)
+
+    // ---- Step 2: 规范化 DOM ----
+    {
+      const children = Array.from(editor.childNodes)
+      let group = []
+      const flush = () => {
+        if (group.length === 0) return
+        const div = document.createElement('div')
+        editor.insertBefore(div, group[0])
+        group.forEach((n) => div.appendChild(n))
+        group = []
+      }
+      children.forEach((child) => {
+        const isBlock = child.nodeType === Node.ELEMENT_NODE && blockTags.has(child.tagName)
+        if (isBlock) {
+          flush()
+        } else {
+          group.push(child)
+        }
+      })
+      flush()
+    }
+
+    // ---- Step 3: 恢复选区 ----
+    const startPos = resolveOffset(savedStart)
+    const endPos = resolveOffset(savedEnd)
+    const newRange = document.createRange()
+    newRange.setStart(startPos.node, startPos.offset)
+    newRange.setEnd(endPos.node, endPos.offset)
+    sel.removeAllRanges()
+    sel.addRange(newRange)
+
+    // ---- 辅助：拆分 span 元素 ----
+    // 将 span 在内部文本偏移 pos 处一分为二，返回后半部分
+    const splitSpanAt = (span, pos) => {
+      const before = span.cloneNode(false)
+      const after = span.cloneNode(false)
+      let offset = 0
+      let splitDone = false
+      Array.from(span.childNodes).forEach((child) => {
+        if (splitDone) {
+          after.appendChild(child)
+        } else if (child.nodeType === Node.TEXT_NODE) {
+          const len = child.textContent.length
+          if (offset + len <= pos) {
+            before.appendChild(child)
+            offset += len
+          } else {
+            const localPos = pos - offset
+            if (localPos > 0) {
+              child.splitText(localPos)
+              before.appendChild(child)
+            }
+            after.appendChild(child.nextSibling)
+            splitDone = true
+          }
+        } else {
+          before.appendChild(child)
+        }
+      })
+      span.parentNode.insertBefore(after, span)
+      span.parentNode.insertBefore(before, span)
+      span.remove()
+      return after
+    }
+
+    // ---- 辅助：解包 span（移除 span 保留子节点）----
+    const unwrapSpan = (span) => {
+      const parent = span.parentNode
+      while (span.firstChild) parent.insertBefore(span.firstChild, span)
+      span.remove()
+    }
+
+    // ---- 辅助：将 <li> 内容转为 <div> ----
+    const liToDiv = (li) => {
+      const div = document.createElement('div')
+      while (li.firstChild) div.appendChild(li.firstChild)
+      return div
+    }
+
+    // ---- Step 4: 收集选区命中的顶层块 ----
+    const selectedBlocks = []
+    Array.from(editor.childNodes).forEach((child) => {
+      if (child.nodeType === Node.ELEMENT_NODE && newRange.intersectsNode(child)) {
+        selectedBlocks.push(child)
+      }
+    })
+
+    if (selectedBlocks.length === 0) return
+
+    // ---- Step 5: 处理每个块 ----
+    selectedBlocks.forEach((block) => {
+      const isList = block.tagName === 'UL' || block.tagName === 'OL'
+
+      if (isList) {
+        const items = Array.from(block.querySelectorAll(':scope > li'))
+        const selectedIndices = []
+
+        items.forEach((li, index) => {
+          if (!newRange.intersectsNode(li)) return
+          selectedIndices.push(index)
+          const isFull =
+            savedStart === 0 ||
+            (li === items[0] && newRange.startContainer === li && newRange.startOffset === 0) ||
+            li.contains(newRange.startContainer)
+
+          // 5a: 拆分边界处的 span，解包选区内的 span
+          const treeWalker = document.createTreeWalker(li, NodeFilter.SHOW_TEXT)
+          let textNode = treeWalker.nextNode()
+          while (textNode) {
+            const next = treeWalker.nextNode()
+            const span = textNode.parentNode
+            if (span !== li && span.tagName === 'SPAN' && span.hasAttribute('style')) {
+              // 计算 span 第一个文本节点在编辑器中的偏移
+              let spanTextOffset = 0
+              const tw = document.createTreeWalker(editor, NodeFilter.SHOW_ALL)
+              let n = tw.nextNode()
+              while (n && n !== span.firstChild) {
+                if (n.nodeType === Node.TEXT_NODE) spanTextOffset += n.textContent.length
+                else if (n.tagName === 'BR') spanTextOffset += 1
+                n = tw.nextNode()
+              }
+              const spanStart = spanTextOffset
+              const spanEnd = spanStart + span.textContent.length
+
+              // 拆分跨越选区边界的 span
+              if (savedStart > spanStart && savedStart < spanEnd) {
+                splitSpanAt(span, savedStart - spanStart)
+              }
+              if (savedEnd > spanStart && savedEnd < spanEnd) {
+                // 找到包含 savedEnd 的 span（可能是拆分后的后半部分）
+                const parentSpan = textNode.parentNode
+                if (parentSpan.tagName === 'SPAN' && parentSpan.hasAttribute('style')) {
+                  let parentStart = 0
+                  const tw2 = document.createTreeWalker(editor, NodeFilter.SHOW_ALL)
+                  let n2 = tw2.nextNode()
+                  while (n2 && n2 !== parentSpan.firstChild) {
+                    if (n2.nodeType === Node.TEXT_NODE) parentStart += n2.textContent.length
+                    else if (n2.tagName === 'BR') parentStart += 1
+                    n2 = tw2.nextNode()
+                  }
+                  if (savedEnd > parentStart && savedEnd < parentStart + parentSpan.textContent.length) {
+                    splitSpanAt(parentSpan, savedEnd - parentStart)
+                  }
+                }
+              }
+            }
+            textNode = next
+          }
+
+          // 重新遍历，解包选区内的 styled span
+          const walker2 = document.createTreeWalker(li, NodeFilter.SHOW_TEXT)
+          let tn = walker2.nextNode()
+          while (tn) {
+            const next2 = walker2.nextNode()
+            const parent = tn.parentNode
+            if (parent !== li && parent.tagName === 'SPAN' && parent.hasAttribute('style')) {
+              unwrapSpan(parent)
+            }
+            tn = next2
+          }
+        })
+
+        // 5b: 将选中的 <li> 转为 <div>，保留未选中的在列表中
+        if (selectedIndices.length > 0) {
+          const firstIdx = selectedIndices[0]
+          const lastIdx = selectedIndices[selectedIndices.length - 1]
+          const allSelected = selectedIndices.length === items.length
+          const isStart = firstIdx === 0
+          const isEnd = lastIdx === items.length - 1
+
+          const selectedLis = selectedIndices.map((i) => items[i])
+          const divs = selectedLis.map((li) => liToDiv(li))
+
+          if (allSelected) {
+            // 全部选中：列表整体替换为 div
+            divs.forEach((div) => block.parentNode.insertBefore(div, block))
+            block.remove()
+          } else if (isStart) {
+            // 开头连续选中：div 插入列表前，从列表中移除选中项
+            divs.forEach((div) => block.parentNode.insertBefore(div, block))
+            selectedLis.forEach((li) => li.remove())
+          } else if (isEnd) {
+            // 末尾连续选中：div 插入列表后，从列表中移除选中项
+            selectedLis.forEach((li) => li.remove())
+            divs.forEach((div) => block.parentNode.insertBefore(div, block.nextSibling))
+          } else {
+            // 中间选中：拆分列表为前后两段，div 放中间
+            const beforeList = document.createElement(block.tagName)
+            for (let i = 0; i < firstIdx; i++) {
+              beforeList.appendChild(items[i].cloneNode(true))
+            }
+            const afterList = document.createElement(block.tagName)
+            for (let i = lastIdx + 1; i < items.length; i++) {
+              afterList.appendChild(items[i].cloneNode(true))
+            }
+            block.parentNode.insertBefore(beforeList, block)
+            divs.forEach((div) => block.parentNode.insertBefore(div, block))
+            block.parentNode.insertBefore(afterList, block)
+            block.remove()
+          }
+        }
+      } else {
+        // 非列表块（DIV / P 等）
+        const isFull =
+          savedStart === 0 ||
+          (newRange.startContainer === block && newRange.startOffset === 0) ||
+          (block.contains(newRange.startContainer) && block.contains(newRange.endContainer))
+
+        // 5a: 拆分边界 span + 解包选区内 span
+        const treeWalker = document.createTreeWalker(block, NodeFilter.SHOW_TEXT)
+        let textNode = treeWalker.nextNode()
+        while (textNode) {
+          const next = treeWalker.nextNode()
+          const span = textNode.parentNode
+          if (span !== block && span.tagName === 'SPAN' && span.hasAttribute('style')) {
+            let spanTextOffset = 0
+            const tw = document.createTreeWalker(editor, NodeFilter.SHOW_ALL)
+            let n = tw.nextNode()
+            while (n && n !== span.firstChild) {
+              if (n.nodeType === Node.TEXT_NODE) spanTextOffset += n.textContent.length
+              else if (n.tagName === 'BR') spanTextOffset += 1
+              n = tw.nextNode()
+            }
+            const spanStart = spanTextOffset
+            const spanEnd = spanStart + span.textContent.length
+
+            if (savedStart > spanStart && savedStart < spanEnd) {
+              splitSpanAt(span, savedStart - spanStart)
+            }
+            if (savedEnd > spanStart && savedEnd < spanEnd) {
+              const parentSpan = textNode.parentNode
+              if (parentSpan.tagName === 'SPAN' && parentSpan.hasAttribute('style')) {
+                let parentStart = 0
+                const tw2 = document.createTreeWalker(editor, NodeFilter.SHOW_ALL)
+                let n2 = tw2.nextNode()
+                while (n2 && n2 !== parentSpan.firstChild) {
+                  if (n2.nodeType === Node.TEXT_NODE) parentStart += n2.textContent.length
+                  else if (n2.tagName === 'BR') parentStart += 1
+                  n2 = tw2.nextNode()
+                }
+                if (savedEnd > parentStart && savedEnd < parentStart + parentSpan.textContent.length) {
+                  splitSpanAt(parentSpan, savedEnd - parentStart)
+                }
+              }
+            }
+          }
+          textNode = next
+        }
+
+        // 重新遍历，解包选区内的 styled span
+        const walker2 = document.createTreeWalker(block, NodeFilter.SHOW_TEXT)
+        let tn = walker2.nextNode()
+        while (tn) {
+          const next2 = walker2.nextNode()
+          const parent = tn.parentNode
+          if (parent.tagName === 'SPAN' && parent.hasAttribute('style')) {
+            unwrapSpan(parent)
+          }
+          tn = next2
+        }
+      }
+    })
+
+    // ---- Step 6: 恢复选区 ----
+    const sp = resolveOffset(savedStart)
+    const ep = resolveOffset(savedEnd)
+    const r = document.createRange()
+    r.setStart(sp.node, sp.offset)
+    r.setEnd(ep.node, ep.offset)
+    sel.removeAllRanges()
+    sel.addRange(r)
   }
 
   // 记录内容变化
