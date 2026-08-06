@@ -6,7 +6,6 @@ export default function useEditor() {
   const editorRef = useRef(null)
 
   // ---- 选区偏移量工具 ----
-
   const getOffset = (container, offset) => {
     const editor = editorRef.current
     let count = 0
@@ -43,8 +42,7 @@ export default function useEditor() {
         if (count + len >= targetOffset) return { node, offset: targetOffset - count }
         count += len
       } else if (node.tagName === 'BR') {
-        if (count === targetOffset)
-          return { node: node.parentNode, offset: Array.from(node.parentNode.childNodes).indexOf(node) }
+        if (count === targetOffset) return { node: node.parentNode, offset: Array.from(node.parentNode.childNodes).indexOf(node) }
         count += 1
       }
       node = walker.nextNode()
@@ -53,7 +51,6 @@ export default function useEditor() {
   }
 
   // ---- DOM 规范化 ----
-
   const normalizeDOM = () => {
     const editor = editorRef.current
     const children = Array.from(editor.childNodes)
@@ -77,7 +74,6 @@ export default function useEditor() {
   }
 
   // ---- 选区保存 / 恢复 ----
-
   const saveSelection = () => {
     const sel = window.getSelection()
     const range = sel.getRangeAt(0)
@@ -106,7 +102,6 @@ export default function useEditor() {
   }
 
   // ---- DOM 操作工具 ----
-
   const splitSpanAt = (span, pos) => {
     const before = span.cloneNode(false)
     const after = span.cloneNode(false)
@@ -159,7 +154,6 @@ export default function useEditor() {
   }
 
   // ---- 收集选区命中的顶层块 ----
-
   const getSelectedBlocks = (range) => {
     const editor = editorRef.current
     const blocks = []
@@ -171,8 +165,7 @@ export default function useEditor() {
     return blocks
   }
 
-  // ---- 设置样式 ----
-
+  // 设置样式
   const setStyle = (styleObj) => {
     const sel = window.getSelection()
     if (!sel || !sel.rangeCount || sel.isCollapsed) return
@@ -244,8 +237,7 @@ export default function useEditor() {
     restoreSelection(saved.start, saved.end)
   }
 
-  // ---- 设置列表 ----
-
+  // 设置列表
   const setList = (type) => {
     const sel = window.getSelection()
     if (!sel || !sel.rangeCount || sel.isCollapsed) return
@@ -273,8 +265,7 @@ export default function useEditor() {
     restoreSelection(saved.start, saved.end)
   }
 
-  // ---- 清除格式 ----
-
+  // 清除格式
   const clearFormat = () => {
     const sel = window.getSelection()
     if (!sel || !sel.rangeCount || sel.isCollapsed) return
@@ -382,8 +373,7 @@ export default function useEditor() {
     restoreSelection(saved.start, saved.end)
   }
 
-  // ---- 分割线 ----
-
+  // 分割线
   const setHr = () => {
     const editor = editorRef.current
     if (!editor) return

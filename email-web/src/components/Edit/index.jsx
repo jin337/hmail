@@ -132,11 +132,10 @@ const Edit = (props) => {
   const { value: initialValue, onChange, height = 300 } = props
   const { editorRef, setStyle, setList, clearFormat, setHr } = useEditor()
 
-  const undoStack = useRef([])
-  const redoStack = useRef([])
-  const isUndoing = useRef(false)
-  const debounceTimer = useRef(null)
-
+  const undoStack = useRef([]) // 撤销栈
+  const redoStack = useRef([]) // 重做栈
+  const isUndoing = useRef(false) // 是否正在撤销
+  const debounceTimer = useRef(null) // 防抖定时器
 
   // 记录内容变化
   const recordChange = (html) => {
@@ -200,15 +199,19 @@ const Edit = (props) => {
     editorRef.current?.focus()
 
     switch (type) {
+      // 撤销/重做
       case 'undo':
         handleUndo()
         break
       case 'redo':
         handleRedo()
         break
+
+      // 清空样式
       case 'clear':
         clearFormat()
         break
+
       case 'bold':
         setStyle({ fontWeight: 'bold' })
         break
@@ -221,12 +224,16 @@ const Edit = (props) => {
       case 'strike':
         setStyle({ textDecoration: 'line-through' })
         break
+
+      // 字体颜色 / 背景色
       case 'color':
         setStyle({ color: color })
         break
       case 'bgcolor':
         setStyle({ backgroundColor: color })
         break
+
+      // 字体
       case 'font-default':
         setStyle({ fontFamily: '' })
         break
@@ -263,15 +270,46 @@ const Edit = (props) => {
       case 'font-times-new-roman':
         setStyle({ fontFamily: '"Times New Roman"' })
         break
+
+      // 字号
       case 'text-12':
         setStyle({ fontSize: '12px' })
+        break
+      case 'text-13':
+        setStyle({ fontSize: '13px' })
         break
       case 'text-14':
         setStyle({ fontSize: '14px' })
         break
+      case 'text-15':
+        setStyle({ fontSize: '15px' })
+        break
       case 'text-16':
         setStyle({ fontSize: '16px' })
         break
+      case 'text-19':
+        setStyle({ fontSize: '19px' })
+        break
+      case 'text-22':
+        setStyle({ fontSize: '22px' })
+        break
+      case 'text-24':
+        setStyle({ fontSize: '24px' })
+        break
+      case 'text-29':
+        setStyle({ fontSize: '29px' })
+        break
+      case 'text-32':
+        setStyle({ fontSize: '32px' })
+        break
+      case 'text-40':
+        setStyle({ fontSize: '40px' })
+        break
+      case 'text-48':
+        setStyle({ fontSize: '48px' })
+        break
+
+      // 行高
       case 'leading-1.0':
         setStyle({ lineHeight: '1.0' })
         break
@@ -290,6 +328,8 @@ const Edit = (props) => {
       case 'leading-3.0':
         setStyle({ lineHeight: '3.0' })
         break
+
+      // 对齐
       case 'left':
         setStyle({ textAlign: 'left' })
         break
@@ -302,18 +342,24 @@ const Edit = (props) => {
       case 'justify':
         setStyle({ textAlign: 'justify' })
         break
+
+      // 缩进
       case 'indent-plus':
         setStyle({ marginLeft: '28px' })
         break
       case 'indent-minus':
         setStyle({ marginLeft: '0' })
         break
+
+      // 列表
       case 'object-list':
         setList('UL')
         break
       case 'number-list':
         setList('OL')
         break
+
+      // 分割线
       case 'hr':
         setHr()
         break

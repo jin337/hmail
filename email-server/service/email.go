@@ -193,6 +193,7 @@ func MailList(email, pwd, folder string, page, size int64, keyword string, filte
 			Schedule = time.Time{}
 		}
 
+
 		// 标签处理
 		var flagMap = make(map[string]struct{})
 		for _, flag := range msg.Flags {

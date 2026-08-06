@@ -5,7 +5,7 @@ import Down from './icons/down.svg'
 import ColorPicker from './ColorPicker'
 
 const ToolBar = (props) => {
-  const { items, onCommand, undo, redo } = props
+  const { items, onCommand } = props
   const wrapRef = useRef()
   const [openType, setOpenType] = useState(null)
 
@@ -60,12 +60,12 @@ const ToolBar = (props) => {
                   {item.children[0].type === 'color-picker' ? (
                     <ColorPicker
                       defaultColor={item.children[0].color}
-                      onChange={(e) => onCommand({ type: item.type, title: item.title, color: e })}
+                      onChange={(e) => onItemClick({ type: item.type, title: item.title, color: e })}
                     />
                   ) : (
                     // 下拉菜单项
                     item.children.map((child) => (
-                      <div key={child.type} className='toolbar-dropdown-item' onClick={() => onCommand(child)}>
+                      <div key={child.type} className='toolbar-dropdown-item' onClick={() => onItemClick(child)}>
                         {child.title}
                       </div>
                     ))

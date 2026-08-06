@@ -813,6 +813,7 @@ const MailLayout = () => {
       setCurrentFolder(menuList[0])
 
       await getUserList()
+      await getContactList({ prefix: 'user_sent' })
       await getContactList({ prefix: 'user_contact' })
     }
     init()

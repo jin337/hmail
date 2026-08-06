@@ -130,19 +130,31 @@ func Formatize(size string) int64 {
 
 // FormatDate 解析时间，格式化为 2006-01-02 15:04:05
 func FormatDate(dateStr string) (time.Time, error) {
+	dateStr = strings.TrimSpace(dateStr)
 	if dateStr == "" {
-		return time.Time{}, fmt.Errorf("时间为空")
+		return time.Time{}, fmt.Errorf("时间字符串为空")
 	}
 
-	if t, err := time.Parse(time.RFC1123Z, dateStr); err == nil {
-		return t.Local(), nil
+	// 定义邮件场景高频时间格式，按匹配优先级排序
+	layouts := []string{
+		time.RFC1123Z,               // RFC1123 带时区: Mon, 02 Jan 2006 15:04:05 -0700
+		time.RFC1123,                // RFC1123 UTC: Mon, 02 Jan 2006 15:04:05 UTC
+		time.RFC3339,                // RFC3339 标准: 2006-01-02T15:04:05+08:00
+		"2006-01-02 15:04:05",       // 本地无时区标准格式（定时头部X-Schedule-Send使用）
+		"Mon, 02 Jan 2006 15:04:05", // 缺失UTC后缀的畸形RFC1123
 	}
 
-	if t, err := time.Parse(time.RFC1123, dateStr); err == nil {
-		return t.Local(), nil
+	var parseErr error
+	for _, layout := range layouts {
+		t, err := time.Parse(layout, dateStr)
+		if err == nil {
+			// 统一转换为本地时区返回
+			return t.Local(), nil
+		}
+		parseErr = err
 	}
 
-	return time.Time{}, fmt.Errorf("不支持的日期格式: %s", dateStr)
+	return time.Time{}, fmt.Errorf("不支持的日期格式[%s], 最后解析错误: %w", dateStr, parseErr)
 }
 
 // HasAvatar 判断用户是否上传了头像
