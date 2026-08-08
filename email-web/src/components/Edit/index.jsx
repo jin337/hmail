@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import './index.scss'
 import ToolBar from './ToolBar'
@@ -15,8 +15,6 @@ import indent_minus from './icons/indent_minus.svg'
 import indent_plus from './icons/indent_plus.svg'
 import italic from './icons/italic.svg'
 import line_height from './icons/line_height.svg'
-import order_number from './icons/order_number.svg'
-import order_object from './icons/order_object.svg'
 import redo from './icons/redo.svg'
 import strike from './icons/strike.svg'
 import underline from './icons/underline.svg'
@@ -29,7 +27,7 @@ const toolBar = [
   { title: null, type: 'divider', icon: null },
   {
     title: '默认字体',
-    type: 'font',
+    type: 'fontFamily',
     icon: null,
     children: [
       { title: '默认字体', type: 'font-default', icon: null },
@@ -49,26 +47,26 @@ const toolBar = [
   },
   {
     title: '字号',
-    type: 'size',
+    type: 'fontSize',
     icon: null,
     children: [
-      { title: '12', type: 'text-12', icon: null },
-      { title: '13', type: 'text-13', icon: null },
-      { title: '14', type: 'text-14', icon: null },
-      { title: '15', type: 'text-15', icon: null },
-      { title: '16', type: 'text-16', icon: null },
-      { title: '19', type: 'text-19', icon: null },
-      { title: '22', type: 'text-22', icon: null },
-      { title: '24', type: 'text-24', icon: null },
-      { title: '29', type: 'text-29', icon: null },
-      { title: '32', type: 'text-32', icon: null },
-      { title: '40', type: 'text-40', icon: null },
-      { title: '48', type: 'text-48', icon: null },
+      { title: '12', type: '12px', icon: null },
+      { title: '13', type: '13px', icon: null },
+      { title: '14', type: '14px', icon: null },
+      { title: '15', type: '15px', icon: null },
+      { title: '16', type: '16px', icon: null },
+      { title: '19', type: '19px', icon: null },
+      { title: '22', type: '22px', icon: null },
+      { title: '24', type: '24px', icon: null },
+      { title: '29', type: '29px', icon: null },
+      { title: '32', type: '32px', icon: null },
+      { title: '40', type: '40px', icon: null },
+      { title: '48', type: '48px', icon: null },
     ],
   },
   {
     title: '行间距',
-    type: 'line-height',
+    type: 'lineHeight',
     icon: line_height,
     children: [
       { title: '1.0', type: 'leading-1.0', icon: null },
@@ -80,8 +78,8 @@ const toolBar = [
     ],
   },
   { title: null, type: 'divider', icon: null },
-  { title: '加粗', type: 'bold', icon: bold },
-  { title: '斜体', type: 'italic', icon: italic },
+  { title: '加粗', type: 'fontWeight', icon: bold },
+  { title: '斜体', type: 'fontStyle', icon: italic },
   { title: '下划线', type: 'underline', icon: underline },
   { title: '删除线', type: 'strike', icon: strike },
   {
@@ -98,7 +96,7 @@ const toolBar = [
   },
   {
     title: '背景颜色',
-    type: 'bgcolor',
+    type: 'backgroundColor',
     icon: bgcolor,
     children: [
       {
@@ -109,13 +107,13 @@ const toolBar = [
     ],
   },
   { title: null, type: 'divider', icon: null },
-  { title: '项目编号', type: 'object-list', icon: order_object },
-  { title: '数字编号', type: 'number-list', icon: order_number },
+  // { title: '项目编号', type: 'object-list', icon: order_object },
+  // { title: '数字编号', type: 'number-list', icon: order_number },
   { title: '添加缩进', type: 'indent-plus', icon: indent_plus },
   { title: '减少缩进', type: 'indent-minus', icon: indent_minus },
   {
     title: '对齐',
-    type: 'align',
+    type: 'textAlign',
     icon: align,
     children: [
       { title: '左对齐', type: 'left', icon: null },
@@ -130,7 +128,8 @@ const toolBar = [
 
 const Edit = (props) => {
   const { value: initialValue, onChange, height = 300 } = props
-  const { editorRef, setStyle, setList, clearFormat, setHr } = useEditor()
+  const { editorRef, setStyle, clearFormat, setHr } = useEditor()
+  const [toolBarItems, setToolBarItems] = useState(toolBar)
 
   const undoStack = useRef([]) // 撤销栈
   const redoStack = useRef([]) // 重做栈
@@ -192,7 +191,6 @@ const Edit = (props) => {
       recordChange(html)
     }, 500)
   }
-
   // 命令处理
   const onCommand = (option) => {
     const { type, color } = option
@@ -212,10 +210,10 @@ const Edit = (props) => {
         clearFormat()
         break
 
-      case 'bold':
+      case 'fontWeight':
         setStyle({ fontWeight: 'bold' })
         break
-      case 'italic':
+      case 'fontStyle':
         setStyle({ fontStyle: 'italic' })
         break
       case 'underline':
@@ -229,7 +227,7 @@ const Edit = (props) => {
       case 'color':
         setStyle({ color: color })
         break
-      case 'bgcolor':
+      case 'backgroundColor':
         setStyle({ backgroundColor: color })
         break
 
@@ -272,40 +270,40 @@ const Edit = (props) => {
         break
 
       // 字号
-      case 'text-12':
+      case '12px':
         setStyle({ fontSize: '12px' })
         break
-      case 'text-13':
+      case '13px':
         setStyle({ fontSize: '13px' })
         break
-      case 'text-14':
+      case '14px':
         setStyle({ fontSize: '14px' })
         break
-      case 'text-15':
+      case '15px':
         setStyle({ fontSize: '15px' })
         break
-      case 'text-16':
+      case '16px':
         setStyle({ fontSize: '16px' })
         break
-      case 'text-19':
+      case '19px':
         setStyle({ fontSize: '19px' })
         break
-      case 'text-22':
+      case '22px':
         setStyle({ fontSize: '22px' })
         break
-      case 'text-24':
+      case '24px':
         setStyle({ fontSize: '24px' })
         break
-      case 'text-29':
+      case '29px':
         setStyle({ fontSize: '29px' })
         break
-      case 'text-32':
+      case '32px':
         setStyle({ fontSize: '32px' })
         break
-      case 'text-40':
+      case '40px':
         setStyle({ fontSize: '40px' })
         break
-      case 'text-48':
+      case '48px':
         setStyle({ fontSize: '48px' })
         break
 
@@ -391,9 +389,97 @@ const Edit = (props) => {
     }
   }, [initialValue])
 
+  // 监听当前鼠标位置
+  useEffect(() => {
+    // setToolBarItems,selected
+    const handleSelectionChange = () => {
+      const dom = editorRef.current
+      const sel = window.getSelection()
+      if (!dom || !sel) return
+      if (!dom.contains(sel.anchorNode)) return
+
+      const range = sel.getRangeAt(0)
+      let currentNode = range.startContainer
+      if (currentNode.nodeType === 3) currentNode = currentNode.parentElement
+
+      // 清除原有选中标记
+      setToolBarItems((prevList) => {
+        return prevList.map((item) => {
+          const newItem = { ...item }
+          delete newItem.selected
+          return newItem
+        })
+      })
+
+      if (currentNode.tagName === 'SPAN') {
+        const styleText = currentNode.style.cssText
+        const styleObj = {}
+
+        styleText
+          .split(';')
+          .map((item) => item.trim())
+          .filter(Boolean)
+          .forEach((item) => {
+            const [cssKey, value] = item.split(':').map((s) => s.trim())
+            if (!cssKey) return
+            const camelKey = cssKey.replace(/-(\w)/g, (_, char) => char.toUpperCase())
+            styleObj[camelKey] = value
+          })
+
+        setToolBarItems((prevList) => {
+          return prevList.map((iten) => {
+            const newItem = { ...iten }
+
+            // fontFamily
+            if (newItem.type === 'fontFamily' && styleObj.fontFamily) {
+              const content = styleObj.fontFamily
+              const fontMap = {
+                SimHei: '黑体',
+                SimSun: '仿宋',
+                'KaiTi, STKaiti': '楷体',
+                'BiauKai, STBiauKai': '标楷体',
+                'STFangsong, FangSong': '华文仿宋',
+                'STKaiti, KaiTi': '华文楷体',
+                'Microsoft YaHei': '微软雅黑',
+                Arial: 'Arial',
+                Tahoma: 'Tahoma',
+                Verdana: 'Verdana',
+                'Times New Roman': 'Times New Roman',
+              }
+              newItem.selected = fontMap[content]
+            }
+
+            // fontSize
+            if (newItem.type === 'fontSize' && styleObj.fontSize) {
+              const content = styleObj.fontSize
+              newItem.selected = content.split('px')[0]
+            }
+
+            // lineHeight
+            if (newItem.type === 'lineHeight' && styleObj.lineHeight) {
+              const content = styleObj.lineHeight
+              newItem.selected = String(content).includes('.') ? content : `${content}.0`
+            }
+
+            // textAlign
+            if (newItem.type === 'textAlign' && styleObj.textAlign) {
+              const content = styleObj.textAlign
+              newItem.selected = content
+              console.log(newItem,content)
+            }
+            return newItem
+          })
+        })
+      }
+    }
+
+    document.addEventListener('selectionchange', handleSelectionChange)
+    return () => document.removeEventListener('selectionchange', handleSelectionChange)
+  }, [])
+
   return (
     <div className='y-mail-wrap'>
-      <ToolBar items={toolBar} onCommand={onCommand} />
+      <ToolBar items={toolBarItems} onCommand={onCommand} />
 
       <div
         style={{ height: `${height}px` }}

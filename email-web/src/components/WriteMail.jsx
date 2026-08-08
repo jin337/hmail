@@ -36,7 +36,7 @@ import {
 } from '@arco-design/web-react/icon'
 
 // 引入 富文本编辑器
-import Edit from 'src/components/Edit'
+import Edit from 'src/components/Edit1'
 
 // 时间处理
 import dayjs from 'dayjs'

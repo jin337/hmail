@@ -45,7 +45,7 @@ const ToolBar = (props) => {
           return (
             <div key={key} className='toolbar-dropdown-wrap'>
               <div
-                className={`toolbar-dropdown-trigger ${isOpen ? 'active' : ''}`}
+                className={`toolbar-dropdown-trigger ${item.selected ? 'active' : ''}`}
                 title={item.title || ''}
                 onClick={() => onItemClick(item)}>
                 {item.icon ? <item.icon className='toolbar-icon' /> : <span>{item.title}</span>}
@@ -59,14 +59,19 @@ const ToolBar = (props) => {
                   {/* 颜色选择器 */}
                   {item.children[0].type === 'color-picker' ? (
                     <ColorPicker
+                      selected={item.selected}
                       defaultColor={item.children[0].color}
                       onChange={(e) => onItemClick({ type: item.type, title: item.title, color: e })}
                     />
                   ) : (
                     // 下拉菜单项
                     item.children.map((child) => (
-                      <div key={child.type} className='toolbar-dropdown-item' onClick={() => onItemClick(child)}>
+                      <div
+                        key={child.type}
+                        className={`toolbar-dropdown-item ${item.selected === child.title ? 'selected' : ''}`}
+                        onClick={() => onItemClick(child)}>
                         {child.title}
+                        {item.selected === child.title && <span>✅</span>}
                       </div>
                     ))
                   )}

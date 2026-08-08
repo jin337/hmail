@@ -38,6 +38,7 @@ export default function useEditor() {
     }
     return 'none'
   }
+
   // 向上查找最近的块级父元素
   const getBlockParent = (node) => {
     while (node && node.nodeType === Node.TEXT_NODE) node = node.parentNode
@@ -46,72 +47,9 @@ export default function useEditor() {
     }
     return node
   }
-  // 拆分选中内容
-  const wrapTextInHtml = (htmlString, targetText, styleObj) => {
-    const temp = document.createElement('div')
-    temp.innerHTML = htmlString
 
-    const textNodes = []
-    const walk = (node) => {
-      if (node.nodeType === Node.TEXT_NODE && node.textContent.trim()) {
-        textNodes.push(node)
-      } else if (node.nodeType === Node.ELEMENT_NODE) {
-        node.childNodes.forEach(walk)
-      }
-    }
-    walk(temp)
-
-    let fullText = ''
-    const nodeOffsets = []
-    textNodes.forEach((node) => {
-      nodeOffsets.push({
-        node,
-        startOffset: fullText.length,
-        endOffset: fullText.length + node.textContent.length,
-      })
-      fullText += node.textContent
-    })
-
-    const startIndex = fullText.indexOf(targetText)
-    if (startIndex === -1) return htmlString // 未找到目标文本，直接返回原 HTML
-    const endIndex = startIndex + targetText.length
-
-    let startNode = null,
-      endNode = null
-    let startInNode = 0,
-      endInNode = 0
-
-    for (const { node, startOffset, endOffset } of nodeOffsets) {
-      if (!startNode && startIndex >= startOffset && startIndex < endOffset) {
-        startNode = node
-        startInNode = startIndex - startOffset
-      }
-      if (!endNode && endIndex > startOffset && endIndex <= endOffset) {
-        endNode = node
-        endInNode = endIndex - startOffset
-      }
-    }
-
-    if (!startNode || !endNode) return htmlString
-
-    const wrapper = document.createElement('span')
-    Object.entries(styleObj).forEach(([key, value]) => {
-      wrapper.style[key] = value
-    })
-
-    const range = document.createRange()
-    range.setStart(startNode, startInNode)
-    range.setEnd(endNode, endInNode)
-
-    const fragment = range.extractContents()
-    wrapper.appendChild(fragment)
-
-    startNode.parentNode.insertBefore(wrapper, startNode.nextSibling)
-
-    return temp.innerHTML
-  }
   // 包裹Range
-  const safeSurround = (targetRange, styleObj, editor) => {
+  const safeSurround = (targetRange, styleObj) => {
     let ancestor = targetRange.commonAncestorContainer
 
     // 找到最近的 SPAN
@@ -128,19 +66,13 @@ export default function useEditor() {
       current = current.parentElement
       depth++
     }
+
     if (parentSpan && parentSpan.textContent === targetRange.toString()) {
       // 将新样式合并到现有样式中，自动覆盖同名属性
       const currentStyles = parentSpan.style
       Object.entries(styleObj).forEach(([key, value]) => {
         currentStyles[key] = value
       })
-      return
-    }
-
-    // 拆分节点
-    if (editor) {
-      const result = wrapTextInHtml(ancestor.innerHTML, editor.toString(), styleObj)
-      ancestor.innerHTML = result
       return
     }
 
@@ -159,10 +91,10 @@ export default function useEditor() {
 
   // 设置样式
   const setStyle = (styleObj) => {
-    // 纯文本用div包裹
-    normalizeDOM()
     const editor = editorRef.current
     if (!editor) return
+    // 纯文本用div包裹
+    normalizeDOM()
 
     const sel = window.getSelection()
     if (!sel || !sel.rangeCount) return null
@@ -211,40 +143,26 @@ export default function useEditor() {
         }
 
         if (!innerRange.collapsed) {
-          safeSurround(innerRange, styleObj, sel)
+          safeSurround(innerRange, styleObj)
         }
       })
     }
   }
 
-  // 清除格式
-  const clearFormat = () => {
+  // 设置列表
+  const setList = (type) => {
+    const sel = window.getSelection()
+    if (!sel || !sel.rangeCount || sel.isCollapsed) return
     const editor = editorRef.current
     if (!editor) return
+  }
 
+  // 清除格式
+  const clearFormat = () => {
     const sel = window.getSelection()
-    if (!sel || !sel.rangeCount) return null
-    const range = sel.getRangeAt(0)
-    if (!range) return
-
-    const startBlock = getBlockParent(range.startContainer)
-    const endBlock = getBlockParent(range.endContainer)
-
-    // 收集从 startBlock 到 endBlock 之间的所有块级节点
-    const blockNodes = []
-    if (startBlock && endBlock && startBlock.parentNode === endBlock.parentNode) {
-      let current = startBlock
-      while (current) {
-        blockNodes.push(current)
-        if (current === endBlock) break
-        current = current.nextSibling
-      }
-    }
-
-    blockNodes.forEach((block) => {
-      block.innerHTML = block.textContent
-    })
-
+    if (!sel || !sel.rangeCount || sel.isCollapsed) return
+    const editor = editorRef.current
+    if (!editor) return
   }
 
   // 分割线
@@ -272,5 +190,5 @@ export default function useEditor() {
     }
   }
 
-  return { editorRef, setStyle, clearFormat, setHr }
+  return { editorRef, setStyle, setList, clearFormat, setHr }
 }

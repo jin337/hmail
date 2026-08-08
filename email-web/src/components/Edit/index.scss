@@ -110,6 +110,9 @@
         .toolbar-dropdown-item {
           padding: 6px 12px;
           border-radius: 4px;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
           cursor: pointer;
           font-size: 14px;
           white-space: nowrap;
@@ -118,6 +121,9 @@
           &:hover {
             background-color: rgba(20, 46, 77, 0.08);
           }
+        }
+        .selected {
+          background-color: rgba(20, 46, 77, 0.08);
         }
       }
     }
@@ -150,11 +156,14 @@
       width: 16px;
       height: 16px;
       border-radius: 2px;
-      border: 1px solid rgba(20, 46, 77, 0.05);
+      border: 2px solid transparent;
 
       &:hover {
-        border-color: rgba(20, 46, 77, 0.05);
+        border-color: rgba(20, 46, 77, 0.6);
       }
+    }
+    .active {
+      border-color: rgba(20, 46, 77, 0.6);
     }
   }
 }

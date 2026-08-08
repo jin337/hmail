@@ -43,7 +43,7 @@ const colorList = [
   'rgb(83, 14, 111)',
 ]
 const ColorPicker = (props) => {
-  const { defaultColor, onChange } = props
+  const { defaultColor, onChange, selected } = props
 
   return (
     <div className='color-picker'>
@@ -52,7 +52,11 @@ const ColorPicker = (props) => {
       </div>
       <div className='color-list'>
         {colorList.map((color) => (
-          <div className='color-item' style={{ backgroundColor: color }} key={color} onClick={() => onChange(color)}></div>
+          <div
+            className={`color-item ${selected === color ? 'active' : ''}`}
+            style={{ backgroundColor: color }}
+            key={color}
+            onClick={() => onChange(color)}></div>
         ))}
       </div>
     </div>
