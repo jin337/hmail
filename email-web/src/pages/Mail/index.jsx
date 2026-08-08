@@ -651,7 +651,6 @@ const MailLayout = () => {
 
   // 写信
   const onEdit = (record) => {
-    setCurrentMail(null)
     setNewMailInfo(null)
     const isComposeExist = folderList.some((item) => item.key === 'compose')
     if (isComposeExist) {
@@ -662,9 +661,9 @@ const MailLayout = () => {
     // 编辑-草稿
     if (record?.uid) {
       compose.title = record.subject
-      setCurrentMail(record)
     }
 
+    setCurrentMail(record)
     setCurrentFolder(compose)
     setFolderList((prev) => [compose, ...prev])
   }
@@ -801,7 +800,7 @@ const MailLayout = () => {
           size: pageSize,
         })
       } else {
-        setCurrentMail(newMailInfo)
+        // setCurrentMail(newMailInfo)
       }
     }
     init()

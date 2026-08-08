@@ -36,7 +36,7 @@ import {
 } from '@arco-design/web-react/icon'
 
 // 引入 富文本编辑器
-import CustomEdit from 'src/components/CustomEdit'
+import RichTextEditor from 'src/components/RichTextEditor'
 
 // 时间处理
 import dayjs from 'dayjs'
@@ -545,7 +545,7 @@ export default function WriteMail({
               />
             </Form.Item>
             <Form.Item field='detail.content'>
-              <CustomEdit />
+              <RichTextEditor />
             </Form.Item>
             <Form.Item field='files'>
               <Upload

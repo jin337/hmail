@@ -93,61 +93,6 @@ const MARK_TO_CSS_MAP = {
   listStyleType: (val) => `list-style-type: ${val}`,
   textIndent: (val) => `text-indent: ${val}em`,
 }
-const ELEMENT_TAGS = {
-  DIV: () => ({ type: 'paragraph' }),
-  P: () => ({ type: 'paragraph' }),
-  IMG: (el) => ({ type: 'image', url: el.getAttribute('src'), children: [{ text: '' }] }),
-  HR: () => ({ type: 'hr', children: [{ text: '' }] }),
-}
-
-const TEXT_TAGS = {
-  SPAN: (el) => parseStyleAttribute(el),
-  B: () => ({ bold: true }),
-  STRONG: () => ({ bold: true }),
-  I: () => ({ italic: true }),
-  EM: () => ({ italic: true }),
-  U: () => ({ underline: true }),
-  S: () => ({ strike: true }),
-  STRIKE: () => ({ strike: true }),
-}
-
-// 解析内联样式字符串
-const parseStyleAttribute = (el) => {
-  const styles = {}
-  const styleAttr = el.getAttribute('style')
-  if (styleAttr) {
-    styleAttr.split(';').forEach((style) => {
-      const [property, value] = style.split(':').map((s) => s && s.trim())
-      if (property && value) {
-        switch (property) {
-          case 'font-weight':
-            if (value === 'bold' || parseInt(value) >= 600) styles.bold = true
-            break
-          case 'font-style':
-            if (value === 'italic') styles.italic = true
-            break
-          case 'text-decoration':
-            if (value.includes('underline')) styles.underline = true
-            if (value.includes('line-through')) styles.strike = true
-            break
-          case 'color':
-            styles.color = value
-            break
-          case 'background-color':
-            styles.backgroundColor = value
-            break
-          case 'font-family':
-            styles.fontFamily = value
-            break
-          case 'font-size':
-            styles.fontSize = value
-            break
-        }
-      }
-    })
-  }
-  return styles
-}
 
 // 工具函数
 const getBlockProperties = (editor) => {
@@ -582,7 +527,7 @@ const RichTextEditor = (props) => {
     }
   }
 
-  // Slate JSON -> HTML 转换
+  // Slate JSON -> HTML
   const slateToCleanHtml = (nodes) => {
     if (!nodes || !Array.isArray(nodes)) return ''
 
@@ -655,50 +600,145 @@ const RichTextEditor = (props) => {
       return DEFAULT_VALUE
     }
 
+    const ELEMENT_TAGS = {
+      DIV: () => ({ type: 'paragraph' }),
+      ARTICLE: () => ({ type: 'paragraph' }),
+      P: () => ({ type: 'paragraph' }),
+    }
+
+    const TEXT_TAGS = {
+      SPAN: (el) => parseStyleAttribute(el),
+      B: () => ({ bold: true }),
+      STRONG: () => ({ bold: true }),
+      I: () => ({ italic: true }),
+      EM: () => ({ italic: true }),
+      U: () => ({ underline: true }),
+      S: () => ({ strike: true }),
+    }
+
+    const parseStyleAttribute = (el) => {
+      const styles = {}
+      const styleAttr = el.getAttribute('style')
+      if (styleAttr) {
+        styleAttr.split(';').forEach((style) => {
+          const [property, value] = style.split(':').map((s) => s && s.trim())
+          if (property && value) {
+            if (property === 'color') styles.color = value
+            if (property === 'background-color') styles.backgroundColor = value
+            if (property === 'font-size') styles.fontSize = value
+            if (property === 'font-weight' && (value === 'bold' || parseInt(value) >= 600)) styles.bold = true
+            if (property === 'font-style' && value === 'italic') styles.italic = true
+          }
+        })
+      }
+      return styles
+    }
+
+    // 递归应用样式到纯文本节点
+    const applyMarks = (nodes, marks) => {
+      return nodes.map((node) => {
+        if (node.text !== undefined) return { ...node, ...marks }
+        if (node.children) return { ...node, children: applyMarks(node.children, marks) }
+        return node
+      })
+    }
+
     const deserializeNode = (el) => {
       if (el.nodeType === 3) {
-        return { text: el.textContent || '' }
+        const content = el.wholeText.replace(/\n/g, '').replace(/\s+/g, ' ')
+        if (!content || content.trim() === '') return null
+        return { text: content }
       }
 
-      if (el.nodeType !== 1) {
-        return null
-      }
-
+      if (el.nodeType !== 1) return null
       const { nodeName } = el
-      let parent = el
 
-      if (nodeName === 'PRE') {
-        const text = el.textContent || ''
-        parent = document.createElement('p')
-        text.split('\n').forEach((line, i) => {
-          if (i > 0) parent.appendChild(document.createElement('br'))
-          parent.appendChild(document.createTextNode(line))
-        })
+      if (nodeName === 'IMG') {
+        return {
+          type: 'image',
+          url: el.getAttribute('src'),
+          children: [{ text: '' }],
+        }
       }
 
       if (ELEMENT_TAGS[nodeName]) {
         const props = ELEMENT_TAGS[nodeName](el)
-        const children = Array.from(parent.childNodes).map(deserializeNode).filter(Boolean)
-        return { ...props, children: children.length ? children : [{ text: '' }] }
+
+        if (nodeName === 'DIV' && el.innerHTML.trim().toLowerCase() === '<br>') {
+          return { type: 'paragraph', children: [{ text: '' }] }
+        }
+
+        const children = deserializeChildren(el)
+
+        if (children.length > 0 && children.every((child) => child.type)) {
+          return children
+        }
+
+        return {
+          ...props,
+          children: children.length ? children : [{ text: '' }],
+        }
       }
 
       if (TEXT_TAGS[nodeName]) {
         const props = TEXT_TAGS[nodeName](el)
-        const children = Array.from(parent.childNodes).map(deserializeNode).flat()
-        return children.map((child) => ({ ...child, ...props }))
+        const children = deserializeChildren(el)
+        if (children.length === 0) return null
+        return applyMarks(children, props)
       }
 
-      return Array.from(parent.childNodes).map(deserializeNode).flat()
+      return deserializeChildren(el)
     }
+
+    const deserializeChildren = (el) => {
+      return Array.from(el.childNodes).map(deserializeNode).filter(Boolean).flat(Infinity)
+    }
+
+    // 💡全局深度拍平函数
+    const flattenSlateTree = (nodes) => {
+      const result = []
+
+      for (const node of nodes) {
+        if (node.type === 'paragraph' && node.children?.length === 1 && node.children[0].type === 'paragraph') {
+          result.push(...flattenSlateTree(node.children))
+        } else if (node.type === 'paragraph' && node.children?.some((c) => c.type === 'paragraph' || c.type === 'image')) {
+          let currentTextBuffer = []
+
+          for (const child of node.children) {
+            if (child.text !== undefined) {
+              currentTextBuffer.push(child)
+            } else {
+              if (currentTextBuffer.length > 0) {
+                result.push({ type: 'paragraph', children: currentTextBuffer })
+                currentTextBuffer = []
+              }
+
+              if (child.type === 'paragraph') {
+                result.push(...flattenSlateTree([child]))
+              } else if (child.type === 'image') {
+                result.push(child)
+              }
+            }
+          }
+
+          if (currentTextBuffer.length > 0) {
+            result.push({ type: 'paragraph', children: currentTextBuffer })
+          }
+        } else {
+          result.push(node)
+        }
+      }
+      return result
+    }
+
     try {
       const parsed = new DOMParser().parseFromString(html, 'text/html')
-      const result = Array.from(parsed.body.childNodes).map(deserializeNode).filter(Boolean)
-
-      // 如果解析出来是空数组，也返回默认值
-      return result.length > 0 ? result : DEFAULT_VALUE
+      let result = deserializeChildren(parsed.body)
+      result = flattenSlateTree(result)
+      return result.length > 0 ? [...result] : [...DEFAULT_VALUE]
     } catch (error) {
-      console.error('HTML parse error:', error)
-      return DEFAULT_VALUE
+      console.error(error)
+      return [...DEFAULT_VALUE]
     }
   }
 
@@ -707,37 +747,20 @@ const RichTextEditor = (props) => {
     setCurrentSelection(editor.selection)
 
     const cleanHtml = slateToCleanHtml(value)?.join('')
-    console.log('cleanHtml', cleanHtml)
-    onChange(cleanHtml)
+    if (onChange) {
+      onChange(cleanHtml)
+    }
   }
 
-  // 初始化
-  useEffect(() => {
-    const init = () => {
-      console.log('初始化', props)
-      if (htmlValue && htmlValue.trim() !== '') {
-        try {
-          const slateValue = htmlToSlate(htmlValue)
-
-          if (Array.isArray(slateValue) && slateValue.length > 0) {
-            setEditorValue(slateValue)
-          } else {
-            setEditorValue(DEFAULT_VALUE)
-          }
-        } catch (error) {
-          console.error('HTML to Slate conversion failed:', error)
-          setEditorValue(DEFAULT_VALUE)
-        }
-      } else {
-        setEditorValue(DEFAULT_VALUE)
-      }
-    }
-
-    init()
+  const safeEditorValue = useMemo(() => {
+    if (!htmlValue) return [...DEFAULT_VALUE]
+    const slateValue = htmlToSlate(htmlValue)
+    console.log('safeEditorValue 引用变化:', slateValue)
+    return Array.isArray(slateValue) && slateValue.length > 0 ? slateValue : [...DEFAULT_VALUE]
   }, [htmlValue])
 
   return (
-    <Slate editor={editor} initialValue={editorValue} value={editorValue} onChange={onChangeEdit}>
+    <Slate editor={editor} initialValue={safeEditorValue} key={htmlValue} onChange={onChangeEdit}>
       <div className='rich-editor-toolbar'>
         {toolbarItems.map((item, index) => (
           <ToolbarItem key={index} item={item} editor={editor} blockProps={blockProps} />
