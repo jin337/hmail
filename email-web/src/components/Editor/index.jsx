@@ -264,6 +264,41 @@ const RichTextEditor = ({ value = '', onChange }) => {
     }
   }
 
+  // 完整保存选区（克隆Range，防止节点引用失效）
+  const saveSelectionRange = () => {
+    const sel = window.getSelection()
+    if (!sel.rangeCount) return null
+    return sel.getRangeAt(0).cloneRange()
+  }
+
+  // 精准恢复选区，带异常降级
+  const restoreSavedRange = (savedRange) => {
+    if (!savedRange || !editorRef.current) return
+    try {
+      const sel = window.getSelection()
+      sel.removeAllRanges()
+      sel.addRange(savedRange)
+      editorRef.current.focus()
+    } catch (err) {
+      console.warn('选区恢复失败，降级光标到末尾', err)
+      const fallbackRange = document.createRange()
+      fallbackRange.selectNodeContents(editorRef.current)
+      fallbackRange.collapse(false)
+      const sel = window.getSelection()
+      sel.removeAllRanges()
+      sel.addRange(fallbackRange)
+    }
+  }
+
+  // 保存选区元信息（用于操作后还原选中高亮，不只是光标）
+  const getSelectionMeta = (range) => {
+    return {
+      text: range.toString(),
+      collapsed: range.collapsed,
+      clone: range.cloneRange(),
+    }
+  }
+
   // 合并相邻的、样式相同的 span 标签
   const mergeAdjacentSpans = (container) => {
     const spans = container.querySelectorAll('span')
@@ -371,6 +406,30 @@ const RichTextEditor = ({ value = '', onChange }) => {
 
     isUndoingOrRedoing.current = false
   }, [onChange, updateCurrentFormat])
+
+  // 插入分割线
+  const handleHr = () => {
+    editorRef.current.focus()
+    const selection = window.getSelection()
+    if (!selection.rangeCount || !editorRef.current?.contains(selection.anchorNode)) return null
+    const range = selection.getRangeAt(0)
+
+    const hr = document.createElement('hr')
+    hr.style = 'margin: 20px 0; border-top: 1px solid rgb(230, 232, 235);'
+    const br = document.createElement('br')
+    // 先清空选区内容，插入分割线
+    range.deleteContents()
+    range.insertNode(hr)
+    // 将光标移到hr后面，插入换行
+    range.setStartAfter(hr)
+    range.insertNode(br)
+    // 光标定位到br后方，方便直接打字
+    range.setStartAfter(br)
+    range.collapse(true)
+
+    selection.removeAllRanges()
+    selection.addRange(range)
+  }
 
   // 受控组件初始化与外部数据同步
   useEffect(() => {
@@ -536,7 +595,6 @@ const RichTextEditor = ({ value = '', onChange }) => {
               textNode.parentNode.replaceChild(wrapper, textNode)
             })
           }
-          console.log(tempContainer)
           // 规范化：合并相邻的相同样式 span
           mergeAdjacentSpans(tempContainer)
           // 将规范化后的内容插回选区
@@ -1002,10 +1060,222 @@ const RichTextEditor = ({ value = '', onChange }) => {
     }
   }
 
+  // 将 CSS 文本转换为对象
+  const cssTextToStyleObj = (cssText) => {
+    const styleObj = {}
+    if (!cssText?.trim()) return styleObj
+
+    // 分割每条样式
+    const rules = cssText.split(';').filter((rule) => rule.trim())
+
+    for (const rule of rules) {
+      const [propRaw, val] = rule.split(':').map((s) => s.trim())
+      if (!propRaw || val === undefined) continue
+
+      // 短横线转驼峰
+      const prop = propRaw.replace(/-(\w)/g, (_, char) => char.toUpperCase())
+      styleObj[prop] = val
+    }
+    return styleObj
+  }
+
+  //  range 是否完整选中整个 node（包含全部内容，无多余/缺失）
+  const isRangeCoversWholeNode = (range, node) => {
+    const nodeRange = document.createRange()
+    nodeRange.selectNodeContents(node)
+    return (
+      range.compareBoundaryPoints(Range.START_TO_START, nodeRange) <= 0 &&
+      range.compareBoundaryPoints(Range.END_TO_END, nodeRange) >= 0
+    )
+  }
+
+  // 提取选区内部所有相交的 span 节点
+  const getRangeInnerSpans = (range, rootEl) => {
+    const spanSet = new Set()
+    // 向上收集起止节点父span（真实DOM，无文档问题）
+    const collectParentSpans = (node) => {
+      let cur = node
+      while (cur && cur !== rootEl) {
+        if (cur.nodeName === 'SPAN') spanSet.add(cur)
+        cur = cur.parentNode
+      }
+    }
+    collectParentSpans(range.commonAncestorContainer)
+    collectParentSpans(range.startContainer)
+    collectParentSpans(range.endContainer)
+
+    // 直接遍历编辑器真实DOM，过滤和选区相交的span，不用cloneContents
+    const walker = document.createTreeWalker(rootEl, NodeFilter.SHOW_ELEMENT, {
+      acceptNode: (el) => {
+        if (el.nodeName === 'SPAN' && range.intersectsNode(el)) {
+          return NodeFilter.FILTER_ACCEPT
+        }
+        return NodeFilter.FILTER_SKIP
+      },
+    })
+    let span
+    while ((span = walker.nextNode())) {
+      spanSet.add(span)
+    }
+    return Array.from(spanSet)
+  }
+
+  // 判断是否是纯文本
+  const isText = (frag) => {
+    const walker = document.createTreeWalker(frag, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT, null)
+
+    let node
+    while ((node = walker.nextNode())) {
+      // 只要遇到任意元素节点，就不是纯文本
+      if (node.nodeType === Node.ELEMENT_NODE) {
+        return false
+      }
+    }
+    // 全部都是文本节点
+    return true
+  }
+
+  // 创建 span 包裹纯文本
+  const wrapSpan = (htmlStr, spanStyle) => {
+    const div = document.createElement('div')
+    div.innerHTML = htmlStr
+
+    // 复制子节点列表（遍历中会改动dom，不能直接遍历childNodes）
+    const childNodes = Array.from(div.childNodes)
+
+    for (const node of childNodes) {
+      // 判断是纯文本节点，且不是全空白
+      if (node.nodeType === Node.TEXT_NODE && node.textContent.trim() !== '') {
+        const span = document.createElement('span')
+        span.textContent = node.textContent
+        // 样式
+        Object.assign(span.style, spanStyle)
+
+        node.replaceWith(span)
+      } else {
+        Object.entries(spanStyle).forEach(([styleKey, styleVal]) => {
+          node.style[styleKey] = styleVal
+        })
+      }
+    }
+    const frag = document.createDocumentFragment()
+    while (div.firstChild) {
+      frag.appendChild(div.firstChild)
+    }
+    return frag
+  }
+  // 处理行内样式
+  const handleSpanCommand = (key, value, range) => {
+    let plainText = range.toString()
+    if (!plainText) return null
+
+    // 样式
+    let spanStyle = {}
+    switch (key) {
+      case 'fontFamily':
+        spanStyle.fontFamily = value
+        break
+      case 'fontSize':
+        spanStyle.fontSize = value
+        break
+      case 'bold':
+        spanStyle.fontWeight = 'bold'
+        break
+      case 'italic':
+        spanStyle.fontStyle = 'italic'
+        break
+      case 'underline':
+        {
+          // 多装饰叠加，不覆盖原有
+          const decoUnder = spanStyle.textDecoration || ''
+          if (!decoUnder.includes('underline')) {
+            spanStyle.textDecoration = [decoUnder, 'underline'].filter(Boolean).join(' ')
+          }
+        }
+        break
+      case 'strike':
+        {
+          const decoStrike = spanStyle.textDecoration || ''
+          if (!decoStrike.includes('line-through')) {
+            spanStyle.textDecoration = [decoStrike, 'line-through'].filter(Boolean).join(' ')
+          }
+        }
+        break
+      case 'textColor':
+        spanStyle.color = value
+        break
+      case 'backgroundColor':
+        spanStyle.backgroundColor = value
+        break
+    }
+
+    // 内部所有相交span
+    const innerSpans = getRangeInnerSpans(range, editorRef.current)
+    // 被选区完整包裹的顶层span（优先复用）
+    const fullCoverSpans = innerSpans.filter((span) => isRangeCoversWholeNode(range, span))
+    let targetSpan = null
+
+    if (fullCoverSpans.length > 0) {
+      // 存在完整选中的span：复用第一个顶层span，不新建
+      targetSpan = fullCoverSpans[0]
+      // 合并原有span所有样式
+      Object.assign(spanStyle, cssTextToStyleObj(targetSpan.style.cssText))
+
+      // 统一设置文本内容
+      targetSpan.textContent = plainText
+
+      Object.entries(spanStyle).forEach(([styleKey, styleVal]) => {
+        targetSpan.style[styleKey] = styleVal
+      })
+    } else {
+      const frag = range.cloneContents()
+      if (isText(frag)) {
+        // 无可用span，新建
+        targetSpan = document.createElement('span')
+        Object.entries(spanStyle).forEach(([styleKey, styleVal]) => {
+          targetSpan.style[styleKey] = styleVal
+        })
+        // 统一设置文本内容
+        targetSpan.textContent = plainText
+      } else {
+        // 取出选区HTML
+        const div = document.createElement('div')
+        div.appendChild(frag)
+        const wrapFrag = wrapSpan(div.innerHTML, spanStyle)
+        console.log(wrapFrag)
+        return wrapFrag
+      }
+    }
+
+    return targetSpan
+  }
+
+  // 处理块级样式
+  const handleDivCommand = (key, value) => {
+    console.log(key, value)
+  }
+
+  // 处理列表
+  const handleListCommand = (key) => {
+    console.log(key)
+  }
+
   // 命令分发系统
   const executeCommand = useCallback(
-    (type, key, value) => {
+    (key, value) => {
       if (!editorRef.current) return
+
+      // 操作前强制恢复缓存选区 + 保存当前真实选区
+      const sel = window.getSelection()
+      // 优先恢复失焦缓存的选区
+      if ((savedRange.current && !sel.rangeCount) || !editorRef.current.contains(sel.anchorNode)) {
+        restoreSavedRange(savedRange.current)
+      }
+      const newSel = window.getSelection()
+      if (!newSel.rangeCount) return
+      const originRange = newSel.getRangeAt(0)
+      // 记录选区原始状态
+      const selectionMeta = getSelectionMeta(originRange)
 
       // 隔离状态下禁止格式化（仅允许撤销/重做）
       if (currentFormat.isMediaSelected && !['undo', 'redo'].includes(key)) return
@@ -1019,27 +1289,45 @@ const RichTextEditor = ({ value = '', onChange }) => {
         handleRedo()
         return
       }
+      // 插入分割线
+      if (key === 'hr') {
+        handleHr()
+      }
 
-      // 根据 toolBarItems 的 type 进行分发
-      switch (type) {
-        // 切换类 (Toggle)
-        case 'toggle':
-          handleToggleCommand(key)
-          break
+      const spanKeys = ['fontFamily', 'fontSize', 'bold', 'italic', 'underline', 'strike', 'textColor', 'backgroundColor']
+      const divKeys = ['plusIndent', 'minusIndent', 'textAlign', 'lineHeight']
+      const listKeys = ['ul', 'ol']
+      // 处理 span 样式
+      if (spanKeys.includes(key)) {
+        // 仅处理有选区的情况
+        if (originRange.collapsed) return
+        const plainText = selectionMeta.text
+        if (!plainText.trim()) return
 
-        // 选择类 (Select，Color)
-        case 'select':
-        case 'color':
-          handleSelectCommand(key, value)
-          break
+        // 执行DOM修改
+        const newSpan = handleSpanCommand(key, value, originRange)
+        originRange.deleteContents()
+        originRange.insertNode(newSpan)
+        mergeAdjacentSpans(newSpan.parentElement)
 
-        // 按钮类 (Button)
-        case 'button':
-          handleButtonCommand(key)
-          break
+        // 修复选中逻辑，不再以span自身做range容器
+        const newSelRange = document.createRange()
+        const spanParent = newSpan.parentNode
+        const spanIndex = Array.from(spanParent?.childNodes).indexOf(newSpan)
+        newSelRange.setStart(spanParent, spanIndex)
+        newSelRange.setEnd(spanParent, spanIndex + 1)
 
-        default:
-          console.warn(`未识别的命令类型: ${type}`)
+        const s = window.getSelection()
+        s.removeAllRanges()
+        s.addRange(newSelRange)
+      }
+      // 处理 div 样式
+      if (divKeys.includes(key)) {
+        handleDivCommand(key, value, originRange)
+      }
+      // 处理列表
+      if (listKeys.includes(key)) {
+        handleListCommand(key, originRange)
       }
 
       // 操作完成后，触发内容变化并更新工具栏状态
@@ -1176,8 +1464,11 @@ const RichTextEditor = ({ value = '', onChange }) => {
             className={`toolbar-btn ${isActive ? 'active' : ''}`}
             title={item.title}
             disabled={isDisabled}
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => executeCommand(item.type, item.key)}>
+            onMouseDown={(e) => {
+              e.stopPropagation()
+              e.preventDefault()
+              executeCommand(item.key)
+            }}>
             <item.icon />
           </div>
         )
@@ -1219,8 +1510,9 @@ const RichTextEditor = ({ value = '', onChange }) => {
                       className='toolbar-select-option'
                       style={item.key === 'fontFamily' ? { fontFamily: opt.value } : undefined}
                       onMouseDown={(e) => {
+                        e.stopPropagation()
                         e.preventDefault()
-                        executeCommand(item.type, item.key, opt.value)
+                        executeCommand(item.key, opt.value)
                         setIsOpen(false)
                       }}>
                       {opt.label}
@@ -1243,7 +1535,7 @@ const RichTextEditor = ({ value = '', onChange }) => {
             icon={item.icon}
             defaultValue={item.defaultValue}
             currentColor={currentFormat[item.key]}
-            onChange={(color) => executeCommand(item.type, item.key, color)}
+            onChange={(color) => executeCommand(item.key, color)}
             addAfter={
               <span className='toolbar-select-arrow'>
                 <DownIcon />

@@ -76,7 +76,9 @@ const ColorPicker = ({
         <div className='color-picker-dropdown'>
           <div
             className='content-default'
-            onClick={() => {
+            onClick={(e) => {
+              e.stopPropagation()
+              e.preventDefault()
               onChange(defaultValue.default)
               setIsOpen(false)
             }}>
@@ -86,7 +88,9 @@ const ColorPicker = ({
             {COLORS.map((c) => (
               <div
                 key={c}
-                onClick={() => {
+                onClick={(e) => {
+                  e.stopPropagation()
+                  e.preventDefault()
                   onChange(c)
                   setIsOpen(false)
                 }}
