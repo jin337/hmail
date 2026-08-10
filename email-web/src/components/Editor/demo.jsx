@@ -226,38 +226,30 @@ const RichTextEditor = ({ value = '', onChange }) => {
 
     setCurrentFormat(newFormat)
   }, [currentFormat])
-  // 获取当前光标/选区的精确位置
-  const getCurrentSelection = () => {
-    const selection = window.getSelection()
-    if (!selection.rangeCount || !editorRef.current?.contains(selection.anchorNode)) return null
-    const range = selection.getRangeAt(0)
-    return {
-      startContainer: range.startContainer,
-      startOffset: range.startOffset,
-      endContainer: range.endContainer,
-      endOffset: range.endOffset,
-    }
-  }
 
-  // 恢复光标/选区位置
-  const restoreSelection = (savedSelection) => {
-    if (!savedSelection || !editorRef.current) return
-    try {
-      const selection = window.getSelection()
-      const range = document.createRange()
-      range.setStart(savedSelection.startContainer, savedSelection.startOffset)
-      range.setEnd(savedSelection.endContainer, savedSelection.endOffset)
-      selection.removeAllRanges()
-      selection.addRange(range)
-    } catch (e) {
-      // 如果 DOM 结构变动导致节点找不到，降级处理：将光标移至末尾
-      console.warn('恢复选区失败，已重置光标到末尾')
-      const newRange = document.createRange()
-      newRange.selectNodeContents(editorRef.current)
-      newRange.collapse(false)
-      const selection = window.getSelection()
-      selection.removeAllRanges()
-      selection.addRange(newRange)
+  // 合并相邻的、样式相同的 span 标签
+  const mergeAdjacentSpans = (container) => {
+    const spans = container.querySelectorAll('span')
+    for (let i = 0; i < spans.length - 1; i++) {
+      const currentSpan = spans[i]
+      const nextSpan = spans[i + 1]
+
+      // 只有当两个节点都是 span，并且样式字符串完全相同时才合并
+      if (
+        nextSpan &&
+        currentSpan.nodeName === 'SPAN' &&
+        nextSpan.nodeName === 'SPAN' &&
+        currentSpan.getAttribute('style') === nextSpan.getAttribute('style')
+      ) {
+        // 将后一个 span 的内容移动到前一个 span 的末尾
+        while (nextSpan.firstChild) {
+          currentSpan.appendChild(nextSpan.firstChild)
+        }
+        // 移除已经合并的后一个 span
+        nextSpan.remove()
+        // 合并后，索引需要回退一步，以检查新合并的 span 是否能和它后面的 span 继续合并
+        i--
+      }
     }
   }
 
@@ -265,11 +257,22 @@ const RichTextEditor = ({ value = '', onChange }) => {
   const saveHistory = useCallback(() => {
     if (!editorRef.current || isUndoingOrRedoing.current) return
 
-    const currentHtml = editorRef.current.innerHTML
-    const currentState = {
-      html: currentHtml,
-      selection: getCurrentSelection(),
+    // --- 新增：创建书签 ---
+    const selection = window.getSelection()
+    let bookmarkId = null
+    if (selection.rangeCount > 0) {
+      const range = selection.getRangeAt(0)
+      bookmarkId = 'bookmark-' + Date.now() + '-' + Math.random()
+      const span = document.createElement('span')
+      span.id = bookmarkId
+      span.setAttribute('data-bookmark', 'true') // 标记为书签，方便清理
+      range.collapse(true)
+      range.insertNode(span)
     }
+
+    const currentHtml = editorRef.current.innerHTML
+    // 保存时包含 HTML 和 书签ID
+    const currentState = { html: currentHtml, bookmarkId }
 
     // 避免重复保存相同的状态
     if (undoStack.current.length > 0 && undoStack.current[undoStack.current.length - 1].html === currentHtml) {
@@ -297,7 +300,20 @@ const RichTextEditor = ({ value = '', onChange }) => {
     // 恢复上一个状态
     const prevState = undoStack.current[undoStack.current.length - 1]
     editorRef.current.innerHTML = prevState.html
-    restoreSelection(prevState.selection)
+
+    // 基于书签恢复光标
+    if (prevState.bookmarkId) {
+      const bookmark = editorRef.current.querySelector(`#${prevState.bookmarkId}`)
+      if (bookmark) {
+        const range = document.createRange()
+        range.setStartBefore(bookmark)
+        range.collapse(true)
+        bookmark.remove() // 移除书签
+        const sel = window.getSelection()
+        sel.removeAllRanges()
+        sel.addRange(range)
+      }
+    }
 
     // 触发外部 onChange
     isInternalChange.current = true
@@ -316,7 +332,20 @@ const RichTextEditor = ({ value = '', onChange }) => {
     undoStack.current.push(nextState)
 
     editorRef.current.innerHTML = nextState.html
-    restoreSelection(nextState.selection)
+
+    // 于书签恢复光标
+    if (nextState.bookmarkId) {
+      const bookmark = editorRef.current.querySelector(`#${nextState.bookmarkId}`)
+      if (bookmark) {
+        const range = document.createRange()
+        range.setStartBefore(bookmark)
+        range.collapse(true)
+        bookmark.remove() // 移除书签
+        const sel = window.getSelection()
+        sel.removeAllRanges()
+        sel.addRange(range)
+      }
+    }
 
     isInternalChange.current = true
     onChange?.(nextState.html)
@@ -324,20 +353,6 @@ const RichTextEditor = ({ value = '', onChange }) => {
 
     isUndoingOrRedoing.current = false
   }, [onChange, updateCurrentFormat])
-
-  // 监听键盘快捷键 (Ctrl+Z / Ctrl+Y)
-  const handleKeyDown = useCallback(
-    (e) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
-        e.preventDefault()
-        handleUndo()
-      } else if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.shiftKey && e.key === 'z'))) {
-        e.preventDefault()
-        handleRedo()
-      }
-    },
-    [handleUndo, handleRedo]
-  )
 
   // 受控组件初始化与外部数据同步
   useEffect(() => {
@@ -361,8 +376,9 @@ const RichTextEditor = ({ value = '', onChange }) => {
       case 'italic':
       case 'underline':
       case 'strike':
+        // 行内样式 span
         {
-          // 1获取当前选区
+          // 获取当前选区
           const toggleSelection = window.getSelection()
           if (!toggleSelection.rangeCount) return
           const toggleRange = toggleSelection.getRangeAt(0)
@@ -414,6 +430,10 @@ const RichTextEditor = ({ value = '', onChange }) => {
 
           // 提取选区内容
           const fragment = toggleRange.extractContents()
+
+          // 创建一个临时容器来承载处理后的内容，方便进行规范化操作
+          const tempContainer = document.createElement('div')
+          tempContainer.appendChild(fragment)
 
           // ========== 情况 A：全部都有样式 -> 执行剥离（Remove） ==========
           if (allHaveStyle) {
@@ -474,12 +494,15 @@ const RichTextEditor = ({ value = '', onChange }) => {
             })
           }
 
-          // 将处理后的片段插回选区
-          toggleRange.insertNode(fragment)
+          // 规范化：合并相邻的相同样式 span
+          mergeAdjacentSpans(tempContainer)
+          // 将规范化后的内容插回选区
+          toggleRange.insertNode(tempContainer)
 
           // 将光标/选区重新定位到刚刚插入的内容之后
           const newRange = document.createRange()
-          newRange.selectNodeContents(fragment)
+          newRange.setStartAfter(fragment) // 定位到 fragment 之后
+          newRange.collapse(true) // 折叠光标
           toggleSelection.removeAllRanges()
           toggleSelection.addRange(newRange)
         }
@@ -553,6 +576,11 @@ const RichTextEditor = ({ value = '', onChange }) => {
               const newLi = document.createElement('li')
               newLi.innerHTML = node.innerHTML
 
+              // 显式继承原 div 的行内样式（如 color, font-size 等）
+              if (node.style.cssText) {
+                newLi.style.cssText = node.style.cssText
+              }
+
               // 查找或创建对应的 <ul>/<ol> 容器
               let listContainer = null
 
@@ -590,6 +618,44 @@ const RichTextEditor = ({ value = '', onChange }) => {
     switch (key) {
       case 'fontFamily':
       case 'fontSize':
+        // 用 <span> 包裹并设置样式
+        {
+          // 获取当前选区
+          const colorSelection = window.getSelection()
+          if (!colorSelection.rangeCount) return
+          const colorRange = colorSelection.getRangeAt(0)
+
+          // 无选区（仅光标）直接跳过，不做任何操作
+          if (colorRange.collapsed) return
+
+          // 提取选区内的纯文本内容
+          const plainText = colorRange.toString()
+          if (!plainText) return // 如果选区内没有文本，直接返回
+
+          // 创建新的 <span> 标签，并设置对应的颜色样式
+          const colorSpan = document.createElement('span')
+          colorSpan.textContent = plainText
+
+          if (key === 'textColor') {
+            colorSpan.style.color = value
+          } else if (key === 'backgroundColor') {
+            colorSpan.style.backgroundColor = value
+          }
+
+          // 清除选区原有内容，并插入新的带有颜色的 <span>
+          colorRange.deleteContents()
+          colorRange.insertNode(colorSpan)
+
+          // 将光标/选区重新定位到刚刚插入的 <span> 之后
+          const newRange = document.createRange()
+          newRange.setStartAfter(colorSpan)
+          newRange.collapse(true)
+          colorSelection.removeAllRanges()
+          colorSelection.addRange(newRange)
+        }
+        break
+      case 'textColor':
+      case 'backgroundColor':
         // 用 <span> 包裹并设置样式
         {
           // 获取当前选区
@@ -693,51 +759,6 @@ const RichTextEditor = ({ value = '', onChange }) => {
         break
       default:
         console.warn(`未实现的 Select 命令: ${key}`)
-    }
-  }
-
-  // 处理 Color 类型命令
-  const handleColorCommand = (key, value) => {
-    switch (key) {
-      case 'textColor':
-      case 'backgroundColor':
-        {
-          // 获取当前选区
-          const colorSelection = window.getSelection()
-          if (!colorSelection.rangeCount) return
-          const colorRange = colorSelection.getRangeAt(0)
-
-          // 无选区（仅光标）直接跳过，不做任何操作
-          if (colorRange.collapsed) return
-
-          // 提取选区内的纯文本内容
-          const plainText = colorRange.toString()
-          if (!plainText) return // 如果选区内没有文本，直接返回
-
-          // 创建新的 <span> 标签，并设置对应的颜色样式
-          const colorSpan = document.createElement('span')
-          colorSpan.textContent = plainText
-
-          if (key === 'textColor') {
-            colorSpan.style.color = value
-          } else if (key === 'backgroundColor') {
-            colorSpan.style.backgroundColor = value
-          }
-
-          // 清除选区原有内容，并插入新的带有颜色的 <span>
-          colorRange.deleteContents()
-          colorRange.insertNode(colorSpan)
-
-          // 将光标/选区重新定位到刚刚插入的 <span> 之后
-          const newRange = document.createRange()
-          newRange.setStartAfter(colorSpan)
-          newRange.collapse(true)
-          colorSelection.removeAllRanges()
-          colorSelection.addRange(newRange)
-        }
-        break
-      default:
-        console.warn(`未实现的 Color 命令: ${key}`)
     }
   }
 
@@ -900,14 +921,10 @@ const RichTextEditor = ({ value = '', onChange }) => {
           handleToggleCommand(key)
           break
 
-        // 选择类 (Select)
+        // 选择类 (Select，Color)
         case 'select':
-          handleSelectCommand(key, value)
-          break
-
-        // 颜色类 (Color)
         case 'color':
-          handleColorCommand(key, value)
+          handleSelectCommand(key, value)
           break
 
         // 按钮类 (Button)
@@ -929,6 +946,77 @@ const RichTextEditor = ({ value = '', onChange }) => {
     [currentFormat, onChange, updateCurrentFormat, handleUndo, handleRedo, saveHistory]
   )
 
+  // 粘贴处理：仅接收图片和纯文本，丢弃所有富文本格式
+  const handlePaste = useCallback(
+    (e) => {
+      e.preventDefault()
+
+      const clipboardData = e.clipboardData
+      if (!clipboardData) return
+
+      const selection = window.getSelection()
+      if (!selection.rangeCount) return
+      const range = selection.getRangeAt(0)
+
+      // 处理图片粘贴
+      const items = clipboardData.items
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type.indexOf('image') !== -1) {
+          const file = items[i].getAsFile()
+          if (file) {
+            const img = document.createElement('img')
+            img.src = URL.createObjectURL(file)
+            range.deleteContents()
+            range.insertNode(img)
+
+            const newRange = document.createRange()
+            newRange.setStartAfter(img)
+            newRange.collapse(true)
+            selection.removeAllRanges()
+            selection.addRange(newRange)
+          }
+          isInternalChange.current = true
+          onChange?.(editorRef.current.innerHTML)
+          saveHistory()
+          return
+        }
+      }
+
+      // 处理纯文本粘贴（丢弃所有 HTML 标签和样式）
+      const plainText = clipboardData.getData('text/plain')
+      if (!plainText) return
+
+      range.deleteContents()
+      const textNode = document.createTextNode(plainText)
+      range.insertNode(textNode)
+
+      // 【修正】光标移到粘贴文本的后面
+      const newRange = document.createRange()
+      newRange.setStartAfter(textNode)
+      newRange.collapse(true)
+      selection.removeAllRanges()
+      selection.addRange(newRange)
+
+      isInternalChange.current = true
+      onChange?.(editorRef.current.innerHTML)
+      saveHistory()
+    },
+    [onChange, saveHistory]
+  )
+
+  // 监听键盘快捷键 (Ctrl+Z / Ctrl+Y)
+  const handleKeyDown = useCallback(
+    (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+        e.preventDefault()
+        handleUndo()
+      } else if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.shiftKey && e.key === 'z'))) {
+        e.preventDefault()
+        handleRedo()
+      }
+    },
+    [handleUndo, handleRedo]
+  )
   // 内容变化时触发
   const handleInput = () => {
     if (editorRef.current && onChange) {
@@ -1013,6 +1101,7 @@ const RichTextEditor = ({ value = '', onChange }) => {
         onMouseUp={updateCurrentFormat}
         onKeyUp={updateCurrentFormat}
         onKeyDown={handleKeyDown}
+        onPaste={handlePaste}
       />
     </div>
   )

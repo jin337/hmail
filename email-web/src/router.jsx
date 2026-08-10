@@ -7,6 +7,7 @@ import Preview from 'src/views/Preview'
 import Mail from 'src/pages/Mail'
 import Personal from 'src/pages/Personal'
 import User from 'src/pages/User'
+import Demo from 'src/pages/Demo'
 
 
 export const router = createBrowserRouter(
@@ -33,6 +34,10 @@ export const router = createBrowserRouter(
         {
           path: '/personal',
           element: <Personal />,
+        },
+        {
+          path: '/demo',
+          element: <Demo />,
         },
       ],
     },
