@@ -299,32 +299,6 @@ const RichTextEditor = ({ value = '', onChange }) => {
     }
   }
 
-  // 合并相邻的、样式相同的 span 标签
-  const mergeAdjacentSpans = (container) => {
-    const spans = container.querySelectorAll('span')
-    for (let i = 0; i < spans.length - 1; i++) {
-      const currentSpan = spans[i]
-      const nextSpan = spans[i + 1]
-
-      // 只有当两个节点都是 span，并且样式字符串完全相同时才合并
-      if (
-        nextSpan &&
-        currentSpan.nodeName === 'SPAN' &&
-        nextSpan.nodeName === 'SPAN' &&
-        currentSpan.getAttribute('style') === nextSpan.getAttribute('style')
-      ) {
-        // 将后一个 span 的内容移动到前一个 span 的末尾
-        while (nextSpan.firstChild) {
-          currentSpan.appendChild(nextSpan.firstChild)
-        }
-        // 移除已经合并的后一个 span
-        nextSpan.remove()
-        // 合并后，索引需要回退一步，以检查新合并的 span 是否能和它后面的 span 继续合并
-        i--
-      }
-    }
-  }
-
   // 保存当前状态到撤销栈
   const saveHistory = useCallback(() => {
     if (!editorRef.current || isUndoingOrRedoing.current) return
@@ -350,7 +324,7 @@ const RichTextEditor = ({ value = '', onChange }) => {
   }, [])
 
   // 每200ms合并为一次历史记录
-  // eslint-disable-next-line react-hooks/refs
+
   const debouncedSaveHistory = useRef(debounce(saveHistory, 200)).current
 
   // 执行撤销
@@ -1120,55 +1094,34 @@ const RichTextEditor = ({ value = '', onChange }) => {
     return Array.from(spanSet)
   }
 
-  // 判断是否是纯文本
-  const isText = (frag) => {
-    const walker = document.createTreeWalker(frag, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT, null)
+  // 合并相邻的、样式相同的 span 标签
+  const mergeAdjacentSpans = (container) => {
+    const spans = container.querySelectorAll('span')
+    for (let i = 0; i < spans.length - 1; i++) {
+      const currentSpan = spans[i]
+      const nextSpan = spans[i + 1]
 
-    let node
-    while ((node = walker.nextNode())) {
-      // 只要遇到任意元素节点，就不是纯文本
-      if (node.nodeType === Node.ELEMENT_NODE) {
-        return false
+      // 只有当两个节点都是 span，并且样式字符串完全相同时才合并
+      if (
+        nextSpan &&
+        currentSpan.nodeName === 'SPAN' &&
+        nextSpan.nodeName === 'SPAN' &&
+        currentSpan.getAttribute('style') === nextSpan.getAttribute('style')
+      ) {
+        // 将后一个 span 的内容移动到前一个 span 的末尾
+        while (nextSpan.firstChild) {
+          currentSpan.appendChild(nextSpan.firstChild)
+        }
+        // 移除已经合并的后一个 span
+        nextSpan.remove()
+        // 合并后，索引需要回退一步，以检查新合并的 span 是否能和它后面的 span 继续合并
+        i--
       }
     }
-    // 全部都是文本节点
-    return true
   }
 
-  // 创建 span 包裹纯文本
-  const wrapSpan = (htmlStr, spanStyle) => {
-    const div = document.createElement('div')
-    div.innerHTML = htmlStr
-
-    // 复制子节点列表（遍历中会改动dom，不能直接遍历childNodes）
-    const childNodes = Array.from(div.childNodes)
-
-    for (const node of childNodes) {
-      // 判断是纯文本节点，且不是全空白
-      if (node.nodeType === Node.TEXT_NODE && node.textContent.trim() !== '') {
-        const span = document.createElement('span')
-        span.textContent = node.textContent
-        // 样式
-        Object.assign(span.style, spanStyle)
-
-        node.replaceWith(span)
-      } else {
-        Object.entries(spanStyle).forEach(([styleKey, styleVal]) => {
-          node.style[styleKey] = styleVal
-        })
-      }
-    }
-    const frag = document.createDocumentFragment()
-    while (div.firstChild) {
-      frag.appendChild(div.firstChild)
-    }
-    return frag
-  }
   // 处理行内样式
   const handleSpanCommand = (key, value, range) => {
-    let plainText = range.toString()
-    if (!plainText) return null
-
     // 样式
     let spanStyle = {}
     switch (key) {
@@ -1209,45 +1162,30 @@ const RichTextEditor = ({ value = '', onChange }) => {
         break
     }
 
-    // 内部所有相交span
-    const innerSpans = getRangeInnerSpans(range, editorRef.current)
-    // 被选区完整包裹的顶层span（优先复用）
-    const fullCoverSpans = innerSpans.filter((span) => isRangeCoversWholeNode(range, span))
-    let targetSpan = null
+    const cloneFlag = range.cloneContents()
 
-    if (fullCoverSpans.length > 0) {
-      // 存在完整选中的span：复用第一个顶层span，不新建
-      targetSpan = fullCoverSpans[0]
-      // 合并原有span所有样式
-      Object.assign(spanStyle, cssTextToStyleObj(targetSpan.style.cssText))
+    const div = document.createElement('div')
+    div.appendChild(cloneFlag.cloneNode(true))
 
-      // 统一设置文本内容
-      targetSpan.textContent = plainText
+    const childNodes = Array.from(div.childNodes)
 
-      Object.entries(spanStyle).forEach(([styleKey, styleVal]) => {
-        targetSpan.style[styleKey] = styleVal
-      })
-    } else {
-      const frag = range.cloneContents()
-      if (isText(frag)) {
-        // 无可用span，新建
-        targetSpan = document.createElement('span')
+    for (const node of childNodes) {
+      if (node.nodeType === Node.TEXT_NODE && node.textContent.trim() !== '') {
+        const span = document.createElement('span')
+        span.textContent = node.textContent
+        Object.assign(span.style, spanStyle)
+        node.replaceWith(span)
+      } else if (node.nodeType === Node.ELEMENT_NODE) {
         Object.entries(spanStyle).forEach(([styleKey, styleVal]) => {
-          targetSpan.style[styleKey] = styleVal
+          node.style[styleKey] = styleVal
         })
-        // 统一设置文本内容
-        targetSpan.textContent = plainText
-      } else {
-        // 取出选区HTML
-        const div = document.createElement('div')
-        div.appendChild(frag)
-        const wrapFrag = wrapSpan(div.innerHTML, spanStyle)
-        console.log(wrapFrag)
-        return wrapFrag
       }
     }
-
-    return targetSpan
+    const frag = document.createDocumentFragment()
+    while (div.firstChild) {
+      frag.appendChild(div.firstChild)
+    }
+    return frag
   }
 
   // 处理块级样式
@@ -1306,16 +1244,19 @@ const RichTextEditor = ({ value = '', onChange }) => {
 
         // 执行DOM修改
         const newSpan = handleSpanCommand(key, value, originRange)
+        if (!newSpan) return
+
+        const firstInsertedNode = newSpan.firstChild
+        const lastInsertedNode = newSpan.lastChild
+
         originRange.deleteContents()
         originRange.insertNode(newSpan)
-        mergeAdjacentSpans(newSpan.parentElement)
 
-        // 修复选中逻辑，不再以span自身做range容器
+        mergeAdjacentSpans(originRange.commonAncestorContainer)
+
         const newSelRange = document.createRange()
-        const spanParent = newSpan.parentNode
-        const spanIndex = Array.from(spanParent?.childNodes).indexOf(newSpan)
-        newSelRange.setStart(spanParent, spanIndex)
-        newSelRange.setEnd(spanParent, spanIndex + 1)
+        newSelRange.setStartBefore(firstInsertedNode)
+        newSelRange.setEndAfter(lastInsertedNode)
 
         const s = window.getSelection()
         s.removeAllRanges()
