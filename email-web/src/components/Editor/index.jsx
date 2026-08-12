@@ -35,12 +35,12 @@ const FONT_SIZES = [
 ]
 // 行间距
 const LINE_HEIGHTS = [
-  { label: '1.0', value: 1.43 },
-  { label: '1.15', value: 1.64 },
-  { label: '1.3', value: 1.86 },
-  { label: '1.5', value: 2.15 },
-  { label: '2.0', value: 2.86 },
-  { label: '3.0', value: 4.29 },
+  { label: '1.0', value: 1.0 },
+  { label: '1.15', value: 1.15 },
+  { label: '1.3', value: 1.3 },
+  { label: '1.5', value: 1.5 },
+  { label: '2.0', value: 2.0 },
+  { label: '3.0', value: 3.0 },
 ]
 // 对齐
 const TEXT_ALIGN = [
@@ -157,6 +157,16 @@ const RichTextEditor = ({ value = '', onChange }) => {
     { type: 'button', title: '插入分割线', key: 'hr', icon: HrIcon },
   ]
 
+  // 添加占位符
+  const addPlaceholderBlock = (rootEl) => {
+    if (rootEl.textContent.trim() === '') {
+      const block = document.createElement('div')
+      block.innerHTML = '<br>'
+      rootEl.innerHTML = ''
+      rootEl.appendChild(block)
+    }
+  }
+
   // 状态提取核心逻辑
   const updateCurrentFormat = useCallback(() => {
     const selection = window.getSelection()
@@ -264,13 +274,6 @@ const RichTextEditor = ({ value = '', onChange }) => {
     }
   }
 
-  // 完整保存选区（克隆Range，防止节点引用失效）
-  const saveSelectionRange = () => {
-    const sel = window.getSelection()
-    if (!sel.rangeCount) return null
-    return sel.getRangeAt(0).cloneRange()
-  }
-
   // 精准恢复选区，带异常降级
   const restoreSavedRange = (savedRange) => {
     if (!savedRange || !editorRef.current) return
@@ -287,15 +290,6 @@ const RichTextEditor = ({ value = '', onChange }) => {
       const sel = window.getSelection()
       sel.removeAllRanges()
       sel.addRange(fallbackRange)
-    }
-  }
-
-  // 保存选区元信息（用于操作后还原选中高亮，不只是光标）
-  const getSelectionMeta = (range) => {
-    return {
-      text: range.toString(),
-      collapsed: range.collapsed,
-      clone: range.cloneRange(),
     }
   }
 
@@ -324,7 +318,7 @@ const RichTextEditor = ({ value = '', onChange }) => {
   }, [])
 
   // 每200ms合并为一次历史记录
-
+  // eslint-disable-next-line react-hooks/refs
   const debouncedSaveHistory = useRef(debounce(saveHistory, 200)).current
 
   // 执行撤销
@@ -420,710 +414,101 @@ const RichTextEditor = ({ value = '', onChange }) => {
     }
   }, [saveHistory])
 
-  // Toggle 类型命令
-  const handleToggleCommand = (key) => {
-    switch (key) {
-      case 'bold':
-      case 'italic':
-      case 'underline':
-      case 'strike':
-        // 行内样式 span
-        {
-          const selection = window.getSelection()
-          // 如果当前没有选区，或者选区不在编辑器内，恢复之前保存的选区
-          if (!selection.rangeCount || !editorRef.current?.contains(selection.anchorNode)) {
-            if (savedRange.current) {
-              selection.removeAllRanges()
-              selection.addRange(savedRange.current)
-            } else {
-              editorRef.current?.focus()
-              return
-            }
-          }
-          // 重新获取正确的选区
-          const range = selection.getRangeAt(0)
+  // 换前先保存选区文本偏移
+  const saveRangeOffset = (root) => {
+    const sel = window.getSelection()
+    if (!sel.rangeCount) return null
+    const oldRange = sel.getRangeAt(0)
 
-          // 无选区（仅光标）直接跳过，不做任何操作
-          if (range.collapsed) return
+    // 获取从root起点到range起点的总字符偏移
+    let startOffset = 0
+    let endOffset = 0
 
-          // 定义样式映射关系
-          const styleMap = {
-            bold: { prop: 'fontWeight', value: 'bold', check: (v) => v === 'bold' || parseInt(v) >= 700 },
-            italic: { prop: 'fontStyle', value: 'italic', check: (v) => v === 'italic' },
-            underline: { prop: 'textDecoration', value: 'underline', check: (v) => v?.includes('underline') },
-            strike: { prop: 'textDecoration', value: 'line-through', check: (v) => v?.includes('line-through') },
-          }
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null)
 
-          const currentStyle = styleMap[key]
-          if (!currentStyle) return
+    let node = null
+    let pos = 0
+    let startFound = false
+    let endFound = false
 
-          // 判断选区内是否“全部”都带有该样式（用于决定是添加还是剥离）
-          let allHaveStyle = true
-          let hasAnyText = false
-
-          const checkWalker = document.createTreeWalker(
-            range.cloneContents(), // 在选区的克隆副本上遍历，避免修改原 DOM 导致遍历出错
-            NodeFilter.SHOW_TEXT,
-            null
-          )
-
-          let textNode
-          while ((textNode = checkWalker.nextNode())) {
-            if (textNode.textContent.trim()) {
-              hasAnyText = true
-              const parentSpan = textNode.parentElement
-              if (parentSpan?.nodeName === 'SPAN') {
-                if (!currentStyle.check(parentSpan.style[currentStyle.prop])) {
-                  allHaveStyle = false
-                  break
-                }
-              } else {
-                // 纯文本节点，说明没有样式
-                allHaveStyle = false
-                break
-              }
-            }
-          }
-
-          // 如果选区内没有文本，直接返回
-          if (!hasAnyText) return
-
-          // 提取选区内容
-          const fragment = range.extractContents()
-
-          // 创建一个临时容器来承载处理后的内容，方便进行规范化操作
-          const tempContainer = document.createElement('span')
-          tempContainer.appendChild(fragment)
-          // ========== 情况 A：全部都有样式 -> 执行剥离（Remove） ==========
-          if (allHaveStyle) {
-            const spans = tempContainer.querySelectorAll('span')
-            spans.forEach((span) => {
-              // 移除对应的样式
-              if (currentStyle.prop === 'textDecoration') {
-                // textDecoration 可能包含多个值（如 underline line-through），需要精准移除
-                const decorations = span.style.textDecoration.split(' ').filter((d) => d !== currentStyle.value)
-                if (decorations.length > 0) {
-                  span.style.textDecoration = decorations.join(' ')
-                } else {
-                  span.style.removeProperty('text-decoration')
-                }
-              } else {
-                span.style.removeProperty(currentStyle.prop)
-              }
-
-              // 如果 span 已经没有任何 style 属性了，直接将其替换为纯文本节点
-              if (!span.getAttribute('style')) {
-                const newTextNode = document.createTextNode(span.textContent)
-                span.parentNode.replaceChild(newTextNode, span)
-              }
-            })
-          }
-          // ========== 情况 B：没有或部分有样式 -> 执行添加（Add） ==========
-          else {
-            // 遍历片段中的所有文本节点，用带有样式的 <span> 包裹
-            const addWalker = document.createTreeWalker(tempContainer, NodeFilter.SHOW_TEXT, {
-              acceptNode: (node) => {
-                // 过滤掉空白文本节点
-                if (!node.textContent.trim()) {
-                  return NodeFilter.FILTER_REJECT
-                }
-
-                // 检查该文本节点的父级是否已经包含了目标样式（
-                let parent = node.parentElement
-                while (parent && parent !== tempContainer) {
-                  if (parent.nodeName === 'SPAN' && parent.style.fontWeight === 'bold') {
-                    return NodeFilter.FILTER_REJECT
-                  }
-                  parent = parent.parentElement
-                }
-
-                // 剩下的就是需要被 <span> 包裹的纯文本节点
-                return NodeFilter.FILTER_ACCEPT
-              },
-            })
-            const nodesToWrap = []
-            let node
-            while ((node = addWalker.nextNode())) {
-              if (node.textContent.trim()) nodesToWrap.push(node)
-            }
-            nodesToWrap.forEach((textNode) => {
-              const wrapper = document.createElement('span')
-
-              // 如果文本节点的父级已经是 span，先继承它原有的样式
-              if (textNode.parentElement?.nodeName === 'SPAN') {
-                wrapper.style.cssText = textNode.parentElement.style.cssText
-              }
-
-              // 叠加新的样式
-              if (currentStyle.prop === 'textDecoration') {
-                // 处理 textDecoration 的叠加
-                const existing = wrapper.style.textDecoration || ''
-                if (!existing.includes(currentStyle.value)) {
-                  wrapper.style.textDecoration = `${existing} ${currentStyle.value}`.trim()
-                }
-              } else {
-                wrapper.style[currentStyle.prop] = currentStyle.value
-              }
-              // 用新的 span 替换原有的文本节点
-              wrapper.textContent = textNode.textContent
-              textNode.parentNode.replaceChild(wrapper, textNode)
-            })
-          }
-          // 规范化：合并相邻的相同样式 span
-          mergeAdjacentSpans(tempContainer)
-          // 将规范化后的内容插回选区
-          range.insertNode(tempContainer)
-
-          // 将光标/选区重新定位到刚刚插入的内容之后
-          const newRange = document.createRange()
-          if (newRange.parentNode) {
-            newRange.setStartAfter(newRange)
-            newRange.collapse(true)
-            selection.removeAllRanges()
-            selection.addRange(newRange)
-          }
-        }
-        break
-      case 'ul':
-      case 'ol':
-        // 列表切换逻辑 (div <-> li)
-        {
-          const selection = window.getSelection()
-          // 如果当前没有选区，或者选区不在编辑器内，恢复之前保存的选区
-          if (!selection.rangeCount || !editorRef.current?.contains(selection.anchorNode)) {
-            if (savedRange.current) {
-              selection.removeAllRanges()
-              selection.addRange(savedRange.current)
-            } else {
-              editorRef.current?.focus()
-              return
-            }
-          }
-          // 重新获取正确的选区
-          const range = selection.getRangeAt(0)
-
-          // 辅助函数：向上查找离节点最近的块级容器 (div 或 li)
-          const getBlockNode = (node) => {
-            if (node.nodeType === Node.TEXT_NODE) node = node.parentElement
-            while (node && node !== editorRef.current) {
-              if (['DIV', 'LI'].includes(node.nodeName)) return node
-              node = node.parentElement
-            }
-            return null
-          }
-
-          // 收集选区覆盖的所有块级节点（使用 Set 去重）
-          const blockNodes = new Set()
-          const startBlock = getBlockNode(range.startContainer)
-          if (startBlock) blockNodes.add(startBlock)
-
-          if (!range.collapsed) {
-            const endBlock = getBlockNode(range.endContainer)
-            if (endBlock) blockNodes.add(endBlock)
-
-            const walker = document.createTreeWalker(editorRef.current, NodeFilter.SHOW_ELEMENT, {
-              acceptNode: (node) => {
-                if (['DIV', 'LI'].includes(node.nodeName) && range.intersectsNode(node)) {
-                  return NodeFilter.FILTER_ACCEPT
-                }
-                return NodeFilter.FILTER_SKIP
-              },
-            })
-            let currentNode
-            while ((currentNode = walker.nextNode())) {
-              blockNodes.add(currentNode)
-            }
-          }
-
-          // 遍历所有收集到的块级节点，执行列表的打包或解包
-          blockNodes.forEach((node) => {
-            const targetListTag = key === 'ul' ? 'UL' : 'OL'
-
-            // ========== 情况 A：当前节点已经是目标列表项 -> 执行解包（Unwrap） ==========
-            if (node.nodeName === 'LI' && node.parentElement?.nodeName === targetListTag) {
-              // 创建一个新的 <div> 来承载原 <li> 的内容
-              const newDiv = document.createElement('div')
-              newDiv.innerHTML = node.innerHTML // 保留原有的行内样式（如加粗、颜色等）
-
-              // 将新 <div> 插入到 <ul>/<ol> 的前面
-              node.parentElement.parentNode.insertBefore(newDiv, node.parentElement)
-
-              // 移除当前的 <li>
-              node.remove()
-
-              // 如果 <ul>/<ol> 变空了，将其也移除
-              if (node.parentElement.children.length === 0) {
-                node.parentElement.remove()
-              }
-            }
-            // ========== 情况 B：当前节点是普通 <div> 或其他列表项 -> 执行打包（Wrap） ==========
-            else if (node.nodeName === 'DIV') {
-              // 创建新的 <li>，继承原 <div> 的内容
-              const newLi = document.createElement('li')
-              newLi.innerHTML = node.innerHTML
-
-              // 显式继承原 div 的行内样式（如 color, font-size 等）
-              if (node.style.cssText) {
-                newLi.style.cssText = node.style.cssText
-              }
-
-              // 查找或创建对应的 <ul>/<ol> 容器
-              let listContainer = null
-
-              // 如果前一个兄弟节点已经是目标列表，直接复用
-              const prevSibling = node.previousSibling
-              if (prevSibling?.nodeName === targetListTag) {
-                listContainer = prevSibling
-              } else {
-                // 否则创建一个新的列表容器
-                listContainer = document.createElement(targetListTag.toLowerCase())
-                node.parentNode.insertBefore(listContainer, node)
-              }
-
-              // 将 <li> 放入列表容器，并移除原 <div>
-              listContainer.appendChild(newLi)
-              node.remove()
-            }
-          })
-
-          // 列表操作后，选区通常会丢失，这里简单将光标重置到编辑器末尾
-          selection.removeAllRanges()
-          const newRange = document.createRange()
-          newRange.selectNodeContents(editorRef.current)
-          newRange.collapse(false) // 折叠到末尾
-          selection.addRange(newRange)
-        }
-        break
-      default:
-        console.warn(`未实现的 Toggle 命令: ${key}`)
+    while ((node = walker.nextNode())) {
+      const len = node.textContent?.length ?? 0
+      if (!startFound && node === oldRange.startContainer) {
+        startOffset = pos + oldRange.startOffset
+        startFound = true
+      }
+      if (!endFound && node === oldRange.endContainer) {
+        endOffset = pos + oldRange.endOffset
+        endFound = true
+      }
+      pos += len
     }
+    return { startOffset, endOffset }
   }
 
-  // 处理 Select 类型命令
-  const handleSelectCommand = (key, value) => {
-    switch (key) {
-      case 'fontFamily':
-      case 'fontSize':
-        // 用 <span> 包裹并设置样式
-        {
-          const selection = window.getSelection()
-          // 如果当前没有选区，或者选区不在编辑器内，恢复之前保存的选区
-          if (!selection.rangeCount || !editorRef.current?.contains(selection.anchorNode)) {
-            if (savedRange.current) {
-              selection.removeAllRanges()
-              selection.addRange(savedRange.current)
-            } else {
-              editorRef.current?.focus()
-              return
-            }
-          }
-          // 重新获取正确的选区
-          const range = selection.getRangeAt(0)
+  // 恢复选区
+  const restoreRangeByOffset = (root, offsetInfo) => {
+    if (!offsetInfo) return
+    const { startOffset, endOffset } = offsetInfo
+    const range = document.createRange()
 
-          // 无选区（仅光标）直接跳过，不做任何操作
-          if (range.collapsed) return
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null)
+    let node = null
+    let pos = 0
+    let startSet = false
+    let endSet = false
 
-          // 提取选区内的纯文本内容
-          const plainText = range.toString()
-          if (!plainText) return // 如果选区内没有文本，直接返回
-
-          // 创建新的 <span> 标签，并设置对应的颜色样式
-          const newSpan = document.createElement('span')
-          newSpan.textContent = plainText
-
-          if (key === 'fontFamily') {
-            newSpan.style.fontFamily = value
-          }
-          if (key === 'fontSize') {
-            newSpan.style.fontSize = value
-          }
-
-          // 清除选区原有内容，并插入新的 <span>
-          range.deleteContents()
-          range.insertNode(newSpan)
-
-          // 将光标/选区重新定位到刚刚插入的 <span> 之后
-          const newRange = document.createRange()
-          newRange.setStartAfter(newSpan)
-          newRange.collapse(true)
-          selection.removeAllRanges()
-          selection.addRange(newRange)
-        }
-        break
-      case 'textColor':
-      case 'backgroundColor':
-        // 用 <span> 包裹并设置样式
-        {
-          const selection = window.getSelection()
-          // 如果当前没有选区，或者选区不在编辑器内，恢复之前保存的选区
-          if (!selection.rangeCount || !editorRef.current?.contains(selection.anchorNode)) {
-            if (savedRange.current) {
-              selection.removeAllRanges()
-              selection.addRange(savedRange.current)
-            } else {
-              editorRef.current?.focus()
-              return
-            }
-          }
-          // 重新获取正确的选区
-          const range = selection.getRangeAt(0)
-
-          // 提取选区内的纯文本内容
-          const plainText = range.toString()
-          if (!plainText) return // 如果选区内没有文本，直接返回
-
-          // 创建新的 <span> 标签，并设置对应的颜色样式
-          const newSpan = document.createElement('span')
-          newSpan.textContent = plainText
-
-          if (key === 'textColor') {
-            newSpan.style.color = value
-          } else if (key === 'backgroundColor') {
-            newSpan.style.backgroundColor = value
-          }
-
-          // 清除选区原有内容，并插入新的带有颜色的 <span>
-          range.deleteContents()
-          range.insertNode(newSpan)
-
-          // 将光标/选区重新定位到刚刚插入的 <span> 之后
-          const newRange = document.createRange()
-          newRange.setStartAfter(newSpan)
-          newRange.collapse(true)
-          selection.removeAllRanges()
-          selection.addRange(newRange)
-        }
-        break
-      case 'textAlign':
-      case 'lineHeight':
-        // 找到块级 div/li 并设置样式
-        {
-          const selection = window.getSelection()
-          // 如果当前没有选区，或者选区不在编辑器内，恢复之前保存的选区
-          if (!selection.rangeCount || !editorRef.current?.contains(selection.anchorNode)) {
-            if (savedRange.current) {
-              selection.removeAllRanges()
-              selection.addRange(savedRange.current)
-            } else {
-              editorRef.current?.focus()
-              return
-            }
-          }
-          // 重新获取正确的选区
-          const range = selection.getRangeAt(0)
-
-          // 辅助函数：向上查找离节点最近的块级容器 (div 或 li)
-          const getBlockNode = (node) => {
-            if (node.nodeType === Node.TEXT_NODE) node = node.parentElement
-            while (node && node !== editorRef.current) {
-              if (['DIV', 'LI'].includes(node.nodeName)) return node
-              node = node.parentElement
-            }
-            return null
-          }
-
-          // 收集选区覆盖的所有块级节点
-          const blockNodes = new Set() // 使用 Set 避免重复添加同一个块级节点
-
-          // 添加起始块级节点
-          const startBlock = getBlockNode(range.startContainer)
-          if (startBlock) blockNodes.add(startBlock)
-
-          // 如果选区跨行了，需要遍历中间的块级节点
-          if (!range.collapsed) {
-            const endBlock = getBlockNode(range.endContainer)
-            if (endBlock) blockNodes.add(endBlock)
-
-            // 遍历选区内的所有节点，找出属于编辑器内部的 div/li
-            const walker = document.createTreeWalker(editorRef.current, NodeFilter.SHOW_ELEMENT, {
-              acceptNode: (node) => {
-                if (['DIV', 'LI'].includes(node.nodeName) && range.intersectsNode(node)) {
-                  return NodeFilter.FILTER_ACCEPT
-                }
-                return NodeFilter.FILTER_SKIP
-              },
-            })
-
-            let currentNode
-            while ((currentNode = walker.nextNode())) {
-              blockNodes.add(currentNode)
-            }
-          }
-
-          // 遍历所有收集到的块级节点，应用样式
-          blockNodes.forEach((node) => {
-            if (key === 'textAlign') {
-              if (value === DEFAULT_FORMAT.textAlign) {
-                node.style.removeProperty('text-align')
-              } else {
-                node.style.textAlign = value
-              }
-            } else if (key === 'lineHeight') {
-              if (value === DEFAULT_FORMAT.lineHeight) {
-                node.style.removeProperty('line-height')
-              } else {
-                node.style.lineHeight = value
-              }
-            }
-          })
-        }
-        break
-      default:
-        console.warn(`未实现的 Select 命令: ${key}`)
+    while ((node = walker.nextNode())) {
+      const len = node.textContent?.length ?? 0
+      if (!startSet && pos + len >= startOffset) {
+        range.setStart(node, startOffset - pos)
+        startSet = true
+      }
+      if (!endSet && pos + len >= endOffset) {
+        range.setEnd(node, endOffset - pos)
+        endSet = true
+      }
+      pos += len
+      if (startSet && endSet) break
     }
+
+    const sel = window.getSelection()
+    sel.removeAllRanges()
+    sel.addRange(range)
   }
+  // 截取选区边界
+  const splitRangeBoundaries = (range) => {
+    const { startContainer, startOffset, endContainer, endOffset } = range
 
-  // 处理 Button 类型命令
-  const handleButtonCommand = (key) => {
-    switch (key) {
-      case 'plusIndent':
-      case 'minusIndent':
-        // 块级 div/li 增加减少 margin-left
-        {
-          const selection = window.getSelection()
-          // 如果当前没有选区，或者选区不在编辑器内，恢复之前保存的选区
-          if (!selection.rangeCount || !editorRef.current?.contains(selection.anchorNode)) {
-            if (savedRange.current) {
-              selection.removeAllRanges()
-              selection.addRange(savedRange.current)
-            } else {
-              editorRef.current?.focus()
-              return
-            }
-          }
-          // 重新获取正确的选区
-          const range = selection.getRangeAt(0)
-
-          // 向上查找当前光标所在的块级节点 (div 或 li)
-          let blockNode = range.startContainer
-          if (blockNode.nodeType === Node.TEXT_NODE) blockNode = blockNode.parentElement
-          while (blockNode && blockNode !== editorRef.current) {
-            if (['DIV', 'LI'].includes(blockNode.nodeName)) break
-            blockNode = blockNode.parentElement
-          }
-
-          // 如果找不到块级节点，直接 return
-          if (!blockNode || blockNode === editorRef.current) return
-
-          // 获取当前的 margin-left 值，如果没有则默认为 0
-          const currentMargin = parseFloat(blockNode.style.marginLeft) || 0
-          const STEP = 2 // 每次缩进的步长，单位为 em
-
-          // 根据是增加还是减少，计算新的 margin-left
-          let newMargin = currentMargin
-          if (key === 'plusIndent') {
-            newMargin = currentMargin + STEP
-          } else if (key === 'minusIndent') {
-            newMargin = Math.max(0, currentMargin - STEP) // 防止缩进变成负数
-          }
-
-          // 应用新的样式
-          if (newMargin > 0) {
-            blockNode.style.marginLeft = `${newMargin}em`
-          } else {
-            // 如果缩进归零，直接移除该样式，保持 DOM 干净
-            blockNode.style.removeProperty('margin-left')
-          }
-        }
-        break
-      case 'clear':
-        // 清除格式逻辑 (移除选区内所有 span 样式及块级样式)
-        {
-          const selection = window.getSelection()
-          // 如果当前没有选区，或者选区不在编辑器内，恢复之前保存的选区
-          if (!selection.rangeCount || !editorRef.current?.contains(selection.anchorNode)) {
-            if (savedRange.current) {
-              selection.removeAllRanges()
-              selection.addRange(savedRange.current)
-            } else {
-              editorRef.current?.focus()
-              return
-            }
-          }
-          // 重新获取正确的选区
-          const range = selection.getRangeAt(0)
-
-          // 无选区（仅光标）直接跳过，不做任何操作
-          if (range.collapsed) return
-
-          // 提取选区内的纯文本内容（自动过滤掉所有 HTML 标签和样式）
-          const plainText = range.toString()
-
-          // 找到当前光标所在的块级节点 (div 或 li)
-          let blockNode = range.startContainer
-          if (blockNode.nodeType === Node.TEXT_NODE) blockNode = blockNode.parentElement
-          while (blockNode && blockNode !== editorRef.current) {
-            if (['DIV', 'LI'].includes(blockNode.nodeName)) break
-            blockNode = blockNode.parentElement
-          }
-
-          // 如果找到了块级节点，直接用纯文本重建它
-          if (blockNode && blockNode !== editorRef.current) {
-            // 清空原有内容，插入纯文本
-            blockNode.textContent = plainText
-
-            // 重置该块级节点的样式为默认值
-            blockNode.style.textAlign = DEFAULT_FORMAT.textAlign
-            blockNode.style.lineHeight = DEFAULT_FORMAT.lineHeight
-            blockNode.style.textIndent = DEFAULT_FORMAT.textIndent
-
-            // 重建后，将光标定位到纯文本的末尾
-            const newRange = document.createRange()
-            newRange.setStart(blockNode.firstChild, plainText.length)
-            newRange.collapse(true)
-            selection.removeAllRanges()
-            selection.addRange(newRange)
-          }
-        }
-        break
-      case 'hr':
-        // 插入 <div><hr /></div>
-        {
-          const selection = window.getSelection()
-          // 如果当前没有选区，或者选区不在编辑器内，恢复之前保存的选区
-          if (!selection.rangeCount || !editorRef.current?.contains(selection.anchorNode)) {
-            if (savedRange.current) {
-              selection.removeAllRanges()
-              selection.addRange(savedRange.current)
-            } else {
-              editorRef.current?.focus()
-              return
-            }
-          }
-          // 重新获取正确的选区
-          const range = selection.getRangeAt(0)
-
-          // 找到当前光标所在的块级节点 (div 或 li)
-          let currentBlock = range.startContainer
-          if (currentBlock.nodeType === Node.TEXT_NODE) currentBlock = currentBlock.parentElement
-          while (currentBlock && currentBlock !== editorRef.current) {
-            if (['DIV', 'LI'].includes(currentBlock.nodeName)) break
-            currentBlock = currentBlock.parentElement
-          }
-
-          // 如果找不到块级节点，直接 return
-          if (!currentBlock || currentBlock === editorRef.current) return
-
-          // 创建分割线节点: <div><hr /></div>
-          const hrWrapper = document.createElement('div')
-          const hrElement = document.createElement('hr')
-          hrWrapper.appendChild(hrElement)
-
-          // 将分割线插入到当前块级节点的后面
-          // 如果当前块级节点有父级（比如 li 在 ul 里面），则插在父级后面；否则插在自身后面
-          const insertTarget =
-            currentBlock.parentNode === editorRef.current ? currentBlock : currentBlock.closest('ul, ol') || currentBlock
-
-          insertTarget.parentNode.insertBefore(hrWrapper, insertTarget.nextSibling)
-
-          // 将光标移动到分割线下方（创建一个新的空 div）
-          const newLine = document.createElement('div')
-          newLine.innerHTML = '<br>' // 保证空行有高度
-          hrWrapper.parentNode.insertBefore(newLine, hrWrapper.nextSibling)
-
-          // 重新设置选区，将光标定位到新插入的空行中
-          const newRange = document.createRange()
-          newRange.setStart(newLine, 0)
-          newRange.collapse(true) // 折叠选区，变成光标
-          selection.removeAllRanges()
-          selection.addRange(newRange)
-        }
-        break
-      default:
-        console.warn(`未实现的 Button 命令: ${key}`)
-    }
-  }
-
-  // 将 CSS 文本转换为对象
-  const cssTextToStyleObj = (cssText) => {
-    const styleObj = {}
-    if (!cssText?.trim()) return styleObj
-
-    // 分割每条样式
-    const rules = cssText.split(';').filter((rule) => rule.trim())
-
-    for (const rule of rules) {
-      const [propRaw, val] = rule.split(':').map((s) => s.trim())
-      if (!propRaw || val === undefined) continue
-
-      // 短横线转驼峰
-      const prop = propRaw.replace(/-(\w)/g, (_, char) => char.toUpperCase())
-      styleObj[prop] = val
-    }
-    return styleObj
-  }
-
-  //  range 是否完整选中整个 node（包含全部内容，无多余/缺失）
-  const isRangeCoversWholeNode = (range, node) => {
-    const nodeRange = document.createRange()
-    nodeRange.selectNodeContents(node)
-    return (
-      range.compareBoundaryPoints(Range.START_TO_START, nodeRange) <= 0 &&
-      range.compareBoundaryPoints(Range.END_TO_END, nodeRange) >= 0
-    )
-  }
-
-  // 提取选区内部所有相交的 span 节点
-  const getRangeInnerSpans = (range, rootEl) => {
-    const spanSet = new Set()
-    // 向上收集起止节点父span（真实DOM，无文档问题）
-    const collectParentSpans = (node) => {
-      let cur = node
-      while (cur && cur !== rootEl) {
-        if (cur.nodeName === 'SPAN') spanSet.add(cur)
-        cur = cur.parentNode
+    // 处理起点：文本节点且不是边界，分割
+    if (startContainer.nodeType === Node.TEXT_NODE) {
+      const textNode = startContainer
+      if (startOffset > 0 && startOffset < textNode.length) {
+        const afterNode = textNode.splitText(startOffset)
+        range.setStart(afterNode, 0)
       }
     }
-    collectParentSpans(range.commonAncestorContainer)
-    collectParentSpans(range.startContainer)
-    collectParentSpans(range.endContainer)
 
-    // 直接遍历编辑器真实DOM，过滤和选区相交的span，不用cloneContents
-    const walker = document.createTreeWalker(rootEl, NodeFilter.SHOW_ELEMENT, {
-      acceptNode: (el) => {
-        if (el.nodeName === 'SPAN' && range.intersectsNode(el)) {
-          return NodeFilter.FILTER_ACCEPT
-        }
-        return NodeFilter.FILTER_SKIP
-      },
-    })
-    let span
-    while ((span = walker.nextNode())) {
-      spanSet.add(span)
-    }
-    return Array.from(spanSet)
-  }
-
-  // 合并相邻的、样式相同的 span 标签
-  const mergeAdjacentSpans = (container) => {
-    const spans = container.querySelectorAll('span')
-    for (let i = 0; i < spans.length - 1; i++) {
-      const currentSpan = spans[i]
-      const nextSpan = spans[i + 1]
-
-      // 只有当两个节点都是 span，并且样式字符串完全相同时才合并
-      if (
-        nextSpan &&
-        currentSpan.nodeName === 'SPAN' &&
-        nextSpan.nodeName === 'SPAN' &&
-        currentSpan.getAttribute('style') === nextSpan.getAttribute('style')
-      ) {
-        // 将后一个 span 的内容移动到前一个 span 的末尾
-        while (nextSpan.firstChild) {
-          currentSpan.appendChild(nextSpan.firstChild)
-        }
-        // 移除已经合并的后一个 span
-        nextSpan.remove()
-        // 合并后，索引需要回退一步，以检查新合并的 span 是否能和它后面的 span 继续合并
-        i--
+    // 处理终点：文本节点且不是边界，分割
+    if (endContainer.nodeType === Node.TEXT_NODE) {
+      const textNode = endContainer
+      if (endOffset > 0 && endOffset < textNode.length) {
+        const beforeLen = endOffset
+        textNode.splitText(beforeLen)
+        // end 停留在原来前半部分
+        range.setEnd(textNode, beforeLen)
       }
     }
   }
-
   // 处理行内样式
-  const handleSpanCommand = (key, value, range) => {
+  const handleSpanCommand = (key, value, range, rootEl) => {
+    // 仅处理有选区的情况
+    if (range.collapsed) return
+    const plainText = range.toString()
+    if (!plainText.trim()) return
+
     // 样式
-    let spanStyle = {}
+    const spanStyle = {}
     switch (key) {
       case 'fontFamily':
         spanStyle.fontFamily = value
@@ -1138,21 +523,10 @@ const RichTextEditor = ({ value = '', onChange }) => {
         spanStyle.fontStyle = 'italic'
         break
       case 'underline':
-        {
-          // 多装饰叠加，不覆盖原有
-          const decoUnder = spanStyle.textDecoration || ''
-          if (!decoUnder.includes('underline')) {
-            spanStyle.textDecoration = [decoUnder, 'underline'].filter(Boolean).join(' ')
-          }
-        }
+        spanStyle.textDecoration = 'underline'
         break
       case 'strike':
-        {
-          const decoStrike = spanStyle.textDecoration || ''
-          if (!decoStrike.includes('line-through')) {
-            spanStyle.textDecoration = [decoStrike, 'line-through'].filter(Boolean).join(' ')
-          }
-        }
+        spanStyle.textDecoration = 'line‑through'
         break
       case 'textColor':
         spanStyle.color = value
@@ -1162,35 +536,223 @@ const RichTextEditor = ({ value = '', onChange }) => {
         break
     }
 
-    const cloneFlag = range.cloneContents()
+    // 保存选区
+    const offset = saveRangeOffset(rootEl)
 
-    const div = document.createElement('div')
-    div.appendChild(cloneFlag.cloneNode(true))
+    // 父span是否只包含当前这一个node，没有其他子内容
+    const isOnlyChildInSpan = (node) => {
+      const parent = node.parentElement
+      if (!parent) return false
+      // 父必须是span
+      if (parent.nodeName !== 'SPAN') return false
+      // span只能有一个直接子节点
+      if (parent.childNodes.length !== 1) return false
 
-    const childNodes = Array.from(div.childNodes)
+      // 把两边空白、换行全部清理再对比
+      const parentText = parent.textContent.replace(/\s+/g, ' ').trim()
+      const nodeText = node.textContent.replace(/\s+/g, ' ').trim()
 
-    for (const node of childNodes) {
-      if (node.nodeType === Node.TEXT_NODE && node.textContent.trim() !== '') {
-        const span = document.createElement('span')
-        span.textContent = node.textContent
-        Object.assign(span.style, spanStyle)
-        node.replaceWith(span)
-      } else if (node.nodeType === Node.ELEMENT_NODE) {
-        Object.entries(spanStyle).forEach(([styleKey, styleVal]) => {
-          node.style[styleKey] = styleVal
-        })
+      return parentText === nodeText
+    }
+
+    let ancestor = range.commonAncestorContainer
+    const startNode = range.startContainer
+    const endNode = range.endContainer
+
+    // 如果公共祖先本身是文本节点，则取它的父元素作为迭代树根
+    if (ancestor.nodeType === Node.TEXT_NODE) {
+      ancestor = ancestor.parentElement
+    }
+
+    // 优先判断：选区起点终点是否在同一个span内部
+    let startSpan = startNode.nodeType === Node.TEXT_NODE ? startNode.parentElement : startNode
+    while (startSpan && startSpan.nodeName !== 'SPAN' && startSpan !== rootEl) {
+      startSpan = startSpan.parentElement
+    }
+    let endSpan = endNode.nodeType === Node.TEXT_NODE ? endNode.parentElement : endNode
+    while (endSpan && endSpan.nodeName !== 'SPAN' && endSpan !== rootEl) {
+      endSpan = endSpan.parentElement
+    }
+    if (startSpan && endSpan && startSpan === endSpan) {
+      const elementToRange = (el) => {
+        const r = document.createRange()
+        r.selectNode(el)
+        return r
+      }
+      const spanRange = elementToRange(startSpan)
+      const s = range.compareBoundaryPoints(Range.START_TO_START, spanRange)
+      const e = range.compareBoundaryPoints(Range.END_TO_END, spanRange)
+      // s <=0 && e >=0 → 选区把整个span完整包住
+      if (s <= 0 && e >= 0) {
+        ancestor = startSpan
+      }
+      spanRange.detach()
+    }
+
+    // 不能跑出编辑器容器
+    if (!rootEl.contains(ancestor)) {
+      ancestor = rootEl
+    }
+
+    // 全部信息读完之后，才分割边界！！
+    splitRangeBoundaries(range)
+
+    const childNodes = []
+    const nodeIter = document.createNodeIterator(ancestor, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT, {
+      acceptNode(node) {
+        if (node === ancestor) {
+          // SKIP：ancestor本身不要收集，但是遍历它子节点
+          return NodeFilter.FILTER_SKIP
+        }
+
+        // div/li块：不要块节点本身，但继续遍历内部子节点 → FILTER_SKIP，严禁REJECT
+        if (['DIV', 'LI'].includes(node.nodeName)) {
+          return NodeFilter.FILTER_SKIP
+        }
+
+        // 只处理文本 / span
+        if (node.nodeType === Node.TEXT_NODE || node.nodeName === 'SPAN') {
+          // 判断：node的全部内容 落在range内部
+          const r2 = document.createRange()
+          r2.selectNodeContents(node)
+          // range完全包含r2
+          const isFullInside =
+            range.compareBoundaryPoints(Range.START_TO_START, r2) <= 0 && range.compareBoundaryPoints(Range.END_TO_END, r2) >= 0
+          r2.detach()
+          return isFullInside ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_SKIP
+        }
+
+        // 其它类型节点：跳过，但是不切断子树
+        return NodeFilter.FILTER_SKIP
+      },
+    })
+
+    let curr
+    while ((curr = nodeIter.nextNode())) {
+      childNodes.push(curr)
+    }
+
+    // 逐个处理选中的行内节点
+    for (const child of childNodes) {
+      if (child.nodeType === Node.TEXT_NODE) {
+        if (!child.textContent.trim()) continue
+
+        const parent = child.parentElement
+        if (isOnlyChildInSpan(child)) {
+          // 父span只有当前文本，直接复用父span，禁止嵌套
+          Object.assign(parent.style, spanStyle)
+        } else {
+          // 需要新建span包裹
+          const wrapperSpan = document.createElement('span')
+          wrapperSpan.textContent = child.textContent
+          Object.assign(wrapperSpan.style, spanStyle)
+          child.replaceWith(wrapperSpan)
+        }
+      }
+      if (child.nodeType === Node.ELEMENT_NODE) {
+        if (child.nodeName === 'SPAN') {
+          Object.assign(child.style, spanStyle)
+        }
       }
     }
-    const frag = document.createDocumentFragment()
-    while (div.firstChild) {
-      frag.appendChild(div.firstChild)
-    }
-    return frag
+
+    // 恢复选区
+    restoreRangeByOffset(rootEl, offset)
   }
 
   // 处理块级样式
-  const handleDivCommand = (key, value) => {
-    console.log(key, value)
+  const handleDivCommand = (key, value, range) => {
+    // 向上查找当前光标所在的块级节点 (div 或 li)
+    let blockNode = range.startContainer
+    if (blockNode.nodeType === Node.TEXT_NODE) blockNode = blockNode.parentElement
+    while (blockNode && blockNode !== editorRef.current) {
+      if (['DIV', 'LI'].includes(blockNode.nodeName)) break
+      blockNode = blockNode.parentElement
+    }
+
+    let ancestor = blockNode
+    let blockElStyle = ancestor.style
+
+    // 样式
+    let spanStyle = {}
+    switch (key) {
+      case 'textAlign':
+        spanStyle.textAlign = value
+        break
+      case 'lineHeight':
+        spanStyle.lineHeight = value
+        break
+      case 'plusIndent':
+        {
+          const curr = parseFloat(blockElStyle.marginLeft) || 0
+          const next = curr + 2
+          spanStyle.marginLeft = `${next}em`
+        }
+        break
+      case 'minusIndent':
+        {
+          const curr = parseFloat(blockElStyle.marginLeft) || 0
+          const next = Math.max(0, curr - 2)
+          if (next > 0) {
+            spanStyle.marginLeft = `${next}em`
+          } else {
+            spanStyle.marginLeft = ''
+          }
+        }
+        break
+    }
+
+    const flag = range.cloneContents()
+    const content = document.createElement('div')
+    content.appendChild(flag.cloneNode(true))
+    const childNodes = Array.from(content.childNodes)
+    const fragment = document.createDocumentFragment()
+
+    if (ancestor) {
+      Object.assign(ancestor.style, spanStyle)
+    } else {
+      if (childNodes.length > 1) {
+        for (const node of childNodes) {
+          if (node.nodeType === Node.TEXT_NODE) {
+            const div = document.createElement('div')
+            div.textContent = node.textContent
+            Object.assign(div.style, spanStyle)
+            node.replaceWith(div)
+          }
+          if (node.nodeType === Node.ELEMENT_NODE) {
+            Object.assign(node.style, spanStyle)
+          }
+        }
+        const newNodes = Array.from(content.childNodes)
+        fragment.append(...newNodes)
+
+        const firstInsertedNode = fragment.firstChild
+        const lastInsertedNode = fragment.lastChild
+        range.deleteContents()
+        range.insertNode(fragment)
+        const newSelRange = document.createRange()
+        newSelRange.setStartBefore(firstInsertedNode)
+        newSelRange.setEndAfter(lastInsertedNode)
+        const selection = window.getSelection()
+        selection.removeAllRanges()
+        selection.addRange(newSelRange)
+      } else {
+        const newContent = document.createElement('div')
+        newContent.appendChild(flag.cloneNode(true))
+        Object.assign(newContent.style, spanStyle)
+
+        const firstInsertedNode = newContent.firstChild
+        const lastInsertedNode = newContent.lastChild
+        range.deleteContents()
+        range.insertNode(newContent)
+        const newSelRange = document.createRange()
+        newSelRange.setStartBefore(firstInsertedNode)
+        newSelRange.setEndAfter(lastInsertedNode)
+        const selection = window.getSelection()
+        selection.removeAllRanges()
+        selection.addRange(newSelRange)
+      }
+    }
   }
 
   // 处理列表
@@ -1202,21 +764,19 @@ const RichTextEditor = ({ value = '', onChange }) => {
   const executeCommand = useCallback(
     (key, value) => {
       if (!editorRef.current) return
-
       // 操作前强制恢复缓存选区 + 保存当前真实选区
       const sel = window.getSelection()
       // 优先恢复失焦缓存的选区
       if ((savedRange.current && !sel.rangeCount) || !editorRef.current.contains(sel.anchorNode)) {
         restoreSavedRange(savedRange.current)
       }
-      const newSel = window.getSelection()
-      if (!newSel.rangeCount) return
-      const originRange = newSel.getRangeAt(0)
-      // 记录选区原始状态
-      const selectionMeta = getSelectionMeta(originRange)
 
-      // 隔离状态下禁止格式化（仅允许撤销/重做）
-      if (currentFormat.isMediaSelected && !['undo', 'redo'].includes(key)) return
+      const selection = window.getSelection()
+      if (!selection.rangeCount) return
+      const originRange = selection.getRangeAt(0)
+
+      // 隔离状态下禁止格式化
+      if (currentFormat.isMediaSelected) return
 
       // 撤销/重做单独处理
       if (key === 'undo') {
@@ -1237,34 +797,12 @@ const RichTextEditor = ({ value = '', onChange }) => {
       const listKeys = ['ul', 'ol']
       // 处理 span 样式
       if (spanKeys.includes(key)) {
-        // 仅处理有选区的情况
-        if (originRange.collapsed) return
-        const plainText = selectionMeta.text
-        if (!plainText.trim()) return
-
         // 执行DOM修改
-        const newSpan = handleSpanCommand(key, value, originRange)
-        if (!newSpan) return
-
-        const firstInsertedNode = newSpan.firstChild
-        const lastInsertedNode = newSpan.lastChild
-
-        originRange.deleteContents()
-        originRange.insertNode(newSpan)
-
-        mergeAdjacentSpans(originRange.commonAncestorContainer)
-
-        const newSelRange = document.createRange()
-        newSelRange.setStartBefore(firstInsertedNode)
-        newSelRange.setEndAfter(lastInsertedNode)
-
-        const s = window.getSelection()
-        s.removeAllRanges()
-        s.addRange(newSelRange)
+        handleSpanCommand(key, value, originRange, editorRef.current)
       }
       // 处理 div 样式
       if (divKeys.includes(key)) {
-        handleDivCommand(key, value, originRange)
+        handleDivCommand(key, value, originRange, editorRef.current)
       }
       // 处理列表
       if (listKeys.includes(key)) {
@@ -1358,10 +896,16 @@ const RichTextEditor = ({ value = '', onChange }) => {
       isInternalChange.current = true
       onChange(editorRef.current.innerHTML)
     }
+    // 更新当前格式
     updateCurrentFormat()
 
+    // 保存历史记录
     debouncedSaveHistory()
 
+    // 添加占位块
+    debounce(addPlaceholderBlock(editorRef.current), 300)
+
+    // 保存当前的 Range，以便后续命令使用
     const selection = window.getSelection()
     if (selection.rangeCount > 0) {
       savedRange.current = selection.getRangeAt(0)
@@ -1490,6 +1034,12 @@ const RichTextEditor = ({ value = '', onChange }) => {
         return null
     }
   }
+
+  useEffect(() => {
+    const el = editorRef.current
+    if (!el) return
+    addPlaceholderBlock(el)
+  }, [])
 
   return (
     <div className='rich-text-editor'>
