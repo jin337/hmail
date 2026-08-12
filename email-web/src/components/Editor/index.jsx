@@ -476,6 +476,7 @@ const RichTextEditor = ({ value = '', onChange }) => {
     sel.removeAllRanges()
     sel.addRange(range)
   }
+
   // 截取选区边界
   const splitRangeBoundaries = (range) => {
     const { startContainer, startOffset, endContainer, endOffset } = range
@@ -500,54 +501,71 @@ const RichTextEditor = ({ value = '', onChange }) => {
       }
     }
   }
+
   // 处理行内样式
   const handleInLineCommand = (key, value, range, rootEl) => {
     // 仅处理有选区的情况
     if (range.collapsed) return
     const plainText = range.toString()
     if (!plainText.trim()) return
-
-    // 处理样式
-    const transStyle = (el, key, value) => {
+    // 切换行内样式
+    const applyInlineStyle = (el, key, value) => {
       const computed = getComputedStyle(el)
-      let obj = {}
+      const toKebabCase = (str) => str.replace(/[A-Z]/g, (m) => '-' + m.toLowerCase())
+      let styleObj = {}
 
       switch (key) {
         case 'fontFamily':
-          obj.fontFamily = value
+          styleObj.fontFamily = value
           break
         case 'fontSize':
-          obj.fontSize = value
+          styleObj.fontSize = value
           break
         case 'bold':
-          obj.fontWeight = 'bold'
+          styleObj.fontWeight = 'bold'
           break
         case 'italic':
-          obj.fontStyle = 'italic'
+          styleObj.fontStyle = 'italic'
           break
         case 'underline': {
-          // 多装饰叠加，不覆盖原有
           const decoUnder = computed.textDecoration || ''
           if (!decoUnder.includes('underline')) {
-            obj.textDecoration = [decoUnder, 'underline'].filter(Boolean).join(' ')
+            styleObj.textDecoration = [decoUnder, 'underline'].filter(Boolean).join(' ')
+          } else {
+            styleObj.textDecoration = ''
           }
           break
         }
         case 'strike': {
           const decoStrike = computed.textDecoration || ''
           if (!decoStrike.includes('line-through')) {
-            obj.textDecoration = [decoStrike, 'line-through'].filter(Boolean).join(' ')
+            styleObj.textDecoration = [decoStrike, 'line-through'].filter(Boolean).join(' ')
+          } else {
+            styleObj.textDecoration = ''
           }
           break
         }
         case 'textColor':
-          obj.color = value
+          styleObj.color = value
           break
         case 'backgroundColor':
-          obj.backgroundColor = value
+          styleObj.backgroundColor = value
           break
       }
-      return obj
+
+      const elStyle = el.style
+      for (const [cssKey, cssValue] of Object.entries(styleObj)) {
+        const kebabKey = toKebabCase(cssKey)
+        if (cssValue === '') {
+          elStyle.removeProperty(kebabKey)
+          continue
+        }
+        if (['bold', 'italic', 'underline', 'strike'].includes(key) && elStyle[cssKey] === cssValue) {
+          elStyle.removeProperty(kebabKey)
+        } else {
+          elStyle[cssKey] = cssValue
+        }
+      }
     }
 
     // 保存选区
@@ -653,22 +671,18 @@ const RichTextEditor = ({ value = '', onChange }) => {
 
         const parent = child.parentElement
         if (isOnlyChildInSpan(child)) {
-          const inlineStyle = transStyle(parent, key, value)
-          // 父span只有当前文本，直接复用父span，禁止嵌套
-          Object.assign(parent.style, inlineStyle)
+          applyInlineStyle(parent, key, value)
         } else {
           // 需要新建span包裹
           const wrapperSpan = document.createElement('span')
           wrapperSpan.textContent = child.textContent
-          const inlineStyle = transStyle(wrapperSpan, key, value)
-          Object.assign(wrapperSpan.style, inlineStyle)
+          applyInlineStyle(wrapperSpan, key, value)
           child.replaceWith(wrapperSpan)
         }
       }
       if (child.nodeType === Node.ELEMENT_NODE) {
         if (child.nodeName === 'SPAN') {
-          const inlineStyle = transStyle(child, key, value)
-          Object.assign(child.style, inlineStyle)
+          applyInlineStyle(child, key, value)
         }
       }
     }
@@ -762,8 +776,115 @@ const RichTextEditor = ({ value = '', onChange }) => {
   }
 
   // 处理列表
-  const handleListCommand = (key) => {
-    console.log(key)
+  const handleListCommand = (key, range, rootEl) => {
+    // 仅处理有选区的情况
+    if (range.collapsed) return
+    const plainText = range.toString()
+    if (!plainText.trim()) return
+
+    // 保存选区
+    const offset = saveRangeOffset(rootEl)
+
+    const startNode = range.startContainer
+    const endNode = range.endContainer
+
+    const blockTags = ['DIV', 'LI']
+    // 优先判断：选区起点终点是否在同一个DIV内部
+    let startBlock = startNode.nodeType === Node.TEXT_NODE ? startNode.parentElement : startNode
+    while (startBlock && !blockTags.includes(startBlock.nodeName) && startBlock !== rootEl) {
+      startBlock = startBlock.parentElement
+    }
+    let endBlock = endNode.nodeType === Node.TEXT_NODE ? endNode.parentElement : endNode
+    while (endBlock && !blockTags.includes(endBlock.nodeName) && endBlock !== rootEl) {
+      endBlock = endBlock.parentElement
+    }
+    const childNodes = []
+    if (startBlock && endBlock && rootEl.contains(startBlock) && rootEl.contains(endBlock)) {
+      let current = startBlock
+      while (current) {
+        if (blockTags.includes(current.nodeName)) {
+          childNodes.push(current)
+        }
+        if (current === endBlock) break
+        current = current.nextSibling
+      }
+    }
+
+    let commonParent = null
+    if (childNodes.length > 0) {
+      commonParent = childNodes[0].parentElement
+    }
+    if (childNodes.length === 0) {
+      restoreRangeByOffset(rootEl, offset)
+      return
+    }
+
+    // 判断是否处于列表模式：第一个节点是LI
+    const isInListMode = childNodes[0].nodeName === 'LI'
+
+    if (isInListMode) {
+      // 处于列表模式
+      // key相同
+      if (commonParent.nodeName === key.toUpperCase()) {
+        for (const liEl of childNodes) {
+          if (liEl.nodeName !== 'LI') continue
+          const divEl = document.createElement('div')
+          // 复制全部style
+          divEl.style.cssText = liEl.style.cssText
+          // 移动所有子节点
+          while (liEl.firstChild) {
+            divEl.appendChild(liEl.firstChild)
+          }
+          liEl.replaceWith(divEl)
+        }
+        if (commonParent) {
+          const ulParent = commonParent.parentNode
+          // 将ul内部所有子节点迁移到ul的前面
+          while (commonParent.firstChild) {
+            ulParent.insertBefore(commonParent.firstChild, commonParent)
+          }
+          // 移除空的ul标签
+          commonParent.remove()
+        }
+      } else {
+        // key不相同
+        const targetListTag = key.toUpperCase() === 'UL' ? 'OL' : 'UL'
+        const listWrapper = document.createElement(targetListTag)
+        Object.assign(listWrapper.style, {
+          listStyleType: targetListTag === 'UL' ? 'decimal' : 'disc',
+          marginLeft: '20px',
+        })
+        while (commonParent.firstChild) {
+          listWrapper.appendChild(commonParent.firstChild)
+        }
+        commonParent.parentNode.replaceChild(listWrapper, commonParent)
+      }
+    } else {
+      // 处于非列表模式
+      const targetListTag = key.toUpperCase()
+      const listWrapper = document.createElement(targetListTag)
+      Object.assign(listWrapper.style, {
+        listStyleType: targetListTag === 'UL' ? 'disc' : 'decimal',
+        marginLeft: '20px',
+      })
+      for (const divEl of childNodes) {
+        if (divEl.nodeName !== 'DIV') continue
+        const liEl = document.createElement('li')
+        // 复制全部style
+        liEl.style.cssText = divEl.style.cssTexts
+        // 移动所有子节点
+        while (divEl.firstChild) {
+          liEl.appendChild(divEl.firstChild)
+        }
+        listWrapper.appendChild(liEl)
+        divEl.remove()
+
+        rootEl.insertBefore(listWrapper, rootEl.firstChild)
+      }
+    }
+
+    // 恢复选区
+    restoreRangeByOffset(rootEl, offset)
   }
 
   // 命令分发系统
@@ -812,7 +933,7 @@ const RichTextEditor = ({ value = '', onChange }) => {
       }
       // 处理列表
       if (listKeys.includes(key)) {
-        handleListCommand(key, originRange)
+        handleListCommand(key, originRange, editorRef.current)
       }
 
       // 操作完成后，触发内容变化并更新工具栏状态
