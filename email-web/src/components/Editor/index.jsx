@@ -501,39 +501,53 @@ const RichTextEditor = ({ value = '', onChange }) => {
     }
   }
   // 处理行内样式
-  const handleSpanCommand = (key, value, range, rootEl) => {
+  const handleInLineCommand = (key, value, range, rootEl) => {
     // 仅处理有选区的情况
     if (range.collapsed) return
     const plainText = range.toString()
     if (!plainText.trim()) return
 
-    // 样式
-    const spanStyle = {}
-    switch (key) {
-      case 'fontFamily':
-        spanStyle.fontFamily = value
-        break
-      case 'fontSize':
-        spanStyle.fontSize = value
-        break
-      case 'bold':
-        spanStyle.fontWeight = 'bold'
-        break
-      case 'italic':
-        spanStyle.fontStyle = 'italic'
-        break
-      case 'underline':
-        spanStyle.textDecoration = 'underline'
-        break
-      case 'strike':
-        spanStyle.textDecoration = 'line‑through'
-        break
-      case 'textColor':
-        spanStyle.color = value
-        break
-      case 'backgroundColor':
-        spanStyle.backgroundColor = value
-        break
+    // 处理样式
+    const transStyle = (el, key, value) => {
+      const computed = getComputedStyle(el)
+      let obj = {}
+
+      switch (key) {
+        case 'fontFamily':
+          obj.fontFamily = value
+          break
+        case 'fontSize':
+          obj.fontSize = value
+          break
+        case 'bold':
+          obj.fontWeight = 'bold'
+          break
+        case 'italic':
+          obj.fontStyle = 'italic'
+          break
+        case 'underline': {
+          // 多装饰叠加，不覆盖原有
+          const decoUnder = computed.textDecoration || ''
+          if (!decoUnder.includes('underline')) {
+            obj.textDecoration = [decoUnder, 'underline'].filter(Boolean).join(' ')
+          }
+          break
+        }
+        case 'strike': {
+          const decoStrike = computed.textDecoration || ''
+          if (!decoStrike.includes('line-through')) {
+            obj.textDecoration = [decoStrike, 'line-through'].filter(Boolean).join(' ')
+          }
+          break
+        }
+        case 'textColor':
+          obj.color = value
+          break
+        case 'backgroundColor':
+          obj.backgroundColor = value
+          break
+      }
+      return obj
     }
 
     // 保存选区
@@ -565,26 +579,26 @@ const RichTextEditor = ({ value = '', onChange }) => {
     }
 
     // 优先判断：选区起点终点是否在同一个span内部
-    let startSpan = startNode.nodeType === Node.TEXT_NODE ? startNode.parentElement : startNode
-    while (startSpan && startSpan.nodeName !== 'SPAN' && startSpan !== rootEl) {
-      startSpan = startSpan.parentElement
+    let startInLine = startNode.nodeType === Node.TEXT_NODE ? startNode.parentElement : startNode
+    while (startInLine && startInLine.nodeName !== 'SPAN' && startInLine !== rootEl) {
+      startInLine = startInLine.parentElement
     }
-    let endSpan = endNode.nodeType === Node.TEXT_NODE ? endNode.parentElement : endNode
-    while (endSpan && endSpan.nodeName !== 'SPAN' && endSpan !== rootEl) {
-      endSpan = endSpan.parentElement
+    let endInLine = endNode.nodeType === Node.TEXT_NODE ? endNode.parentElement : endNode
+    while (endInLine && endInLine.nodeName !== 'SPAN' && endInLine !== rootEl) {
+      endInLine = endInLine.parentElement
     }
-    if (startSpan && endSpan && startSpan === endSpan) {
+    if (startInLine && endInLine && startInLine === endInLine) {
       const elementToRange = (el) => {
         const r = document.createRange()
         r.selectNode(el)
         return r
       }
-      const spanRange = elementToRange(startSpan)
+      const spanRange = elementToRange(startInLine)
       const s = range.compareBoundaryPoints(Range.START_TO_START, spanRange)
       const e = range.compareBoundaryPoints(Range.END_TO_END, spanRange)
       // s <=0 && e >=0 → 选区把整个span完整包住
       if (s <= 0 && e >= 0) {
-        ancestor = startSpan
+        ancestor = startInLine
       }
       spanRange.detach()
     }
@@ -639,19 +653,22 @@ const RichTextEditor = ({ value = '', onChange }) => {
 
         const parent = child.parentElement
         if (isOnlyChildInSpan(child)) {
+          const inlineStyle = transStyle(parent, key, value)
           // 父span只有当前文本，直接复用父span，禁止嵌套
-          Object.assign(parent.style, spanStyle)
+          Object.assign(parent.style, inlineStyle)
         } else {
           // 需要新建span包裹
           const wrapperSpan = document.createElement('span')
           wrapperSpan.textContent = child.textContent
-          Object.assign(wrapperSpan.style, spanStyle)
+          const inlineStyle = transStyle(wrapperSpan, key, value)
+          Object.assign(wrapperSpan.style, inlineStyle)
           child.replaceWith(wrapperSpan)
         }
       }
       if (child.nodeType === Node.ELEMENT_NODE) {
         if (child.nodeName === 'SPAN') {
-          Object.assign(child.style, spanStyle)
+          const inlineStyle = transStyle(child, key, value)
+          Object.assign(child.style, inlineStyle)
         }
       }
     }
@@ -661,98 +678,87 @@ const RichTextEditor = ({ value = '', onChange }) => {
   }
 
   // 处理块级样式
-  const handleDivCommand = (key, value, range) => {
-    // 向上查找当前光标所在的块级节点 (div 或 li)
-    let blockNode = range.startContainer
-    if (blockNode.nodeType === Node.TEXT_NODE) blockNode = blockNode.parentElement
-    while (blockNode && blockNode !== editorRef.current) {
-      if (['DIV', 'LI'].includes(blockNode.nodeName)) break
-      blockNode = blockNode.parentElement
-    }
+  const handleBlockCommand = (key, value, range, rootEl) => {
+    // 仅处理有选区的情况
+    if (range.collapsed) return
+    const plainText = range.toString()
+    if (!plainText.trim()) return
 
-    let ancestor = blockNode
-    let blockElStyle = ancestor.style
+    // 保存选区
+    const offset = saveRangeOffset(rootEl)
+    // 处理样式
+    const transStyle = (el, key, value) => {
+      const computed = getComputedStyle(el)
+      let blockStyle = {}
 
-    // 样式
-    let spanStyle = {}
-    switch (key) {
-      case 'textAlign':
-        spanStyle.textAlign = value
-        break
-      case 'lineHeight':
-        spanStyle.lineHeight = value
-        break
-      case 'plusIndent':
-        {
-          const curr = parseFloat(blockElStyle.marginLeft) || 0
-          const next = curr + 2
-          spanStyle.marginLeft = `${next}em`
+      // 获取当前元素fontSize，用于px → em换算
+      const fontSizePx = parseFloat(computed.fontSize) || 16
+      switch (key) {
+        case 'textAlign':
+          blockStyle.textAlign = value
+          break
+        case 'lineHeight':
+          blockStyle.lineHeight = value
+          break
+        case 'plusIndent': {
+          const mlPx = parseFloat(computed.marginLeft) || 0
+          const mlEm = mlPx / fontSizePx
+          const nextEm = mlEm + 2
+          blockStyle.marginLeft = `${nextEm}em`
+          break
         }
-        break
-      case 'minusIndent':
-        {
-          const curr = parseFloat(blockElStyle.marginLeft) || 0
-          const next = Math.max(0, curr - 2)
-          if (next > 0) {
-            spanStyle.marginLeft = `${next}em`
+        case 'minusIndent': {
+          const mlPx = parseFloat(computed.marginLeft) || 0
+          const mlEm = mlPx / fontSizePx
+          const nextEm = Math.max(0, mlEm - 2)
+          if (nextEm > 0) {
+            blockStyle.marginLeft = `${nextEm}em`
           } else {
-            spanStyle.marginLeft = ''
+            blockStyle.marginLeft = ''
           }
+          break
         }
-        break
+      }
+
+      return blockStyle
     }
 
-    const flag = range.cloneContents()
-    const content = document.createElement('div')
-    content.appendChild(flag.cloneNode(true))
-    const childNodes = Array.from(content.childNodes)
-    const fragment = document.createDocumentFragment()
+    const startNode = range.startContainer
+    const endNode = range.endContainer
 
-    if (ancestor) {
-      Object.assign(ancestor.style, spanStyle)
-    } else {
-      if (childNodes.length > 1) {
-        for (const node of childNodes) {
-          if (node.nodeType === Node.TEXT_NODE) {
-            const div = document.createElement('div')
-            div.textContent = node.textContent
-            Object.assign(div.style, spanStyle)
-            node.replaceWith(div)
-          }
-          if (node.nodeType === Node.ELEMENT_NODE) {
-            Object.assign(node.style, spanStyle)
-          }
+    const blockTags = ['DIV', 'LI']
+    // 优先判断：选区起点终点是否在同一个DIV内部
+    let startBlock = startNode.nodeType === Node.TEXT_NODE ? startNode.parentElement : startNode
+    while (startBlock && !blockTags.includes(startBlock.nodeName) && startBlock !== rootEl) {
+      startBlock = startBlock.parentElement
+    }
+    let endBlock = endNode.nodeType === Node.TEXT_NODE ? endNode.parentElement : endNode
+    while (endBlock && !blockTags.includes(endBlock.nodeName) && endBlock !== rootEl) {
+      endBlock = endBlock.parentElement
+    }
+    const childNodes = []
+    if (startBlock && endBlock && rootEl.contains(startBlock) && rootEl.contains(endBlock)) {
+      let current = startBlock
+      while (current) {
+        if (blockTags.includes(current.nodeName)) {
+          childNodes.push(current)
         }
-        const newNodes = Array.from(content.childNodes)
-        fragment.append(...newNodes)
-
-        const firstInsertedNode = fragment.firstChild
-        const lastInsertedNode = fragment.lastChild
-        range.deleteContents()
-        range.insertNode(fragment)
-        const newSelRange = document.createRange()
-        newSelRange.setStartBefore(firstInsertedNode)
-        newSelRange.setEndAfter(lastInsertedNode)
-        const selection = window.getSelection()
-        selection.removeAllRanges()
-        selection.addRange(newSelRange)
-      } else {
-        const newContent = document.createElement('div')
-        newContent.appendChild(flag.cloneNode(true))
-        Object.assign(newContent.style, spanStyle)
-
-        const firstInsertedNode = newContent.firstChild
-        const lastInsertedNode = newContent.lastChild
-        range.deleteContents()
-        range.insertNode(newContent)
-        const newSelRange = document.createRange()
-        newSelRange.setStartBefore(firstInsertedNode)
-        newSelRange.setEndAfter(lastInsertedNode)
-        const selection = window.getSelection()
-        selection.removeAllRanges()
-        selection.addRange(newSelRange)
+        if (current === endBlock) break
+        current = current.nextSibling
       }
     }
+
+    // 全部信息读完之后，才分割边界！！
+    splitRangeBoundaries(range)
+
+    // 逐个处理选中的块级节点
+    for (const child of childNodes) {
+      const blockElStyle = transStyle(child, key, value)
+      Object.assign(child.style, blockElStyle)
+    }
+
+    // 恢复选区
+    restoreRangeByOffset(rootEl, offset)
   }
 
   // 处理列表
@@ -798,11 +804,11 @@ const RichTextEditor = ({ value = '', onChange }) => {
       // 处理 span 样式
       if (spanKeys.includes(key)) {
         // 执行DOM修改
-        handleSpanCommand(key, value, originRange, editorRef.current)
+        handleInLineCommand(key, value, originRange, editorRef.current)
       }
       // 处理 div 样式
       if (divKeys.includes(key)) {
-        handleDivCommand(key, value, originRange, editorRef.current)
+        handleBlockCommand(key, value, originRange, editorRef.current)
       }
       // 处理列表
       if (listKeys.includes(key)) {
