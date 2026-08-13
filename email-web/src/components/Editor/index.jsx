@@ -239,181 +239,6 @@ const RichTextEditor = ({ value = '', onChange }) => {
     setCurrentFormat(newFormat)
   }, [currentFormat])
 
-  // 获取当前光标/选区的精确位置
-  const getCurrentSelection = () => {
-    const selection = window.getSelection()
-    if (!selection.rangeCount || !editorRef.current?.contains(selection.anchorNode)) return null
-    const range = selection.getRangeAt(0)
-    return {
-      startContainer: range.startContainer,
-      startOffset: range.startOffset,
-      endContainer: range.endContainer,
-      endOffset: range.endOffset,
-    }
-  }
-
-  // 恢复光标/选区位置
-  const restoreSelection = (savedSelection) => {
-    if (!savedSelection || !editorRef.current) return
-    try {
-      const selection = window.getSelection()
-      const range = document.createRange()
-      range.setStart(savedSelection.startContainer, savedSelection.startOffset)
-      range.setEnd(savedSelection.endContainer, savedSelection.endOffset)
-      selection.removeAllRanges()
-      selection.addRange(range)
-    } catch (e) {
-      // 如果 DOM 结构变动导致节点找不到，降级处理：将光标移至末尾
-      console.warn('恢复选区失败，已重置光标到末尾')
-      const newRange = document.createRange()
-      newRange.selectNodeContents(editorRef.current)
-      newRange.collapse(false)
-      const selection = window.getSelection()
-      selection.removeAllRanges()
-      selection.addRange(newRange)
-    }
-  }
-
-  // 精准恢复选区，带异常降级
-  const restoreSavedRange = (savedRange) => {
-    if (!savedRange || !editorRef.current) return
-    try {
-      const sel = window.getSelection()
-      sel.removeAllRanges()
-      sel.addRange(savedRange)
-      editorRef.current.focus()
-    } catch (err) {
-      console.warn('选区恢复失败，降级光标到末尾', err)
-      const fallbackRange = document.createRange()
-      fallbackRange.selectNodeContents(editorRef.current)
-      fallbackRange.collapse(false)
-      const sel = window.getSelection()
-      sel.removeAllRanges()
-      sel.addRange(fallbackRange)
-    }
-  }
-
-  // 保存当前状态到撤销栈
-  const saveHistory = useCallback(() => {
-    if (!editorRef.current || isUndoingOrRedoing.current) return
-
-    const currentHtml = editorRef.current.innerHTML
-    const currentState = {
-      html: currentHtml,
-      selection: getCurrentSelection(),
-    }
-
-    // 避免重复保存相同的状态
-    if (undoStack.current.length > 0 && undoStack.current[undoStack.current.length - 1].html === currentHtml) {
-      return
-    }
-
-    undoStack.current.push(currentState)
-    // 限制栈深度
-    if (undoStack.current.length > MAX_HISTORY) {
-      undoStack.current.shift()
-    }
-    // 产生新操作，清空重做栈
-    redoStack.current = []
-  }, [])
-
-  // 每200ms合并为一次历史记录
-  // eslint-disable-next-line react-hooks/refs
-  const debouncedSaveHistory = useRef(debounce(saveHistory, 200)).current
-
-  // 执行撤销
-  const handleUndo = useCallback(() => {
-    if (undoStack.current.length <= 1) return // 至少保留初始状态
-    isUndoingOrRedoing.current = true
-
-    // 将当前状态推入重做栈
-    const currentState = undoStack.current.pop()
-    redoStack.current.push(currentState)
-
-    // 恢复上一个状态
-    const prevState = undoStack.current[undoStack.current.length - 1]
-    editorRef.current.innerHTML = prevState.html
-    restoreSelection(prevState.selection)
-
-    // 基于书签恢复光标
-    if (prevState.bookmarkId) {
-      const bookmark = editorRef.current.querySelector(`#${prevState.bookmarkId}`)
-      if (bookmark) {
-        const range = document.createRange()
-        range.setStartBefore(bookmark)
-        range.collapse(true)
-        bookmark.remove() // 移除书签
-        const sel = window.getSelection()
-        sel.removeAllRanges()
-        sel.addRange(range)
-      }
-    }
-
-    // 触发外部 onChange
-    isInternalChange.current = true
-    onChange?.(prevState.html)
-    updateCurrentFormat()
-
-    isUndoingOrRedoing.current = false
-  }, [onChange, updateCurrentFormat])
-
-  // 执行重做
-  const handleRedo = useCallback(() => {
-    if (redoStack.current.length === 0) return
-    isUndoingOrRedoing.current = true
-
-    const nextState = redoStack.current.pop()
-    undoStack.current.push(nextState)
-
-    editorRef.current.innerHTML = nextState.html
-    restoreSelection(nextState.selection)
-
-    isInternalChange.current = true
-    onChange?.(nextState.html)
-    updateCurrentFormat()
-
-    isUndoingOrRedoing.current = false
-  }, [onChange, updateCurrentFormat])
-
-  // 插入分割线
-  const handleHr = () => {
-    editorRef.current.focus()
-    const selection = window.getSelection()
-    if (!selection.rangeCount || !editorRef.current?.contains(selection.anchorNode)) return null
-    const range = selection.getRangeAt(0)
-
-    const hr = document.createElement('hr')
-    hr.style = 'margin: 20px 0; border-top: 1px solid rgb(230, 232, 235);'
-    const br = document.createElement('br')
-    // 先清空选区内容，插入分割线
-    range.deleteContents()
-    range.insertNode(hr)
-    // 将光标移到hr后面，插入换行
-    range.setStartAfter(hr)
-    range.insertNode(br)
-    // 光标定位到br后方，方便直接打字
-    range.setStartAfter(br)
-    range.collapse(true)
-
-    selection.removeAllRanges()
-    selection.addRange(range)
-  }
-
-  // 受控组件初始化与外部数据同步
-  useEffect(() => {
-    if (!isInternalChange.current && editorRef.current && value !== editorRef.current.innerHTML) {
-      editorRef.current.innerHTML = value
-    }
-    isInternalChange.current = false
-  }, [value])
-
-  // 初始化时记录第一条历史
-  useEffect(() => {
-    if (editorRef.current && undoStack.current.length === 0) {
-      saveHistory()
-    }
-  }, [saveHistory])
-
   // 换前先保存选区文本偏移
   const saveRangeOffset = (root) => {
     const sel = window.getSelection()
@@ -444,6 +269,25 @@ const RichTextEditor = ({ value = '', onChange }) => {
       pos += len
     }
     return { startOffset, endOffset }
+  }
+
+  // 失焦前恢复选区
+  const restoreSavedRange = (savedRange) => {
+    if (!savedRange || !editorRef.current) return
+    try {
+      const sel = window.getSelection()
+      sel.removeAllRanges()
+      sel.addRange(savedRange)
+      editorRef.current.focus()
+    } catch (err) {
+      console.warn('选区恢复失败，降级光标到末尾', err)
+      const fallbackRange = document.createRange()
+      fallbackRange.selectNodeContents(editorRef.current)
+      fallbackRange.collapse(false)
+      const sel = window.getSelection()
+      sel.removeAllRanges()
+      sel.addRange(fallbackRange)
+    }
   }
 
   // 恢复选区
@@ -501,6 +345,140 @@ const RichTextEditor = ({ value = '', onChange }) => {
       }
     }
   }
+
+  // 获取当前光标/选区的精确位置
+  const getCurrentSelection = () => {
+    const selection = window.getSelection()
+    if (!selection.rangeCount || !editorRef.current?.contains(selection.anchorNode)) return null
+    const range = selection.getRangeAt(0)
+    return {
+      startContainer: range.startContainer,
+      startOffset: range.startOffset,
+      endContainer: range.endContainer,
+      endOffset: range.endOffset,
+    }
+  }
+
+  // 保存当前状态到撤销栈
+  const saveHistory = useCallback(() => {
+    if (!editorRef.current || isUndoingOrRedoing.current) return
+
+    const currentHtml = editorRef.current.innerHTML
+    const currentState = {
+      html: currentHtml,
+      selection: getCurrentSelection(),
+    }
+
+    // 避免重复保存相同的状态
+    if (undoStack.current.length > 0 && undoStack.current[undoStack.current.length - 1].html === currentHtml) {
+      return
+    }
+
+    undoStack.current.push(currentState)
+    // 限制栈深度
+    if (undoStack.current.length > MAX_HISTORY) {
+      undoStack.current.shift()
+    }
+    // 产生新操作，清空重做栈
+    redoStack.current = []
+  }, [])
+
+  // 每200ms合并为一次历史记录
+  // eslint-disable-next-line react-hooks/refs
+  const debouncedSaveHistory = useRef(debounce(saveHistory, 200)).current
+
+  // 执行撤销
+  const handleUndo = useCallback(() => {
+    if (undoStack.current.length <= 1) return // 至少保留初始状态
+    isUndoingOrRedoing.current = true
+
+    // 将当前状态推入重做栈
+    const currentState = undoStack.current.pop()
+    redoStack.current.push(currentState)
+
+    // 恢复上一个状态
+    const prevState = undoStack.current[undoStack.current.length - 1]
+    editorRef.current.innerHTML = prevState.html
+    restoreRangeByOffset(editorRef.current, prevState.selection)
+
+    // 基于书签恢复光标
+    if (prevState.bookmarkId) {
+      const bookmark = editorRef.current.querySelector(`#${prevState.bookmarkId}`)
+      if (bookmark) {
+        const range = document.createRange()
+        range.setStartBefore(bookmark)
+        range.collapse(true)
+        bookmark.remove() // 移除书签
+        const sel = window.getSelection()
+        sel.removeAllRanges()
+        sel.addRange(range)
+      }
+    }
+
+    // 触发外部 onChange
+    isInternalChange.current = true
+    onChange?.(prevState.html)
+    updateCurrentFormat()
+
+    isUndoingOrRedoing.current = false
+  }, [onChange, updateCurrentFormat])
+
+  // 执行重做
+  const handleRedo = useCallback(() => {
+    if (redoStack.current.length === 0) return
+    isUndoingOrRedoing.current = true
+
+    const nextState = redoStack.current.pop()
+    undoStack.current.push(nextState)
+
+    editorRef.current.innerHTML = nextState.html
+    restoreRangeByOffset(editorRef.current, nextState.selection)
+
+    isInternalChange.current = true
+    onChange?.(nextState.html)
+    updateCurrentFormat()
+
+    isUndoingOrRedoing.current = false
+  }, [onChange, updateCurrentFormat])
+
+  // 插入分割线
+  const handleHr = () => {
+    editorRef.current.focus()
+    const selection = window.getSelection()
+    if (!selection.rangeCount || !editorRef.current?.contains(selection.anchorNode)) return null
+    const range = selection.getRangeAt(0)
+
+    const hr = document.createElement('hr')
+    hr.style = 'margin: 20px 0; border-top: 1px solid rgb(230, 232, 235);'
+    const br = document.createElement('br')
+    // 先清空选区内容，插入分割线
+    range.deleteContents()
+    range.insertNode(hr)
+    // 将光标移到hr后面，插入换行
+    range.setStartAfter(hr)
+    range.insertNode(br)
+    // 光标定位到br后方，方便直接打字
+    range.setStartAfter(br)
+    range.collapse(true)
+
+    selection.removeAllRanges()
+    selection.addRange(range)
+  }
+
+  // 受控组件初始化与外部数据同步
+  useEffect(() => {
+    if (!isInternalChange.current && editorRef.current && value !== editorRef.current.innerHTML) {
+      editorRef.current.innerHTML = value
+    }
+    isInternalChange.current = false
+  }, [value])
+
+  // 初始化时记录第一条历史
+  useEffect(() => {
+    if (editorRef.current && undoStack.current.length === 0) {
+      saveHistory()
+    }
+  }, [saveHistory])
 
   // 处理行内样式
   const handleInLineCommand = (key, value, range, rootEl) => {
