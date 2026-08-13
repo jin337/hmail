@@ -762,7 +762,7 @@ const RichTextEditor = ({ value = '', onChange }) => {
       }
     }
 
-    // 全部信息读完之后，才分割边界！！
+    // 分割边界
     splitRangeBoundaries(range)
 
     // 逐个处理选中的块级节点
@@ -784,8 +784,7 @@ const RichTextEditor = ({ value = '', onChange }) => {
 
     // 保存选区
     const offset = saveRangeOffset(rootEl)
-
-    // 全部信息读完之后，才分割边界！！
+    // 分割边界
     splitRangeBoundaries(range)
 
     const startNode = range.startContainer
@@ -812,6 +811,9 @@ const RichTextEditor = ({ value = '', onChange }) => {
         current = current.nextSibling
       }
     }
+
+    // 分割边界
+    splitRangeBoundaries(range)
 
     // 判断是否处于列表模式：childNodes中存在LI节点
     const isInListMode = childNodes.some((node) => node.nodeName === 'LI')
@@ -863,6 +865,9 @@ const RichTextEditor = ({ value = '', onChange }) => {
         listStyleType: targetListTag === 'UL' ? 'disc' : 'decimal',
         marginLeft: '20px',
       })
+
+      rootEl.insertBefore(listWrapper, childNodes[0])
+
       for (const divEl of childNodes) {
         if (divEl.nodeName !== 'DIV') continue
         const liEl = document.createElement('li')
@@ -874,8 +879,6 @@ const RichTextEditor = ({ value = '', onChange }) => {
         }
         listWrapper.appendChild(liEl)
         divEl.remove()
-
-        rootEl.insertBefore(listWrapper, rootEl.firstChild)
       }
     }
 
