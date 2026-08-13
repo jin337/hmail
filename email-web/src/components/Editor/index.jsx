@@ -2,6 +2,29 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 
 import './index.scss'
 
+// 图标导入
+import AlignIcon from './icons/align.svg'
+import BgColorIcon from './icons/bgcolor.svg'
+import BoldIcon from './icons/bold.svg'
+import Checkcon from './icons/check.svg'
+import ClearIcon from './icons/clear.svg'
+import ColorIcon from './icons/color.svg'
+import DownIcon from './icons/down.svg'
+import HrIcon from './icons/hr.svg'
+import IndentMinusIcon from './icons/indent_minus.svg'
+import IndentPlusIcon from './icons/indent_plus.svg'
+import ItalicIcon from './icons/italic.svg'
+import LineHeightIcon from './icons/line_height.svg'
+import OlIcon from './icons/order_number.svg'
+import UlIcon from './icons/order_Object.svg'
+import RedoIcon from './icons/redo.svg'
+import StrikeIcon from './icons/strike.svg'
+import UnderlineIcon from './icons/underline.svg'
+import UndoIcon from './icons/undo.svg'
+
+// 调色板
+import ColorPicker from './ColorPicker'
+
 // 字体
 const FONT_FAMILIES = [
   { label: '默认字体', value: 'inherit' },
@@ -54,40 +77,68 @@ const TEXT_ALIGN = [
 const DEFAULT_FORMAT = {
   fontFamily: 'inherit',
   fontSize: null,
-  textColor: 'rgb(46, 48, 51)',
-  backgroundColor: '',
-  textAlign: 'left',
-  lineHeight: 1.43,
-  textIndent: '0em',
+  textColor: 'rgb(247, 49, 22)',
+  backgroundColor: 'rgb(255, 217, 0)',
+  textAlign: null,
+  lineHeight: 1.0,
 }
 
-// 图标导入
-import AlignIcon from './icons/align.svg'
-import BgColorIcon from './icons/bgcolor.svg'
-import BoldIcon from './icons/bold.svg'
-import Checkcon from './icons/check.svg'
-import ClearIcon from './icons/clear.svg'
-import ColorIcon from './icons/color.svg'
-import DownIcon from './icons/down.svg'
-import HrIcon from './icons/hr.svg'
-import IndentMinusIcon from './icons/indent_minus.svg'
-import IndentPlusIcon from './icons/indent_plus.svg'
-import ItalicIcon from './icons/italic.svg'
-import LineHeightIcon from './icons/line_height.svg'
-import OlIcon from './icons/order_number.svg'
-import UlIcon from './icons/order_Object.svg'
-import RedoIcon from './icons/redo.svg'
-import StrikeIcon from './icons/strike.svg'
-import UnderlineIcon from './icons/underline.svg'
-import UndoIcon from './icons/undo.svg'
-
-// 调色板
-import ColorPicker from './ColorPicker'
+// 工具栏配置项
+const toolBarItems = [
+  { type: 'button', title: '清除格式', key: 'clear', icon: ClearIcon },
+  { type: 'button', title: '撤销', key: 'undo', icon: UndoIcon },
+  { type: 'button', title: '重做', key: 'redo', icon: RedoIcon },
+  { type: 'divider' },
+  { type: 'select', title: '字体', key: 'fontFamily', options: FONT_FAMILIES, defaultValue: DEFAULT_FORMAT.fontFamily },
+  { type: 'select', title: '字号', key: 'fontSize', options: FONT_SIZES, defaultValue: DEFAULT_FORMAT.fontSize },
+  { type: 'divider' },
+  { type: 'toggle', title: '加粗', key: 'bold', icon: BoldIcon },
+  { type: 'toggle', title: '斜体', key: 'italic', icon: ItalicIcon },
+  { type: 'toggle', title: '下划线', key: 'underline', icon: UnderlineIcon },
+  { type: 'toggle', title: '删除线', key: 'strike', icon: StrikeIcon },
+  {
+    type: 'color',
+    title: '字体颜色',
+    key: 'textColor',
+    icon: ColorIcon,
+    defaultValue: { default: 'rgb(46, 48, 51)', text: '默认颜色', color: DEFAULT_FORMAT.textColor },
+  },
+  {
+    type: 'color',
+    title: '背景颜色',
+    key: 'backgroundColor',
+    icon: BgColorIcon,
+    defaultValue: { default: '', text: '无颜色', color: DEFAULT_FORMAT.backgroundColor },
+  },
+  { type: 'divider' },
+  { type: 'toggle', title: '无序列表', key: 'ul', icon: UlIcon },
+  { type: 'toggle', title: '有序列表', key: 'ol', icon: OlIcon },
+  { type: 'button', title: '增加缩进', key: 'plusIndent', icon: IndentPlusIcon },
+  { type: 'button', title: '减少缩进', key: 'minusIndent', icon: IndentMinusIcon },
+  {
+    type: 'select',
+    title: '对齐',
+    key: 'textAlign',
+    options: TEXT_ALIGN,
+    defaultValue: DEFAULT_FORMAT.textAlign,
+    icon: AlignIcon,
+  },
+  {
+    type: 'select',
+    title: '行间距',
+    key: 'lineHeight',
+    options: LINE_HEIGHTS,
+    defaultValue: DEFAULT_FORMAT.lineHeight,
+    icon: LineHeightIcon,
+  },
+  { type: 'divider' },
+  { type: 'button', title: '插入分割线', key: 'hr', icon: HrIcon },
+]
 
 // 防抖函数
 const debounce = (func, wait) => {
   let timeout
-  return function executedFunction(...args) {
+  const fn = function executedFunction(...args) {
     const later = () => {
       clearTimeout(timeout)
       func(...args)
@@ -95,18 +146,24 @@ const debounce = (func, wait) => {
     clearTimeout(timeout)
     timeout = setTimeout(later, wait)
   }
+  fn.clear = () => {
+    clearTimeout(timeout)
+  }
+  return fn
 }
 
 const RichTextEditor = ({ value = '', onChange }) => {
   const editorRef = useRef(null)
+
   const savedRange = useRef(null)
-  const isInternalChange = useRef(false)
-  const dropdownRef = useRef(null)
+  const isInternalChange = useRef(false) // 用于判断是否是内部改变
+  const dropdownRef = useRef(null) // 下拉框
 
   const MAX_HISTORY = 50 // 最大历史记录数
   const undoStack = useRef([])
   const redoStack = useRef([])
   const isUndoingOrRedoing = useRef(false) // 防止撤销/重做时触发新的记录
+  const debouncedSaveHistoryRef = useRef(null)
 
   // 当前光标/选区的样式快照
   const [currentFormat, setCurrentFormat] = useState({
@@ -118,44 +175,6 @@ const RichTextEditor = ({ value = '', onChange }) => {
     isMediaSelected: false,
     ...DEFAULT_FORMAT,
   })
-
-  // 工具栏配置项
-  const toolBarItems = [
-    { type: 'button', title: '清除格式', key: 'clear', icon: ClearIcon },
-    { type: 'button', title: '撤销', key: 'undo', icon: UndoIcon },
-    { type: 'button', title: '重做', key: 'redo', icon: RedoIcon },
-    { type: 'divider' },
-    { type: 'select', title: '字体', key: 'fontFamily', options: FONT_FAMILIES, defaultValue: 'inherit' },
-    { type: 'select', title: '字号', key: 'fontSize', options: FONT_SIZES, defaultValue: null },
-    { type: 'divider' },
-    { type: 'toggle', title: '加粗', key: 'bold', icon: BoldIcon },
-    { type: 'toggle', title: '斜体', key: 'italic', icon: ItalicIcon },
-    { type: 'toggle', title: '下划线', key: 'underline', icon: UnderlineIcon },
-    { type: 'toggle', title: '删除线', key: 'strike', icon: StrikeIcon },
-    {
-      type: 'color',
-      title: '字体颜色',
-      key: 'textColor',
-      icon: ColorIcon,
-      defaultValue: { default: 'rgb(46, 48, 51)', text: '默认颜色', color: 'rgb(247, 49, 22)' },
-    },
-    {
-      type: 'color',
-      title: '背景颜色',
-      key: 'backgroundColor',
-      icon: BgColorIcon,
-      defaultValue: { default: '', text: '无颜色', color: 'rgb(255, 217, 0)' },
-    },
-    { type: 'divider' },
-    { type: 'toggle', title: '无序列表', key: 'ul', icon: UlIcon },
-    { type: 'toggle', title: '有序列表', key: 'ol', icon: OlIcon },
-    { type: 'button', title: '增加缩进', key: 'plusIndent', icon: IndentPlusIcon },
-    { type: 'button', title: '减少缩进', key: 'minusIndent', icon: IndentMinusIcon },
-    { type: 'select', title: '对齐', key: 'textAlign', options: TEXT_ALIGN, defaultValue: null, icon: AlignIcon },
-    { type: 'select', title: '行间距', key: 'lineHeight', options: LINE_HEIGHTS, defaultValue: 1.43, icon: LineHeightIcon },
-    { type: 'divider' },
-    { type: 'button', title: '插入分割线', key: 'hr', icon: HrIcon },
-  ]
 
   // 添加占位符
   const addPlaceholderBlock = (rootEl) => {
@@ -182,6 +201,7 @@ const RichTextEditor = ({ value = '', onChange }) => {
       underline: false,
       strikethrough: false,
       listType: null,
+      textIndent: null,
       isMediaSelected: false,
       ...DEFAULT_FORMAT,
     }
@@ -217,7 +237,7 @@ const RichTextEditor = ({ value = '', onChange }) => {
       const style = blockNode.style
       newFormat.textAlign = style.textAlign || DEFAULT_FORMAT.textAlign
       newFormat.lineHeight = parseFloat(style.lineHeight) || DEFAULT_FORMAT.lineHeight
-      newFormat.textIndent = style.textIndent || DEFAULT_FORMAT.textIndent
+      newFormat.textIndent = style.textIndent || null
       newFormat.listType = blockNode.nodeName === 'LI' ? blockNode.parentElement?.nodeName.toLowerCase() : null
     }
 
@@ -230,7 +250,7 @@ const RichTextEditor = ({ value = '', onChange }) => {
       newFormat.fontSize = style.fontSize || DEFAULT_FORMAT.fontSize
       newFormat.textColor = style.color || DEFAULT_FORMAT.textColor
       newFormat.backgroundColor = style.backgroundColor || DEFAULT_FORMAT.backgroundColor
-      newFormat.bold = style.fontWeight === 'bold' || parseInt(style.fontWeight) >= 700
+      newFormat.bold = style.fontWeight === 'bold'
       newFormat.italic = style.fontStyle === 'italic'
       newFormat.underline = style.textDecoration?.includes('underline')
       newFormat.strikethrough = style.textDecoration?.includes('line-through')
@@ -383,9 +403,133 @@ const RichTextEditor = ({ value = '', onChange }) => {
     redoStack.current = []
   }, [])
 
-  // 每200ms合并为一次历史记录
-  // eslint-disable-next-line react-hooks/refs
-  const debouncedSaveHistory = useRef(debounce(saveHistory, 200)).current
+  // 处理列表:Tab 缩进
+  const handleTabIndent = () => {
+    const rootEl = editorRef.current
+    if (!rootEl) return false
+    const sel = window.getSelection()
+    if (!sel.rangeCount || sel.isCollapsed) return false
+
+    let node = sel.anchorNode
+    while (node && node !== rootEl && node.nodeName !== 'LI') {
+      node = node.parentNode
+    }
+    if (!node || node === rootEl) return false
+
+    const li = node
+    const prevLi = li.previousElementSibling
+    if (!prevLi) return false
+
+    const parentList = li.parentElement
+    const listTag = parentList.nodeName
+
+    let subList = prevLi.nextElementSibling
+    if (!subList || !['UL', 'OL'].includes(subList.nodeName)) {
+      subList = document.createElement(listTag)
+      Object.assign(subList.style, {
+        listStyleType: listTag === 'UL' ? 'disc' : 'decimal',
+        marginLeft: '20px',
+      })
+      prevLi.after(subList)
+    }
+
+    subList.appendChild(li)
+    return true
+  }
+
+  // 处理列表:Shift+Tab
+  const handleTabOutdent = () => {
+    const rootEl = editorRef.current
+    if (!rootEl) return false
+    const sel = window.getSelection()
+    if (!sel.rangeCount || sel.isCollapsed) return false
+
+    let node = sel.anchorNode
+    while (node && node !== rootEl && node.nodeName !== 'LI') {
+      node = node.parentNode
+    }
+    if (!node || node === rootEl) return false
+
+    const li = node
+    const parentList = li.parentElement
+    const aboveLi = parentList.previousElementSibling
+
+    if (aboveLi && aboveLi.nodeName === 'LI') {
+      const afterList = document.createElement(parentList.nodeName)
+      Object.assign(afterList.style, {
+        listStyleType: parentList.style.listStyleType,
+        marginLeft: parentList.style.marginLeft,
+      })
+      let next = li.nextSibling
+      while (next) {
+        afterList.appendChild(next)
+        next = li.nextSibling
+      }
+
+      parentList.parentNode.insertBefore(li, parentList.nextSibling)
+      if (afterList.firstChild) {
+        parentList.parentNode.insertBefore(afterList, li.nextSibling)
+      }
+      if (!parentList.firstChild) {
+        parentList.remove()
+      }
+    }
+    return true
+  }
+
+  // 清除格式
+  const handleClear = (range, rootEl) => {
+    // 仅处理有选区的情况
+    if (range.collapsed) return
+
+    // 保存选区偏移，后面恢复
+    const offsetInfo = saveRangeOffset(rootEl)
+
+    const startNode = range.startContainer
+    const endNode = range.endContainer
+
+    const blockTags = ['DIV', 'LI']
+    let startBlock = startNode.nodeType === Node.TEXT_NODE ? startNode.parentElement : startNode
+    while (startBlock && !blockTags.includes(startBlock.nodeName) && startBlock !== rootEl) {
+      startBlock = startBlock.parentElement
+    }
+    let endBlock = endNode.nodeType === Node.TEXT_NODE ? endNode.parentElement : endNode
+    while (endBlock && !blockTags.includes(endBlock.nodeName) && endBlock !== rootEl) {
+      endBlock = endBlock.parentElement
+    }
+    const childNodes = []
+    if (startBlock && endBlock && rootEl.contains(startBlock) && rootEl.contains(endBlock)) {
+      let current = startBlock
+      while (current) {
+        if (blockTags.includes(current.nodeName)) {
+          childNodes.push(current)
+        }
+        if (current === endBlock) break
+        current = current.nextSibling
+      }
+    }
+
+    for (const child of childNodes) {
+      child.textContent = child.innerText
+      child.removeAttribute('style')
+
+      if (child.nodeName === 'LI') {
+        const divEl = document.createElement('div')
+        while (child.firstChild) {
+          divEl.appendChild(child.firstChild)
+        }
+        const parentList = child.parentElement
+        parentList.parentNode.insertBefore(divEl, parentList)
+        child.remove()
+        if (!parentList.firstChild) {
+          parentList.remove()
+        }
+      }
+    }
+
+    // 恢复选区
+    restoreRangeByOffset(rootEl, offsetInfo)
+  }
 
   // 执行撤销
   const handleUndo = useCallback(() => {
@@ -464,22 +608,6 @@ const RichTextEditor = ({ value = '', onChange }) => {
     selection.removeAllRanges()
     selection.addRange(range)
   }
-
-  // 受控组件初始化与外部数据同步
-  useEffect(() => {
-    if (!isInternalChange.current && editorRef.current && value !== editorRef.current.innerHTML) {
-      editorRef.current.innerHTML = value
-    }
-    isInternalChange.current = false
-  }, [value])
-
-  // 初始化时记录第一条历史
-  useEffect(() => {
-    if (editorRef.current && undoStack.current.length === 0) {
-      saveHistory()
-    }
-  }, [saveHistory])
-
   // 处理行内样式
   const handleInLineCommand = (key, value, range, rootEl) => {
     // 仅处理有选区的情况
@@ -489,6 +617,12 @@ const RichTextEditor = ({ value = '', onChange }) => {
     // 切换行内样式
     const applyInlineStyle = (el, key, value) => {
       const computed = getComputedStyle(el)
+      const decoStr = computed.textDecoration || ''
+      const lines = []
+      if (/underline/.test(decoStr)) lines.push('underline')
+      if (/line-through/.test(decoStr)) lines.push('line-through')
+      if (/overline/.test(decoStr)) lines.push('overline')
+
       const toKebabCase = (str) => str.replace(/[A-Z]/g, (m) => '-' + m.toLowerCase())
       let styleObj = {}
 
@@ -499,35 +633,40 @@ const RichTextEditor = ({ value = '', onChange }) => {
         case 'fontSize':
           styleObj.fontSize = value
           break
+        case 'textColor':
+          styleObj.color = value
+          break
+        case 'backgroundColor':
+          styleObj.backgroundColor = value
+          break
         case 'bold':
           styleObj.fontWeight = 'bold'
           break
         case 'italic':
           styleObj.fontStyle = 'italic'
           break
-        case 'underline': {
-          const decoUnder = computed.textDecoration || ''
-          if (!decoUnder.includes('underline')) {
-            styleObj.textDecoration = [decoUnder, 'underline'].filter(Boolean).join(' ')
-          } else {
-            styleObj.textDecoration = ''
+        case 'underline':
+          {
+            // toggle
+            const idx = lines.indexOf('underline')
+            if (idx > -1) {
+              lines.splice(idx, 1)
+            } else {
+              lines.push('underline')
+            }
+            styleObj.textDecoration = lines.length ? lines.join(' ') : 'none'
           }
           break
-        }
-        case 'strike': {
-          const decoStrike = computed.textDecoration || ''
-          if (!decoStrike.includes('line-through')) {
-            styleObj.textDecoration = [decoStrike, 'line-through'].filter(Boolean).join(' ')
-          } else {
-            styleObj.textDecoration = ''
+        case 'strike':
+          {
+            const idx = lines.indexOf('line-through')
+            if (idx > -1) {
+              lines.splice(idx, 1)
+            } else {
+              lines.push('line-through')
+            }
+            styleObj.textDecoration = lines.length ? lines.join(' ') : 'none'
           }
-          break
-        }
-        case 'textColor':
-          styleObj.color = value
-          break
-        case 'backgroundColor':
-          styleObj.backgroundColor = value
           break
       }
 
@@ -604,7 +743,7 @@ const RichTextEditor = ({ value = '', onChange }) => {
       ancestor = rootEl
     }
 
-    // 全部信息读完之后，才分割边界！！
+    // 分割边界
     splitRangeBoundaries(range)
 
     const childNodes = []
@@ -683,33 +822,35 @@ const RichTextEditor = ({ value = '', onChange }) => {
       const computed = getComputedStyle(el)
       let blockStyle = {}
 
-      // 获取当前元素fontSize，用于px → em换算
       const fontSizePx = parseFloat(computed.fontSize) || 16
+
       switch (key) {
         case 'textAlign':
           blockStyle.textAlign = value
           break
         case 'lineHeight':
-          blockStyle.lineHeight = value
+          blockStyle.lineHeight = parseFloat(value) * 1.14
           break
-        case 'plusIndent': {
-          const mlPx = parseFloat(computed.marginLeft) || 0
-          const mlEm = mlPx / fontSizePx
-          const nextEm = mlEm + 2
-          blockStyle.marginLeft = `${nextEm}em`
-          break
-        }
-        case 'minusIndent': {
-          const mlPx = parseFloat(computed.marginLeft) || 0
-          const mlEm = mlPx / fontSizePx
-          const nextEm = Math.max(0, mlEm - 2)
-          if (nextEm > 0) {
+        case 'plusIndent':
+          {
+            const mlPx = parseFloat(computed.marginLeft) || 0
+            const mlEm = mlPx / fontSizePx
+            const nextEm = mlEm + 2
             blockStyle.marginLeft = `${nextEm}em`
-          } else {
-            blockStyle.marginLeft = ''
           }
           break
-        }
+        case 'minusIndent':
+          {
+            const mlPx = parseFloat(computed.marginLeft) || 0
+            const mlEm = mlPx / fontSizePx
+            const nextEm = Math.max(0, mlEm - 2)
+            if (nextEm > 0) {
+              blockStyle.marginLeft = `${nextEm}em`
+            } else {
+              blockStyle.marginLeft = ''
+            }
+          }
+          break
       }
 
       return blockStyle
@@ -762,8 +903,6 @@ const RichTextEditor = ({ value = '', onChange }) => {
 
     // 保存选区
     const offset = saveRangeOffset(rootEl)
-    // 分割边界
-    splitRangeBoundaries(range)
 
     const startNode = range.startContainer
     const endNode = range.endContainer
@@ -789,9 +928,6 @@ const RichTextEditor = ({ value = '', onChange }) => {
         current = current.nextSibling
       }
     }
-
-    // 分割边界
-    splitRangeBoundaries(range)
 
     // 按 parentNode 分组，避免选区时混入外部节点
     const groups = []
@@ -886,11 +1022,16 @@ const RichTextEditor = ({ value = '', onChange }) => {
       // 隔离状态下禁止格式化
       if (currentFormat.isMediaSelected) return
 
-      // 撤销/重做单独处理
+      // 清除格式
+      if (key === 'clear') {
+        handleClear(originRange, editorRef.current)
+      }
+      // 撤销
       if (key === 'undo') {
         handleUndo()
         return
       }
+      // 重做
       if (key === 'redo') {
         handleRedo()
         return
@@ -926,109 +1067,6 @@ const RichTextEditor = ({ value = '', onChange }) => {
     },
     [currentFormat, onChange, updateCurrentFormat, handleUndo, handleRedo, saveHistory]
   )
-
-  // 粘贴处理：仅接收图片和纯文本，丢弃所有富文本格式
-  const handlePaste = useCallback(
-    (e) => {
-      e.preventDefault()
-
-      const clipboardData = e.clipboardData
-      if (!clipboardData) return
-
-      const selection = window.getSelection()
-      if (!selection.rangeCount) return
-      const range = selection.getRangeAt(0)
-
-      // 处理图片粘贴
-      const items = clipboardData.items
-      for (let i = 0; i < items.length; i++) {
-        if (items[i].type.indexOf('image') !== -1) {
-          const file = items[i].getAsFile()
-          if (file) {
-            const img = document.createElement('img')
-            img.src = URL.createObjectURL(file)
-            range.deleteContents()
-            range.insertNode(img)
-
-            const newRange = document.createRange()
-            newRange.setStartAfter(img)
-            newRange.collapse(true)
-            selection.removeAllRanges()
-            selection.addRange(newRange)
-          }
-          isInternalChange.current = true
-          onChange?.(editorRef.current.innerHTML)
-          saveHistory()
-          return
-        }
-      }
-
-      // 处理纯文本粘贴（丢弃所有 HTML 标签和样式）
-      const plainText = clipboardData.getData('text/plain')
-      if (!plainText) return
-
-      range.deleteContents()
-      const textNode = document.createTextNode(plainText)
-      range.insertNode(textNode)
-
-      // 【修正】光标移到粘贴文本的后面
-      const newRange = document.createRange()
-      newRange.setStartAfter(textNode)
-      newRange.collapse(true)
-      selection.removeAllRanges()
-      selection.addRange(newRange)
-
-      isInternalChange.current = true
-      onChange?.(editorRef.current.innerHTML)
-      saveHistory()
-    },
-    [onChange, saveHistory]
-  )
-
-  // 监听键盘快捷键 (Ctrl+Z / Ctrl+Y)
-  const handleKeyDown = useCallback(
-    (e) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
-        e.preventDefault()
-        handleUndo()
-      } else if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.shiftKey && e.key === 'z'))) {
-        e.preventDefault()
-        handleRedo()
-      }
-    },
-    [handleUndo, handleRedo]
-  )
-  // 内容变化时触发
-  const handleInput = () => {
-    if (editorRef.current && onChange) {
-      isInternalChange.current = true
-      onChange(editorRef.current.innerHTML)
-    }
-    // 更新当前格式
-    updateCurrentFormat()
-
-    // 保存历史记录
-    debouncedSaveHistory()
-
-    // 添加占位块
-    debounce(addPlaceholderBlock(editorRef.current), 300)
-
-    // 保存当前的 Range，以便后续命令使用
-    const selection = window.getSelection()
-    if (selection.rangeCount > 0) {
-      savedRange.current = selection.getRangeAt(0)
-    }
-  }
-
-  // 处理编辑器失焦
-  const handleBlur = () => {
-    const selection = window.getSelection()
-    if (selection.rangeCount > 0) {
-      // 保存当前的 Range，以便后续命令使用
-      savedRange.current = selection.getRangeAt(0)
-    }
-  }
-
   // 渲染工具栏项
   const ToolbarItem = ({ item, currentFormat, executeCommand }) => {
     const [isOpen, setIsOpen] = useState(false)
@@ -1143,6 +1181,177 @@ const RichTextEditor = ({ value = '', onChange }) => {
     }
   }
 
+  // 处理粘贴事件
+  const handlePaste = useCallback(
+    (e) => {
+      e.preventDefault()
+
+      const clipboardData = e.clipboardData
+      if (!clipboardData) return
+
+      const selection = window.getSelection()
+      if (!selection.rangeCount) return
+      const range = selection.getRangeAt(0)
+
+      // 处理图片粘贴
+      const items = clipboardData.items
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type.indexOf('image') !== -1) {
+          const file = items[i].getAsFile()
+          if (file) {
+            const img = document.createElement('img')
+            img.src = URL.createObjectURL(file)
+            range.deleteContents()
+            range.insertNode(img)
+
+            const newRange = document.createRange()
+            newRange.setStartAfter(img)
+            newRange.collapse(true)
+            selection.removeAllRanges()
+            selection.addRange(newRange)
+          }
+          isInternalChange.current = true
+          onChange?.(editorRef.current.innerHTML)
+          saveHistory()
+          return
+        }
+      }
+
+      // 处理纯文本粘贴（丢弃所有 HTML 标签和样式）
+      const plainText = clipboardData.getData('text/plain')
+      if (!plainText) return
+
+      range.deleteContents()
+
+      // 创建文本节点
+      const textNode = document.createTextNode(plainText)
+      let container = range.startContainer
+      if (container.nodeType === Node.TEXT_NODE) {
+        container = container.parentElement
+      }
+
+      // 判断是否已经处于合法块容器内 DIV / LI
+      let hasValidBlock = false
+      for (let el = container; el && el !== editorRef.current; el = el.parentElement) {
+        if (['DIV', 'LI'].includes(el.nodeName)) {
+          hasValidBlock = true
+          break
+        }
+      }
+
+      let insertTarget
+      if (!hasValidBlock) {
+        const wrapDiv = document.createElement('div')
+        wrapDiv.appendChild(textNode)
+        insertTarget = wrapDiv
+      } else {
+        insertTarget = textNode
+      }
+
+      range.insertNode(insertTarget)
+
+      // 光标移到粘贴文本的后面
+      const newRange = document.createRange()
+      newRange.setStartAfter(insertTarget)
+      newRange.collapse(true)
+      selection.removeAllRanges()
+      selection.addRange(newRange)
+
+      isInternalChange.current = true
+      onChange?.(editorRef.current.innerHTML)
+      saveHistory()
+    },
+    [onChange, saveHistory]
+  )
+
+  // 监听键盘快捷键
+  const handleKeyDown = useCallback(
+    (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+        // Ctrl+Z
+        e.preventDefault()
+        handleUndo()
+      } else if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.shiftKey && e.key === 'z'))) {
+        // Ctrl+Y / Ctrl+Shift+Z
+        e.preventDefault()
+        handleRedo()
+      } else if (e.key === 'Tab' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault()
+        const rootEl = editorRef.current
+        if (!rootEl) return
+        const offset = saveRangeOffset(rootEl)
+        let handled
+        if (e.shiftKey) {
+          handled = handleTabOutdent()
+        } else {
+          handled = handleTabIndent()
+        }
+        if (handled) {
+          isInternalChange.current = true
+          onChange?.(rootEl.innerHTML)
+          restoreRangeByOffset(rootEl, offset)
+          saveHistory()
+        }
+      }
+    },
+    [handleUndo, handleRedo]
+  )
+
+  // 处理编辑器失焦
+  const handleBlur = () => {
+    const selection = window.getSelection()
+    if (selection.rangeCount > 0) {
+      // 保存当前的 Range，以便后续命令使用
+      savedRange.current = selection.getRangeAt(0)
+    }
+  }
+
+  // 内容变化时触发
+  const handleInput = () => {
+    if (editorRef.current && onChange) {
+      isInternalChange.current = true
+      onChange(editorRef.current.innerHTML)
+    }
+    // 更新当前格式
+    updateCurrentFormat()
+
+    // 保存历史记录
+    debouncedSaveHistoryRef.current?.()
+
+    // 添加占位块
+    debounce(addPlaceholderBlock(editorRef.current), 300)
+
+    // 保存当前的 Range，以便后续命令使用
+    const selection = window.getSelection()
+    if (selection.rangeCount > 0) {
+      savedRange.current = selection.getRangeAt(0)
+    }
+  }
+
+  // 每200ms合并为一次历史记录
+  useEffect(() => {
+    debouncedSaveHistoryRef.current = debounce(saveHistory, 200)
+    return () => {
+      debouncedSaveHistoryRef.current?.clear()
+    }
+  }, [saveHistory])
+
+  // 受控组件初始化与外部数据同步
+  useEffect(() => {
+    if (!isInternalChange.current && editorRef.current && value !== editorRef.current.innerHTML) {
+      editorRef.current.innerHTML = value
+    }
+    isInternalChange.current = false
+  }, [value])
+
+  // 初始化时记录第一条历史
+  useEffect(() => {
+    if (editorRef.current && undoStack.current.length === 0) {
+      saveHistory()
+    }
+  }, [saveHistory])
+
+  // 添加占位块
   useEffect(() => {
     const el = editorRef.current
     if (!el) return
