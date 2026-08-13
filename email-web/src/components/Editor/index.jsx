@@ -316,20 +316,31 @@ const RichTextEditor = ({ value = '', onChange }) => {
     const { startOffset, endOffset } = offsetInfo
     const range = document.createRange()
 
+    const textNodes = []
     const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null)
     let node = null
+    while ((node = walker.nextNode())) {
+      textNodes.push(node)
+    }
+
     let pos = 0
     let startSet = false
     let endSet = false
 
-    while ((node = walker.nextNode())) {
-      const len = node.textContent?.length ?? 0
+    for (let i = 0; i < textNodes.length; i++) {
+      const tn = textNodes[i]
+      const len = tn.textContent?.length ?? 0
+
       if (!startSet && pos + len >= startOffset) {
-        range.setStart(node, startOffset - pos)
+        if (pos + len === startOffset && i + 1 < textNodes.length) {
+          range.setStart(textNodes[i + 1], 0)
+        } else {
+          range.setStart(tn, startOffset - pos)
+        }
         startSet = true
       }
       if (!endSet && pos + len >= endOffset) {
-        range.setEnd(node, endOffset - pos)
+        range.setEnd(tn, endOffset - pos)
         endSet = true
       }
       pos += len
@@ -881,9 +892,6 @@ const RichTextEditor = ({ value = '', onChange }) => {
       }
     }
 
-    // 分割边界
-    splitRangeBoundaries(range)
-
     // 逐个处理选中的块级节点
     for (const child of childNodes) {
       const blockElStyle = transStyle(child, key, value)
@@ -906,6 +914,8 @@ const RichTextEditor = ({ value = '', onChange }) => {
 
     const startNode = range.startContainer
     const endNode = range.endContainer
+
+    console.log('startNode', startNode)
 
     const blockTags = ['DIV', 'LI']
     // 优先判断：选区起点终点是否在同一个DIV内部
