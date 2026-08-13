@@ -815,70 +815,74 @@ const RichTextEditor = ({ value = '', onChange }) => {
     // 分割边界
     splitRangeBoundaries(range)
 
-    // 判断是否处于列表模式：childNodes中存在LI节点
-    const isInListMode = childNodes.some((node) => node.nodeName === 'LI')
+    // 按 parentNode 分组，避免选区时混入外部节点
+    const groups = []
+    let lastParent = null
+    for (const node of childNodes) {
+      if (node.parentNode !== lastParent) {
+        groups.push([])
+        lastParent = node.parentNode
+      }
+      groups[groups.length - 1].push(node)
+    }
 
-    if (isInListMode) {
-      const liNodes = childNodes.filter((node) => node.nodeName === 'LI')
-      const commonParent = liNodes[0].parentElement
-      // 处于列表模式
-      // key相同
-      if (commonParent.nodeName === key.toUpperCase()) {
-        for (const liEl of childNodes) {
-          if (liEl.nodeName !== 'LI') continue
-          const divEl = document.createElement('div')
-          // 复制全部style
-          divEl.style.cssText = liEl.style.cssText
-          // 移动所有子节点
-          while (liEl.firstChild) {
-            divEl.appendChild(liEl.firstChild)
+    for (const groupNodes of groups) {
+      const isInListMode = groupNodes.some((node) => node.nodeName === 'LI')
+
+      if (isInListMode) {
+        const liNodes = groupNodes.filter((node) => node.nodeName === 'LI')
+        const commonParent = liNodes[0].parentElement
+        if (commonParent.nodeName === key.toUpperCase()) {
+          for (const liEl of groupNodes) {
+            if (liEl.nodeName !== 'LI') continue
+            const divEl = document.createElement('div')
+            divEl.style.cssText = liEl.style.cssText
+            while (liEl.firstChild) {
+              divEl.appendChild(liEl.firstChild)
+            }
+            liEl.replaceWith(divEl)
           }
-          liEl.replaceWith(divEl)
-        }
-        if (commonParent) {
-          const ulParent = commonParent.parentNode
-          // 将ul内部所有子节点迁移到ul的前面
+          if (commonParent) {
+            const ulParent = commonParent.parentNode
+            while (commonParent.firstChild) {
+              ulParent.insertBefore(commonParent.firstChild, commonParent)
+            }
+            commonParent.remove()
+          }
+        } else {
+          const targetListTag = key.toUpperCase()
+          const listWrapper = document.createElement(targetListTag)
+          Object.assign(listWrapper.style, {
+            listStyleType: targetListTag === 'UL' ? 'disc' : 'decimal',
+            marginLeft: '20px',
+          })
           while (commonParent.firstChild) {
-            ulParent.insertBefore(commonParent.firstChild, commonParent)
+            listWrapper.appendChild(commonParent.firstChild)
           }
-          // 移除空的ul标签
-          commonParent.remove()
+          commonParent.parentNode.replaceChild(listWrapper, commonParent)
         }
       } else {
-        // key不相同
         const targetListTag = key.toUpperCase()
         const listWrapper = document.createElement(targetListTag)
         Object.assign(listWrapper.style, {
           listStyleType: targetListTag === 'UL' ? 'disc' : 'decimal',
           marginLeft: '20px',
         })
-        while (commonParent.firstChild) {
-          listWrapper.appendChild(commonParent.firstChild)
-        }
-        commonParent.parentNode.replaceChild(listWrapper, commonParent)
-      }
-    } else {
-      // 处于非列表模式
-      const targetListTag = key.toUpperCase()
-      const listWrapper = document.createElement(targetListTag)
-      Object.assign(listWrapper.style, {
-        listStyleType: targetListTag === 'UL' ? 'disc' : 'decimal',
-        marginLeft: '20px',
-      })
 
-      rootEl.insertBefore(listWrapper, childNodes[0])
-
-      for (const divEl of childNodes) {
-        if (divEl.nodeName !== 'DIV') continue
-        const liEl = document.createElement('li')
-        // 复制全部style
-        liEl.style.cssText = divEl.style.cssTexts
-        // 移动所有子节点
-        while (divEl.firstChild) {
-          liEl.appendChild(divEl.firstChild)
+        if (groupNodes[0]) {
+          rootEl.insertBefore(listWrapper, groupNodes[0])
         }
-        listWrapper.appendChild(liEl)
-        divEl.remove()
+
+        for (const divEl of groupNodes) {
+          if (divEl.nodeName !== 'DIV') continue
+          const liEl = document.createElement('li')
+          liEl.style.cssText = divEl.style.cssText
+          while (divEl.firstChild) {
+            liEl.appendChild(divEl.firstChild)
+          }
+          listWrapper.appendChild(liEl)
+          divEl.remove()
+        }
       }
     }
 
