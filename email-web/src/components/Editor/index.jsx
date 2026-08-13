@@ -785,6 +785,9 @@ const RichTextEditor = ({ value = '', onChange }) => {
     // 保存选区
     const offset = saveRangeOffset(rootEl)
 
+    // 全部信息读完之后，才分割边界！！
+    splitRangeBoundaries(range)
+
     const startNode = range.startContainer
     const endNode = range.endContainer
 
@@ -810,19 +813,12 @@ const RichTextEditor = ({ value = '', onChange }) => {
       }
     }
 
-    let commonParent = null
-    if (childNodes.length > 0) {
-      commonParent = childNodes[0].parentElement
-    }
-    if (childNodes.length === 0) {
-      restoreRangeByOffset(rootEl, offset)
-      return
-    }
-
-    // 判断是否处于列表模式：第一个节点是LI
-    const isInListMode = childNodes[0].nodeName === 'LI'
+    // 判断是否处于列表模式：childNodes中存在LI节点
+    const isInListMode = childNodes.some((node) => node.nodeName === 'LI')
 
     if (isInListMode) {
+      const liNodes = childNodes.filter((node) => node.nodeName === 'LI')
+      const commonParent = liNodes[0].parentElement
       // 处于列表模式
       // key相同
       if (commonParent.nodeName === key.toUpperCase()) {
@@ -848,10 +844,10 @@ const RichTextEditor = ({ value = '', onChange }) => {
         }
       } else {
         // key不相同
-        const targetListTag = key.toUpperCase() === 'UL' ? 'OL' : 'UL'
+        const targetListTag = key.toUpperCase()
         const listWrapper = document.createElement(targetListTag)
         Object.assign(listWrapper.style, {
-          listStyleType: targetListTag === 'UL' ? 'decimal' : 'disc',
+          listStyleType: targetListTag === 'UL' ? 'disc' : 'decimal',
           marginLeft: '20px',
         })
         while (commonParent.firstChild) {
