@@ -1,12 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-import './index.scss'
-
 // 图标导入
 import AlignIcon from './icons/align.svg'
 import BgColorIcon from './icons/bgcolor.svg'
 import BoldIcon from './icons/bold.svg'
-import Checkcon from './icons/check.svg'
 import ClearIcon from './icons/clear.svg'
 import ColorIcon from './icons/color.svg'
 import DownIcon from './icons/down.svg'
@@ -22,8 +19,11 @@ import StrikeIcon from './icons/strike.svg'
 import UnderlineIcon from './icons/underline.svg'
 import UndoIcon from './icons/undo.svg'
 
-// 调色板
+// 组件
 import ColorPicker from './ColorPicker'
+import SelectPocker from './SelectPocker'
+
+import './index.scss'
 
 // 字体
 const FONT_FAMILIES = [
@@ -152,12 +152,11 @@ const debounce = (func, wait) => {
   return fn
 }
 
-const RichTextEditor = ({ value = '', onChange }) => {
+const RichTextEditor = ({ value = '', id, onChange }) => {
   const editorRef = useRef(null)
 
   const savedRange = useRef(null)
   const isInternalChange = useRef(false) // 用于判断是否是内部改变
-  const dropdownRef = useRef(null) // 下拉框
 
   const MAX_HISTORY = 50 // 最大历史记录数
   const undoStack = useRef([])
@@ -255,7 +254,6 @@ const RichTextEditor = ({ value = '', onChange }) => {
       newFormat.underline = style.textDecoration?.includes('underline')
       newFormat.strikethrough = style.textDecoration?.includes('line-through')
     }
-
     setCurrentFormat(newFormat)
   }, [currentFormat])
 
@@ -915,8 +913,6 @@ const RichTextEditor = ({ value = '', onChange }) => {
     const startNode = range.startContainer
     const endNode = range.endContainer
 
-    console.log('startNode', startNode)
-
     const blockTags = ['DIV', 'LI']
     // 优先判断：选区起点终点是否在同一个DIV内部
     let startBlock = startNode.nodeType === Node.TEXT_NODE ? startNode.parentElement : startNode
@@ -1079,32 +1075,18 @@ const RichTextEditor = ({ value = '', onChange }) => {
   )
   // 渲染工具栏项
   const ToolbarItem = ({ item, currentFormat, executeCommand }) => {
-    const [isOpen, setIsOpen] = useState(false)
-    const isDisabled = currentFormat.isMediaSelected && !['undo', 'redo'].includes(item.key)
-
-    useEffect(() => {
-      const handleClickOutside = (event) => {
-        if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
-          setIsOpen(false)
-        }
-      }
-      document.addEventListener('mousedown', handleClickOutside)
-      return () => document.removeEventListener('mousedown', handleClickOutside)
-    }, [])
-
     switch (item.type) {
       case 'divider':
-        return <div key={item.type} className='toolbar-divider' />
+        return <div key={item.key} className='toolbar-divider' />
 
       case 'button':
       case 'toggle': {
-        const isActive = item.type === 'toggle' && currentFormat[item.key] === true
+        const isActive = item.type === 'toggle' && (currentFormat[item.key] === true || currentFormat['listType'] === item.key)
         return (
           <div
             key={item.key}
             className={`toolbar-btn ${isActive ? 'active' : ''}`}
             title={item.title}
-            disabled={isDisabled}
             onMouseDown={(e) => {
               e.stopPropagation()
               e.preventDefault()
@@ -1116,54 +1098,18 @@ const RichTextEditor = ({ value = '', onChange }) => {
       }
 
       case 'select': {
-        const currentLabel = item.options?.find((opt) => opt.value === currentFormat[item.key])?.label
-
         return (
-          <div className='toolbar-select-wrapper' title={item.title} ref={dropdownRef}>
-            <div className='toolbar-select-trigger' onClick={() => setIsOpen(!isOpen)}>
-              {item.icon ? (
-                <>
-                  <item.icon />
-                  <span className='toolbar-select-arrow'>
-                    <DownIcon />
-                  </span>
-                </>
-              ) : (
-                <>
-                  <span
-                    className={['toolbar-select-value', item.key === 'fontFamily' && 'family', item.key === 'fontSize' && 'size']
-                      .filter(Boolean)
-                      .join(' ')}>
-                    {currentLabel || item.defaultValue || item.title}
-                  </span>
-                  <span className='toolbar-select-arrow'>
-                    <DownIcon />
-                  </span>
-                </>
-              )}
-            </div>
-            {isOpen && (
-              <div className='toolbar-select-dropdown'>
-                <div className='dropdown-content'>
-                  {item.options.map((opt) => (
-                    <div
-                      key={opt.value}
-                      className='toolbar-select-option'
-                      style={item.key === 'fontFamily' ? { fontFamily: opt.value } : undefined}
-                      onMouseDown={(e) => {
-                        e.stopPropagation()
-                        e.preventDefault()
-                        executeCommand(item.key, opt.value)
-                        setIsOpen(false)
-                      }}>
-                      {opt.label}
-                      {opt.value === currentFormat[item.key] && <Checkcon className='toolbar-select-option-icon' />}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
+          <SelectPocker
+            key={item.key}
+            item={item}
+            currentFormat={currentFormat}
+            executeCommand={executeCommand}
+            addAfter={
+              <span className='toolbar-select-arrow'>
+                <DownIcon />
+              </span>
+            }
+          />
         )
       }
 
@@ -1171,12 +1117,9 @@ const RichTextEditor = ({ value = '', onChange }) => {
         return (
           <ColorPicker
             key={item.key}
-            title={item.title}
-            disabled={isDisabled}
-            icon={item.icon}
-            defaultValue={item.defaultValue}
-            currentColor={currentFormat[item.key]}
-            onChange={(color) => executeCommand(item.key, color)}
+            item={item}
+            currentFormat={currentFormat}
+            executeCommand={executeCommand}
             addAfter={
               <span className='toolbar-select-arrow'>
                 <DownIcon />
@@ -1320,7 +1263,10 @@ const RichTextEditor = ({ value = '', onChange }) => {
   const handleInput = () => {
     if (editorRef.current && onChange) {
       isInternalChange.current = true
-      onChange(editorRef.current.innerHTML)
+      const str = editorRef.current.innerHTML
+      // 去除多余的空格
+      let result = str.replace(/>\s+</g, '><')
+      onChange(result)
     }
     // 更新当前格式
     updateCurrentFormat()
@@ -1369,10 +1315,10 @@ const RichTextEditor = ({ value = '', onChange }) => {
   }, [])
 
   return (
-    <div className='rich-text-editor'>
+    <div className='rich-text-editor' key={id}>
       <div className='rich-text-editor__toolbar'>
-        {toolBarItems.map((item, index) => (
-          <ToolbarItem key={index} item={item} currentFormat={currentFormat} executeCommand={executeCommand} />
+        {toolBarItems.map((item) => (
+          <ToolbarItem key={item.key} item={item} currentFormat={currentFormat} executeCommand={executeCommand} />
         ))}
       </div>
 

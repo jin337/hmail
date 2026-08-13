@@ -43,58 +43,49 @@ const COLORS = [
   'rgb(83, 14, 111)',
 ]
 
-const ColorPicker = ({
-  // eslint-disable-next-line no-unused-vars
-  icon: Icon,
-  color,
-  onChange,
-  title,
-  addAfter,
-  defaultValue = { color: 'rgb(46, 48, 51)', text: '默认颜色', default: 'rgb(46, 48, 51)' },
-}) => {
+const ColorPicker = ({ key, item, executeCommand, addAfter, currentFormat }) => {
   const [isOpen, setIsOpen] = useState(false)
   const pickerRef = useRef(null)
 
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (pickerRef.current && !pickerRef.current.contains(event.target)) setIsOpen(false)
+  const handleClickOutside = (event) => {
+    if (pickerRef.current && !pickerRef.current.contains(event.target)) {
+      setIsOpen(false)
     }
+  }
+
+  useEffect(() => {
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
+  const handleColorChange = (newColor) => (e) => {
+    e.stopPropagation()
+    e.preventDefault()
+    executeCommand(item.key, newColor)
+    setIsOpen(false)
+  }
+
   return (
-    <div className='color-picker-wapper' title={title} ref={pickerRef}>
-      <div className='toolbar-select-trigger' onClick={() => setIsOpen(!isOpen)}>
+    <div className='color-picker-wapper' title={item.title} ref={pickerRef} key={key}>
+      <div className='toolbar-select-trigger' onClick={() => setIsOpen((prev) => !prev)}>
         <div className='color-picker-btn'>
-          <Icon />
-          <span className='toolbar-color-icon' style={{ background: color || defaultValue.color }}></span>
+          <item.icon />
+          <span className='toolbar-color-icon' style={{ background: currentFormat[item.key] }}></span>
         </div>
         {addAfter}
       </div>
+
       {isOpen && (
         <div className='color-picker-dropdown'>
-          <div
-            className='content-default'
-            onClick={(e) => {
-              e.stopPropagation()
-              e.preventDefault()
-              onChange(defaultValue.default)
-              setIsOpen(false)
-            }}>
-            {defaultValue.text}
+          <div className='content-default' onMouseDown={handleColorChange(item.defaultValue.default)}>
+            {item.defaultValue?.text}
           </div>
           <div className='dropdown-content'>
             {COLORS.map((c) => (
               <div
                 key={c}
-                onClick={(e) => {
-                  e.stopPropagation()
-                  e.preventDefault()
-                  onChange(c)
-                  setIsOpen(false)
-                }}
-                className={`color-item ${color === c ? 'active' : ''}`}
+                onMouseDown={handleColorChange(c)}
+                className={`color-item ${item.defaultValue.color === c ? 'active' : ''}`}
                 style={{ background: c }}
               />
             ))}
@@ -104,4 +95,5 @@ const ColorPicker = ({
     </div>
   )
 }
+
 export default ColorPicker
