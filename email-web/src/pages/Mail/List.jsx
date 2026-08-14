@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 
 import { Button, Checkbox, Dropdown, Empty, Menu, Space, Spin } from '@arco-design/web-react'
-import { IconAttachment, IconCheck, IconClose, IconDelete, IconSort } from '@arco-design/web-react/icon'
+import { IconAttachment, IconCheck, IconClose, IconDelete, IconDown, IconSort, IconStar } from '@arco-design/web-react/icon'
 
 import dayjs from 'dayjs'
 
@@ -9,8 +9,10 @@ import { useMailContext } from './MailContext'
 
 import { flatTree, formatMailTime, isSvg } from 'src/utils/index'
 
+import IconMoveFolder from 'src/assets/mail_move_folder.svg'
 import IconMailNormal from 'src/assets/mail_normal.svg'
 import IconMailOpen from 'src/assets/mail_open.svg'
+import IconMailRead from 'src/assets/mail_read.svg'
 import IconMailReply from 'src/assets/mail_reply.svg'
 import IconSent from 'src/assets/mail_sent.svg'
 import IconStarUnselect from 'src/assets/mail_star.svg'
@@ -89,6 +91,10 @@ const ListLayout = () => {
     setSelectedRowKeys,
     onDelMail,
     onStar,
+    onFlagMail,
+    flagList,
+    onMoveMail,
+    moveList,
   } = useMailContext()
   const [mailData, setMailData] = useState([])
 
@@ -148,7 +154,7 @@ const ListLayout = () => {
       <div className='flex items-center justify-between gap-2 p-4'>
         <div className='flex items-center gap-2'>
           <Checkbox
-            className='p-0!'
+            className='p-0! text-nowrap'
             onChange={(checked) => {
               if (checked) {
                 selectAll()
@@ -161,7 +167,7 @@ const ListLayout = () => {
             {selected.length ? (
               <span className='ml-3 inline-block font-bold'>已选 {selected.length} 封</span>
             ) : (
-              <span className='ml-3 inline-block text-base font-bold'>{currentFolder.title}</span>
+              <span className='ml-3 inline-block text-base font-bold text-nowrap'>{currentFolder.title}</span>
             )}
           </Checkbox>
           <Dropdown
@@ -218,10 +224,10 @@ const ListLayout = () => {
             </Button>
           </Dropdown>
         </div>
-        <Space>
-          {currentFolder.folder !== 'Star' && selectedRowKeys.length > 0 && (
+        {currentFolder.folder !== 'Star' && isTable && (
+          <Space>
             <Button
-              size='mini'
+              size='small'
               icon={<IconDelete />}
               onClick={() => {
                 const list = mailData.filter((x) => selectedRowKeys.includes(x.uid))
@@ -229,9 +235,53 @@ const ListLayout = () => {
               }}>
               {currentFolder.folder === 'Deleted' ? '清空' : '删除'}
             </Button>
-          )}
-          <span className={`${isTable ? 'mr-10' : ''}`}>共 {mailList?.total || 0} 封</span>
-        </Space>
+            <Button size='small'>
+              <div className='flex items-center gap-1'>
+                <IconMailRead />
+                全部已读
+              </div>
+            </Button>
+            <Dropdown
+              triggerProps={{ autoAlignPopupWidth: true }}
+              trigger='click'
+              droplist={
+                <Menu onClickMenuItem={(e) => onFlagMail({ to: e, uids: selectedRowKeys, from: currentFolder.folder })}>
+                  {flagList.map((e) => (
+                    <Menu.Item key={e.flag + '_' + e.key}>{e.title}</Menu.Item>
+                  ))}
+                </Menu>
+              }>
+              <Button size='small'>
+                <div className='flex items-center gap-1'>
+                  <IconStar />
+                  标记为
+                  <IconDown />
+                </div>
+              </Button>
+            </Dropdown>
+            <Dropdown
+              triggerProps={{ autoAlignPopupWidth: true }}
+              trigger='click'
+              droplist={
+                <Menu onClickMenuItem={(e) => onMoveMail({ to: e, uids: selectedRowKeys, from: currentFolder.folder })}>
+                  {moveList
+                    .filter((e) => ![currentFolder.folder].includes(e.folder))
+                    .map((e) => (
+                      <Menu.Item key={e.folder}>{e.title}</Menu.Item>
+                    ))}
+                </Menu>
+              }>
+              <Button size='small'>
+                <div className='flex items-center gap-1'>
+                  <IconMoveFolder />
+                  移动到
+                  <IconDown />
+                </div>
+              </Button>
+            </Dropdown>
+          </Space>
+        )}
+        <span className={`${isTable ? 'mr-10' : ''}`}>共 {mailList?.total || 0} 封</span>
       </div>
       <Spin block loading={listLoading} className='mail-list h-[calc(100vh-116px)] overflow-auto px-1' ref={tableRef}>
         {mailData?.map((item) =>

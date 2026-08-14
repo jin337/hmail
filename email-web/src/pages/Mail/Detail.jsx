@@ -38,26 +38,6 @@ import IconStarSelect from 'src/assets/mail_star_open.svg'
 
 import AvatarImage from 'src/components/AvatarImage'
 
-// 标记
-const FlagList = (flags) => {
-  // 1:添加 2:取消
-  const list = [
-    { flag: 'Seen', key: 2, title: '未读邮件' },
-    { flag: 'Flagged', key: 2, title: '取消星标' },
-  ]
-  if (!flags?.includes('Flagged')) {
-    list[1].title = '星标邮件'
-    list[1].key = 1
-  }
-
-  if (!flags?.includes('Seen')) {
-    list[0].title = '已读邮件'
-    list[0].key = 1
-  }
-
-  return list.map((e) => <Menu.Item key={e.flag + '_' + e.key}>{e.title}</Menu.Item>)
-}
-
 const Detail = () => {
   const {
     baseUrl,
@@ -73,24 +53,13 @@ const Detail = () => {
     contactList,
     onEditContact,
     onStar,
-    onRead,
     onDelMail,
     onMoveMail,
     onReplyForward,
     onUnSchedule,
+    flagList,
+    onFlagMail,
   } = useMailContext()
-
-  // 标记邮件
-  const onFlagMail = async (e) => {
-    const key = e.split('_')
-    if (key[0] === 'Seen') {
-      onRead(currentMail, Number(key[1]))
-    }
-
-    if (key[0] === 'Flagged') {
-      onStar(currentMail)
-    }
-  }
 
   // 预览附件
   const onPreviewAttachment = (item) => {
@@ -148,9 +117,15 @@ const Detail = () => {
             <Dropdown
               triggerProps={{ autoAlignPopupWidth: true }}
               trigger='click'
-              droplist={<Menu onClickMenuItem={onFlagMail}>{FlagList(currentMail?.flags)}</Menu>}>
+              droplist={
+                <Menu onClickMenuItem={(e) => onFlagMail({ to: e, uids: [currentMail.uid], from: currentMail.folder })}>
+                  {flagList.map((e) => (
+                    <Menu.Item key={e.flag + '_' + e.key}>{e.title}</Menu.Item>
+                  ))}
+                </Menu>
+              }>
               <Button size='small'>
-                <div className='flex items-center gap-2'>
+                <div className='flex items-center gap-1'>
                   <IconStar />
                   标记为
                   <IconDown />
@@ -161,7 +136,7 @@ const Detail = () => {
               triggerProps={{ autoAlignPopupWidth: true }}
               trigger='click'
               droplist={
-                <Menu onClickMenuItem={onMoveMail}>
+                <Menu onClickMenuItem={(e) => onMoveMail({ to: e, uids: [currentMail.uid], from: currentMail.folder })}>
                   {moveList
                     .filter((e) => ![currentFolder.folder].includes(e.folder))
                     .map((e) => (
@@ -170,7 +145,7 @@ const Detail = () => {
                 </Menu>
               }>
               <Button size='small'>
-                <div className='flex items-center gap-2'>
+                <div className='flex items-center gap-1'>
                   <IconMoveFolder />
                   移动到
                   <IconDown />

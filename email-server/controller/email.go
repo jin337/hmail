@@ -132,7 +132,7 @@ func MailDetail(c *gin.Context) {
 	})
 }
 
-// MarkFlag 标记已读
+// MarkFlag 标记状态
 func MarkFlag(c *gin.Context) {
 	email, _ := c.Get("userEmail")
 	pwd, _ := c.Get("userPwd")
@@ -144,12 +144,12 @@ func MarkFlag(c *gin.Context) {
 	}
 
 	// 验证必传参数
-	if err := utils.ValidateRequiredParams([]string{"Uid", "Folder", "Status", "Type"}, req); err != nil {
+	if err := utils.ValidateRequiredParams([]string{"Uids", "Folder", "Status", "Type"}, req); err != nil {
 		c.JSON(200, gin.H{"code": 400, "msg": err.Error()})
 		return
 	}
 
-	err := service.UpdateMailFlag(email.(string), pwd.(string), req.Folder, req.Uid, req.Type, req.Status)
+	err := service.UpdateMailFlag(email.(string), pwd.(string), req.Folder, req.Uids, req.Type, req.Status)
 	if err != nil {
 		c.JSON(200, gin.H{"code": 500, "msg": "更新邮件状态失败: " + err.Error()})
 		return
@@ -449,7 +449,7 @@ func SendEmail(c *gin.Context) {
 		if messageID != "" {
 			if uid, err := utils.GetUid(email.(string), pwd.(string), messageID, config.FolderDrafts); err == nil {
 				// 添加重要标签
-				if err = service.UpdateMailFlag(email.(string), pwd.(string), config.FolderDrafts, uid, 1, "Draft"); err != nil {
+				if err = service.UpdateMailFlag(email.(string), pwd.(string), config.FolderDrafts, []int64{uid}, 1, "Draft"); err != nil {
 					fmt.Printf("标记邮件失败: %v\n", err)
 				}
 			}
@@ -475,7 +475,7 @@ func UnScheduleEmail(c *gin.Context) {
 	email, _ := c.Get("userEmail")
 	pwd, _ := c.Get("userPwd")
 
-	var req model.UpdateMailFlagReq
+	var req model.ScheduleMailFlagReq
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(200, gin.H{"code": 400, "msg": "参数错误"})
 		return

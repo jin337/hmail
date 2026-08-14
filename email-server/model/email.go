@@ -176,6 +176,12 @@ type DelMailReq struct {
 
 // 更新邮件状态请求
 type UpdateMailFlagReq struct {
+	Folder string  `json:"folder" binding:"required"` // 文件夹
+	Uids   []int64 `json:"uids" binding:"required"`   // 邮件ID
+	Status string  `json:"status" binding:"required"` // 状态
+	Type   int64   `json:"type" binding:"required"`   // 1：添加，2：删除
+}
+type ScheduleMailFlagReq struct {
 	Folder string `json:"folder" binding:"required"` // 文件夹
 	Uid    int64  `json:"uid" binding:"required"`    // 邮件ID
 	Status string `json:"status" binding:"required"` // 状态

@@ -87,6 +87,30 @@ const filterList = [
   },
 ]
 
+// 标记
+const flagList = [
+  { flag: 'Seen', key: 2, title: '未读邮件' },
+  { flag: 'Flagged', key: 2, title: '取消星标' },
+]
+// const FlagList = (flags) => {
+//   // 1:添加 2:取消
+//   const list = [
+//     { flag: 'Seen', key: 2, title: '未读邮件' },
+//     { flag: 'Flagged', key: 2, title: '取消星标' },
+//   ]
+//   if (!flags?.includes('Flagged')) {
+//     list[1].title = '星标邮件'
+//     list[1].key = 1
+//   }
+
+//   if (!flags?.includes('Seen')) {
+//     list[0].title = '已读邮件'
+//     list[0].key = 1
+//   }
+
+//   return list
+// }
+
 // 获取图片id
 const getImageIds = (html) => {
   if (!html) return []
@@ -328,6 +352,7 @@ const MailLayout = () => {
 
   // 删除邮件
   const onDelMail = async (items) => {
+    if (!items.length) return Message.error('请选择要删除的邮件')
     const ids = items.map((e) => e.uid)
     const folder = items?.length === 1 ? items[0].folder : currentFolder.folder
 
@@ -377,11 +402,12 @@ const MailLayout = () => {
   }
 
   // 移动邮件
-  const onMoveMail = async (e) => {
+  const onMoveMail = async ({ uids, from, to }) => {
+    if (!uids.length) return Message.error('请选择要移动的邮件')
     const { code } = await request.post('/api/mail/move', {
-      from_folder: currentFolder.folder,
-      to_folder: e,
-      uids: [currentMail.uid],
+      from_folder: from,
+      to_folder: to,
+      uids: uids,
     })
     if (code !== 200) {
       Message.error('移动失败')
@@ -398,10 +424,25 @@ const MailLayout = () => {
     })
   }
 
+  // 标记为
+  const onFlagMail = ({ uids, from, to }) => {
+    const key = to.split('_')
+    const item = {
+      uids,
+      folder: from,
+    }
+    if (key[0] === 'Seen') {
+      onRead(item, Number(key[1]))
+    }
+
+    if (key[0] === 'Flagged') {
+      onStar(item)
+    }
+  }
   // 标记已读
   const onRead = async (item, type = 1) => {
     const params = {
-      uid: item.uid,
+      uids: [item.uid],
       folder: item.folder,
       status: 'Seen',
       type,
@@ -410,18 +451,23 @@ const MailLayout = () => {
     if (code === 200) {
       setMailList((prev) => {
         const newList = [...prev.list]
-        const index = newList.findIndex((item) => item.uid === params.uid)
-        let flags = newList[index]?.flags || []
-        if (type === 1) {
-          flags.push('Seen')
-        }
-        if (type === 2) {
-          flags = flags?.filter((item) => item !== 'Seen')
-        }
-        newList[index] = {
-          ...newList[index],
-          flags,
-        }
+        const { uids } = params
+
+        newList.forEach((mailItem) => {
+          if (!uids.includes(mailItem.uid)) return
+
+          let flags = mailItem.flags || []
+          if (type === 1) {
+            if (!flags.includes('Seen')) {
+              flags = [...flags, 'Seen']
+            }
+          }
+          if (type === 2) {
+            flags = flags.filter((f) => f !== 'Seen')
+          }
+
+          mailItem.flags = flags
+        })
 
         return {
           ...prev,
@@ -445,7 +491,7 @@ const MailLayout = () => {
   const onStar = async (item, isOpen = 1) => {
     const type = item?.flags?.includes('Flagged') ? 2 : 1 // 1:添加 2:取消
     const params = {
-      uid: item.uid,
+      uids: [item.uid],
       folder: item.folder,
       status: 'Flagged',
       type,
@@ -453,21 +499,32 @@ const MailLayout = () => {
     const { code } = await request.post('/api/mail/status', params)
     if (code === 200) {
       setMailList((prev) => {
+        const uids = params.uids
+        if (!Array.isArray(uids) || uids.length === 0) return prev
+
         let newList = [...prev.list]
-        const index = newList.findIndex((item) => item.uid === params.uid)
-        let flags = newList[index]?.flags || []
-        if (type === 1) {
-          flags.push('Flagged')
-        } else {
-          flags = flags?.filter((item) => item !== 'Flagged')
-        }
-        newList[index] = {
-          ...newList[index],
-          flags,
-        }
+        const uidSet = new Set(uids)
+
+        // 遍历更新flags
+        newList = newList.map((mailItem) => {
+          if (!uidSet.has(mailItem.uid)) return mailItem
+
+          let flags = mailItem.flags || []
+          if (type === 1) {
+            if (!flags.includes('Flagged')) {
+              flags = [...flags, 'Flagged']
+            }
+          } else {
+            flags = flags.filter((item) => item !== 'Flagged')
+          }
+          return { ...mailItem, flags }
+        })
+
+        // 当前是星标文件夹，把本次操作的全部uid过滤移除
         if (currentFolder.folder === 'Star') {
-          newList = newList?.filter((item) => item.uid !== params.uid)
+          newList = newList.filter((item) => !uidSet.has(item.uid))
         }
+
         return {
           ...prev,
           list: newList,
@@ -860,6 +917,8 @@ const MailLayout = () => {
 
       contactList, // 联系人
       onEditContact, // 编辑联系人
+      flagList, // 标记列表
+      onFlagMail, // 标记邮件
     }),
     [folderList, currentFolder, onEdit, onCloseEdit, onSelectFilter, mailList, filterKeys]
   )

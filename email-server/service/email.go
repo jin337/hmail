@@ -193,7 +193,6 @@ func MailList(email, pwd, folder string, page, size int64, keyword string, filte
 			Schedule = time.Time{}
 		}
 
-
 		// 标签处理
 		var flagMap = make(map[string]struct{})
 		for _, flag := range msg.Flags {
@@ -570,7 +569,7 @@ func MailDetail(email, pwd string, token string, folder string, uid int64, host 
 }
 
 // UpdateMailFlag 更新邮件状态
-func UpdateMailFlag(email, pwd string, folder string, uid int64, opType int64, status string) error {
+func UpdateMailFlag(email, pwd string, folder string, uids []int64, opType int64, status string) error {
 	imapClient, err := utils.DialIMAPClient(email, pwd)
 	if err != nil {
 		return err
@@ -582,9 +581,6 @@ func UpdateMailFlag(email, pwd string, folder string, uid int64, opType int64, s
 	if err != nil {
 		return fmt.Errorf("选择文件夹 %s 失败: %w", folder, err)
 	}
-
-	uidSet := new(imap.SeqSet)
-	uidSet.AddNum(uint32(uid))
 
 	// 验证状态参数
 	validStatuses := []string{
@@ -618,6 +614,12 @@ func UpdateMailFlag(email, pwd string, folder string, uid int64, opType int64, s
 		storeOp = imap.RemoveFlags // 删除指定标记
 	default:
 		return fmt.Errorf("操作类型仅支持 1(添加)、2(删除)，传入值：%d", opType)
+	}
+
+	uidSet := new(imap.SeqSet)
+	// 遍历uids数组批量添加
+	for _, uid := range uids {
+		uidSet.AddNum(uint32(uid))
 	}
 
 	flags := []interface{}{flag}
@@ -1071,7 +1073,7 @@ func ScheduleSendEmail(email, pwd string, to []string, cc []string, raw []byte) 
 		if msgID != "" {
 			if uid, err := utils.GetUid(email, pwd, msgID, config.FolderDrafts); err == nil {
 				// 移除Draft标记
-				if err = UpdateMailFlag(email, pwd, config.FolderDrafts, uid, 2, "Draft"); err != nil {
+				if err = UpdateMailFlag(email, pwd, config.FolderDrafts, []int64{uid}, 2, "Draft"); err != nil {
 					fmt.Printf("标记邮件失败: %v\n", err)
 				}
 				// 移动邮件
@@ -1185,7 +1187,7 @@ func UpdateDraft(email, pwd, folder string, raw []byte, uid int64) error {
 // UnScheduleEmail 取消定时发送的邮件
 func UnScheduleEmail(email, pwd string, folder string, uid int64, opType int64, status string) error {
 	// 修改状态
-	if err := UpdateMailFlag(email, pwd, folder, uid, opType, status); err != nil {
+	if err := UpdateMailFlag(email, pwd, folder, []int64{uid}, opType, status); err != nil {
 		return fmt.Errorf("更新邮件标志失败: %w", err)
 	}
 

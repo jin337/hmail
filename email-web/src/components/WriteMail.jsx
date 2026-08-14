@@ -486,10 +486,10 @@ export default function WriteMail({
         </Space>
       </Layout.Header>
       <Layout.Content>
-        <div className='editor-wrap flex h-[calc(100vh-116px)] items-start'>
+        <div className='flex h-[calc(100vh-116px)] items-start'>
           {/* 邮件内容 */}
           <Form
-            className='h-full flex-1 overflow-y-auto p-6 pb-0'
+            className='editor-wrap h-full flex-1 overflow-y-auto p-6 pb-0'
             form={form}
             autoComplete='off'
             layout='vertical'
