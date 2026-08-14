@@ -222,6 +222,15 @@ export default function WriteMail({
     const values = form.getFieldsValue()
     onChangeMail(null, { ...detail, ...values })
   }
+  const onSelectUserModel = (arr) => {
+    if (selectList && selectList.length > 0) {
+      const mergedArray = [...selectList, ...arr]
+      const uniqueArray = Array.from(new Map(mergedArray.map((item) => [item.value, item])).values())
+      setSelectList(uniqueArray)
+    } else {
+      setSelectList(arr)
+    }
+  }
 
   // 打开CC
   const openCC = () => {
@@ -435,7 +444,7 @@ export default function WriteMail({
   return (
     <Layout className='h-full rounded-t-xl bg-white'>
       {/* 发送邮件头部 */}
-      <Layout.Header className='flex h-15 items-center justify-between border-b border-gray-300 px-6'>
+      <Layout.Header className='flex items-center justify-between px-6 pt-6'>
         <Space>
           <Button type='primary' icon={<IconSend />} loading={loading} onClick={() => handleSend('Sent')}>
             发送邮件
@@ -477,7 +486,7 @@ export default function WriteMail({
         </Space>
       </Layout.Header>
       <Layout.Content>
-        <div className='flex h-[calc(100vh-116px)] items-start'>
+        <div className='editor-wrap flex h-[calc(100vh-116px)] items-start'>
           {/* 邮件内容 */}
           <Form
             className='h-full flex-1 overflow-y-auto p-6 pb-0'
@@ -509,7 +518,7 @@ export default function WriteMail({
                 ref={toRef}
                 prefix={
                   <div className='focus-box flex w-15 cursor-pointer items-center gap-1' onClick={() => openContact('to_info')}>
-                    <span className='text-(--color-text-2)'>收件人</span>
+                    <span className='active text-(--color-text-2)'>收件人</span>
                     <IconPlusCircle />
                   </div>
                 }
@@ -689,7 +698,7 @@ export default function WriteMail({
                           value: e.email,
                         }))
                     }
-                    setSelectList(list)
+                    onSelectUserModel(list)
                   }}
                 />
               ) : (
@@ -720,7 +729,7 @@ export default function WriteMail({
                               value: e.email,
                             }))
                         }
-                        setSelectList(list)
+                        onSelectUserModel(list)
                       }}
                     />
                   </Tabs.TabPane>
@@ -750,7 +759,7 @@ export default function WriteMail({
                               value: e.email,
                             }))
                         }
-                        setSelectList(list)
+                        onSelectUserModel(list)
                       }}
                     />
                   </Tabs.TabPane>
@@ -780,7 +789,7 @@ export default function WriteMail({
                               value: e.email,
                             }))
                         }
-                        setSelectList(list)
+                        onSelectUserModel(list)
                       }}
                     />
                   </Tabs.TabPane>

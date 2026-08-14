@@ -87,3 +87,22 @@ strong {
 .descriptions-wrap .arco-descriptions-item-value {
   line-height: 28px;
 }
+
+.editor-wrap .arco-input-inner-wrapper,
+.editor-wrap .arco-input-tag {
+  background-color: transparent;
+  border-bottom: 1px solid var(--color-border-1);
+}
+.editor-wrap .arco-input-inner-wrapper-focus,
+.editor-wrap .arco-input-tag-focus {
+  border-color: transparent;
+  border-bottom: 1px solid var(--color-border-1);
+}
+
+.editor-wrap .arco-input-tag-focus .focus-box .active {
+  color: rgb(var(--primary-6)) !important;
+}
+.editor-wrap .arco-input-tag .arco-input-tag-tag {
+  border-color: transparent;
+  background-color: var(--color-fill-2);
+}
