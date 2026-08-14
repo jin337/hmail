@@ -800,7 +800,7 @@ const MailLayout = () => {
           size: pageSize,
         })
       } else {
-        // setCurrentMail(newMailInfo)
+        setCurrentMail(newMailInfo)
       }
     }
     init()
