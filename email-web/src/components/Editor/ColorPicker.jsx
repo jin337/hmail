@@ -43,7 +43,7 @@ const COLORS = [
   'rgb(83, 14, 111)',
 ]
 
-const ColorPicker = ({ key, item, executeCommand, addAfter, currentFormat }) => {
+const ColorPicker = ({ item, executeCommand, addAfter, currentFormat }) => {
   const [isOpen, setIsOpen] = useState(false)
   const pickerRef = useRef(null)
 
@@ -66,7 +66,7 @@ const ColorPicker = ({ key, item, executeCommand, addAfter, currentFormat }) => 
   }
 
   return (
-    <div className='color-picker-wapper' title={item.title} ref={pickerRef} key={key}>
+    <div className='color-picker-wapper' title={item.title} ref={pickerRef}>
       <div className='toolbar-select-trigger' onClick={() => setIsOpen((prev) => !prev)}>
         <div className='color-picker-btn'>
           <item.icon />

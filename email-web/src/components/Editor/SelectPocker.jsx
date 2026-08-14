@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import Checkcon from './icons/check.svg'
 
-const SelectPocker = ({ key, item, currentFormat, executeCommand, addAfter }) => {
+const SelectPocker = ({ item, currentFormat, executeCommand, addAfter }) => {
   const [isOpen, setIsOpen] = useState(false)
   const dropdownRef = useRef(null)
 
@@ -30,7 +30,7 @@ const SelectPocker = ({ key, item, currentFormat, executeCommand, addAfter }) =>
     .join(' ')
 
   return (
-    <div className='toolbar-select-wrapper' title={item.title} key={key || item.key} ref={dropdownRef}>
+    <div className='toolbar-select-wrapper' title={item.title} ref={dropdownRef}>
       <div className='toolbar-select-trigger' onClick={() => setIsOpen((prev) => !prev)}>
         {item.icon ? <item.icon /> : <span className={spanClassName}>{currentLabel || item.defaultValue || item.title}</span>}
         {addAfter}
