@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -232,4 +233,57 @@ func StripHTML(html string) string {
 	txt = strings.ReplaceAll(txt, "&nbsp;", " ")
 	txt = regexp.MustCompile(`\s+`).ReplaceAllString(txt, " ")
 	return strings.TrimSpace(txt)
+}
+
+// FormatFilter 将字符串数组转换为 MailFilter 结构体
+func FormatFilter(filter []string) model.MailFilter {
+	mailFilter := model.MailFilter{}
+	for _, f := range filter {
+		switch f {
+		case "unread":
+			mailFilter.Unread = true
+		case "date_asc":
+			mailFilter.DateAsc = true
+		case "date_desc":
+			mailFilter.DateDesc = true
+		case "size_asc":
+			mailFilter.SizeAsc = true
+		case "size_desc":
+			mailFilter.SizeDesc = true
+		}
+	}
+	return mailFilter
+}
+
+// SortMailList 根据 MailFilter 对邮件列表进行排序
+func SortMailList(list []*model.MailItem, mailFilter model.MailFilter) {
+	if len(list) <= 1 {
+		return
+	}
+
+	// 按时间升序
+	if mailFilter.DateAsc {
+		sort.Slice(list, func(i, j int) bool {
+			return list[i].SendTime.Before(list[j].SendTime)
+		})
+	} else if mailFilter.DateDesc {
+		// 按时间降序
+		sort.Slice(list, func(i, j int) bool {
+			return list[i].SendTime.After(list[j].SendTime)
+		})
+	} else if mailFilter.SizeAsc {
+		// 按大小升序
+		sort.Slice(list, func(i, j int) bool {
+			sizeI := Formatize(list[i].Size)
+			sizeJ := Formatize(list[j].Size)
+			return sizeI < sizeJ
+		})
+	} else if mailFilter.SizeDesc {
+		// 按大小降序
+		sort.Slice(list, func(i, j int) bool {
+			sizeI := Formatize(list[i].Size)
+			sizeJ := Formatize(list[j].Size)
+			return sizeI > sizeJ
+		})
+	}
 }

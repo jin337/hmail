@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 
-import { Button, Checkbox, Dropdown, Empty, Menu, Space, Spin } from '@arco-design/web-react'
+import { Button, Checkbox, Divider, Dropdown, Empty, Menu, Space, Spin } from '@arco-design/web-react'
 import { IconAttachment, IconCheck, IconClose, IconDelete, IconDown, IconSort, IconStar } from '@arco-design/web-react/icon'
 
 import dayjs from 'dayjs'
@@ -87,14 +87,15 @@ const ListLayout = () => {
     setCurrentMail,
     isTable,
     tableRef,
-    selectedRowKeys,
     setSelectedRowKeys,
     onDelMail,
     onStar,
     onFlagMail,
     flagList,
+    onChangeMailFlag,
     onMoveMail,
     moveList,
+    onRead,
   } = useMailContext()
   const [mailData, setMailData] = useState([])
 
@@ -136,6 +137,7 @@ const ListLayout = () => {
   // 监控邮件选中
   useEffect(() => {
     setSelectedRowKeys(selected)
+    onChangeMailFlag(selected)
   }, [selected])
 
   // 监控邮件列表
@@ -151,8 +153,8 @@ const ListLayout = () => {
 
   return (
     <>
-      <div className='flex items-center justify-between gap-2 p-4'>
-        <div className='flex items-center gap-2'>
+      <div className='mail-menu flex items-center justify-between gap-2 p-4'>
+        <div className='flex h-7 w-39 items-center gap-2'>
           <Checkbox
             className='p-0! text-nowrap'
             onChange={(checked) => {
@@ -165,64 +167,72 @@ const ListLayout = () => {
             checked={mailList?.list?.length === 0 ? false : isAllSelected()}
             indeterminate={isPartialSelected()}>
             {selected.length ? (
-              <span className='ml-3 inline-block font-bold'>已选 {selected.length} 封</span>
+              <span className='ml-3 inline-block font-bold'>已选中 {selected.length} 封邮件</span>
             ) : (
               <span className='ml-3 inline-block text-base font-bold text-nowrap'>{currentFolder.title}</span>
             )}
           </Checkbox>
-          <Dropdown
-            trigger='click'
-            triggerProps={{ popupStyle: { maxHeight: '400px', width: '200px' } }}
-            droplist={
-              <Menu
-                onClickMenuItem={(key) => {
-                  const item = flatTree(filterList).find((e) => e.value === key)
-                  let filter = [...filterKeys]
-                  filter[item.key] = item.value
-                  onSelectFilter(filter)
-                }}>
-                {filterList.map((group, groupIdx) => (
-                  <Menu.ItemGroup key={groupIdx} title={group.label}>
-                    {group.children?.map((menuItem, itemIdx) => {
-                      const selectedChild = menuItem.children?.find((child) => filterKeys.includes(child.value))
-                      const currentSelectLabel = selectedChild?.label ?? ''
-                      return menuItem.children?.length ? (
-                        <Menu.SubMenu
-                          key={itemIdx}
-                          title={
-                            <div className='flex flex-1 items-center justify-between'>
-                              <span>{menuItem.label}</span>
-                              <span className='text-gray-400'>{currentSelectLabel}</span>
-                            </div>
-                          }>
-                          {menuItem.children.map((subItem) => (
-                            <Menu.Item key={subItem.value} className='flex items-center justify-between'>
-                              {subItem.label}
-                              {filterKeys.includes(subItem.value) && <IconCheck />}
-                            </Menu.Item>
-                          ))}
-                        </Menu.SubMenu>
-                      ) : (
-                        <Menu.Item key={menuItem.value} className='flex items-center justify-between'>
-                          {menuItem.label}
-                          {filterKeys.includes(menuItem.value) && <IconCheck />}
-                        </Menu.Item>
+          {selected.length === 0 && (
+            <Dropdown
+              trigger='click'
+              triggerProps={{ popupStyle: { maxHeight: '400px', width: '200px' } }}
+              droplist={
+                <Menu
+                  onClickMenuItem={(key) => {
+                    const item = flatTree(filterList).find((e) => e.value === key)
+                    let filter = [...filterKeys]
+                    filter[item.key] = item.value
+                    onSelectFilter(filter)
+                  }}>
+                  {filterList.map((group, groupIdx) => {
+                    if (group.value === 'divider') {
+                      return <Divider style={{ margin: '4px 0' }} />
+                    } else {
+                      return (
+                        <Menu.ItemGroup key={groupIdx} title={group.label}>
+                          {group.children?.map((menuItem, itemIdx) => {
+                            const selectedChild = menuItem.children?.find((child) => filterKeys.includes(child.value))
+                            const currentSelectLabel = selectedChild?.label ?? ''
+                            return menuItem.children?.length ? (
+                              <Menu.SubMenu
+                                key={itemIdx}
+                                title={
+                                  <div className='flex flex-1 items-center justify-between'>
+                                    <span>{menuItem.label}</span>
+                                    <span className='text-gray-400'>{currentSelectLabel}</span>
+                                  </div>
+                                }>
+                                {menuItem.children.map((subItem) => (
+                                  <Menu.Item key={subItem.value} className='flex items-center justify-between'>
+                                    {subItem.label}
+                                    {filterKeys.includes(subItem.value) && <IconCheck />}
+                                  </Menu.Item>
+                                ))}
+                              </Menu.SubMenu>
+                            ) : (
+                              <Menu.Item key={menuItem.value} className='flex items-center justify-between'>
+                                {menuItem.label}
+                                {filterKeys.includes(menuItem.value) && <IconCheck />}
+                              </Menu.Item>
+                            )
+                          })}
+                        </Menu.ItemGroup>
                       )
-                    })}
-                  </Menu.ItemGroup>
-                ))}
-              </Menu>
-            }>
-            <Button className='flex items-center' size='small' type={filterNames.length > 0 ? 'secondary' : 'text'}>
-              <IconSort className={`text-base! ${filterNames.length > 0 ? '' : 'text-neutral-600!'}`} />
-              {filterNames.length > 0 && (
-                <>
-                  <span>{filterNames.join('; ')}</span>
-                  <IconClose onClick={() => onSelectFilter(['all', 'date_desc'])} />
-                </>
-              )}
-            </Button>
-          </Dropdown>
+                    }
+                  })}
+                </Menu>
+              }>
+              <Button className='flex items-center' size='small' type={filterNames.length > 0 ? 'secondary' : 'text'}>
+                <IconSort className={`text-base! ${filterNames.length > 0 ? '' : 'text-neutral-600!'}`} />
+                {filterNames.length > 0 && (
+                  <>
+                    <span>{filterNames.join('; ')}</span>
+                    <IconClose onClick={() => onSelectFilter(['all', 'date_desc'])} />
+                  </>
+                )}
+              </Button>
+            </Dropdown>
+          )}
         </div>
         {currentFolder.folder !== 'Star' && isTable && (
           <Space>
@@ -230,25 +240,29 @@ const ListLayout = () => {
               size='small'
               icon={<IconDelete />}
               onClick={() => {
-                const list = mailData.filter((x) => selectedRowKeys.includes(x.uid))
+                const list = mailData.filter((x) => selected.includes(x.uid))
                 onDelMail(list)
               }}>
-              {currentFolder.folder === 'Deleted' ? '清空' : '删除'}
+              删除
             </Button>
-            <Button size='small'>
+            <Button size='small' onClick={() => onRead({ uids: selected, folder: currentFolder.folder, type: 1 })}>
               <div className='flex items-center gap-1'>
                 <IconMailRead />
                 全部已读
               </div>
             </Button>
             <Dropdown
-              triggerProps={{ autoAlignPopupWidth: true }}
               trigger='click'
+              triggerProps={{ autoAlignPopupWidth: true }}
               droplist={
-                <Menu onClickMenuItem={(e) => onFlagMail({ to: e, uids: selectedRowKeys, from: currentFolder.folder })}>
-                  {flagList.map((e) => (
-                    <Menu.Item key={e.flag + '_' + e.key}>{e.title}</Menu.Item>
-                  ))}
+                <Menu onClickMenuItem={(e) => onFlagMail({ uids: selected, to: e, from: currentFolder.folder })}>
+                  {flagList.map((e, i) =>
+                    e.flag === 'divider' ? (
+                      <Divider key={i + `_divider`} style={{ margin: '4px 0' }} />
+                    ) : (
+                      <Menu.Item key={e.flag + '_' + e.key}>{e.title}</Menu.Item>
+                    )
+                  )}
                 </Menu>
               }>
               <Button size='small'>
@@ -263,7 +277,7 @@ const ListLayout = () => {
               triggerProps={{ autoAlignPopupWidth: true }}
               trigger='click'
               droplist={
-                <Menu onClickMenuItem={(e) => onMoveMail({ to: e, uids: selectedRowKeys, from: currentFolder.folder })}>
+                <Menu onClickMenuItem={(e) => onMoveMail({ uids: selected, to: e, from: currentFolder.folder })}>
                   {moveList
                     .filter((e) => ![currentFolder.folder].includes(e.folder))
                     .map((e) => (
@@ -294,7 +308,7 @@ const ListLayout = () => {
           ) : (
             <div
               key={item.uid}
-              className={`flex w-full cursor-pointer border-b border-(--color-neutral-3) px-3 py-2 hover:bg-(--color-fill-2) ${selected?.includes(item?.uid) || item?.uid === currentMail?.uid ? 'selelct-mail' : ''} ${!item?.flags?.includes('Seen') && item.folder === 'INBOX' ? 'font-bold' : ''}`}
+              className={`mail-item box-border flex w-full cursor-pointer px-3 py-2 hover:bg-(--color-fill-2)${selected?.includes(item?.uid) || item?.uid === currentMail?.uid ? ' selelct-mail' : ''}${!item?.flags?.includes('Seen') ? ' font-bold' : ''}${isTable ? ' items-center' : ''}`}
               onClick={(e) => {
                 if (currentMail?.uid !== item?.uid) {
                   // 排除干扰点击
@@ -326,9 +340,9 @@ const ListLayout = () => {
               />
               {isTable ? (
                 // 列表模式
-                <div className='flex w-full gap-2 overflow-hidden'>
+                <div className='flex w-full items-center gap-2 overflow-hidden'>
                   <div className='flex w-60 items-center justify-between gap-1.5'>
-                    <div className='flex flex-1 gap-1.5 overflow-hidden'>
+                    <div className='flex flex-1 items-center gap-1.5 overflow-hidden'>
                       {showMailIcon(item?.flags)}
                       {currentFolder?.folder === 'Sent' ? (
                         <>
@@ -345,18 +359,19 @@ const ListLayout = () => {
                     </div>
                     {item.has_attach ? <IconAttachment className='text-base text-gray-400!' /> : ''}
                   </div>
-                  <div className='flex w-[calc(100%-456px)] gap-2'>
+                  <div className='flex w-[calc(100%-456px)] items-center gap-2'>
                     <div className={'max-w-1/2 truncate'}>{item?.subject || ''}</div>
-                    <div className={'flex-1 truncate font-light text-gray-400'}>{item?.text || ''}</div>
+                    <div className={'flex-1 truncate text-gray-400/50'}>{item?.text || ''}</div>
                   </div>
-                  <div className='flex w-50 justify-end gap-2'>
+                  <div className='flex w-50 items-center justify-end gap-2'>
                     <div className='w-20'>{item.size}</div>
                     <div className='w-20'>{formatMailTime(item?.send_time)}</div>
                     <Button
                       onClick={(e) => {
                         e.stopPropagation()
                         e.preventDefault()
-                        onStar(item, false)
+                        const type = item?.flags?.includes('Flagged') ? 2 : 1
+                        onStar({ uids: [item.uid], folder: item.folder, type })
                       }}
                       type='text'
                       size='mini'

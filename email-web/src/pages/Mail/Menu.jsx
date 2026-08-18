@@ -18,8 +18,8 @@ const MenuLayout = () => {
 
   return (
     <>
-      <div className='p-4'>
-        <Button type='primary rounded!' icon={<IconEdit />} long onClick={onEdit}>
+      <div className='px-3 pb-2'>
+        <Button type='primary rounded!' icon={<IconEdit />} long onClick={() => onEdit()}>
           写信
         </Button>
       </div>

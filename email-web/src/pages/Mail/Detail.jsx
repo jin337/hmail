@@ -178,7 +178,13 @@ const Detail = () => {
         <Spin block loading={mailLoading} className='h-[calc(100vh-117px)] overflow-y-auto p-4'>
           <div className='mb-4 flex items-center gap-2'>
             <span className='text-lg font-bold'>{currentMail.subject}</span>
-            <Button size='mini' type='text' onClick={() => onStar(currentMail)}>
+            <Button
+              size='mini'
+              type='text'
+              onClick={() => {
+                const type = currentMail?.flags?.includes('Flagged') ? 2 : 1
+                onStar({ uids: [currentMail.uid], folder: currentFolder.folder, type: type })
+              }}>
               {currentMail?.flags?.includes('Flagged') ? (
                 <IconStarSelect className='text-xl!' />
               ) : (
@@ -225,7 +231,7 @@ const Detail = () => {
                 }>
                 <div className='mb-1'>
                   <strong>{currentMail?.from_info?.name}</strong>
-                  <span className='text-gray-400'>&nbsp;&lt;{currentMail.from}&gt;</span>
+                  <span className='text-gray-400 ml-2'>&lt;{currentMail.from}&gt;</span>
                 </div>
               </Popover>
               <div className='flex flex-wrap items-start justify-between gap-2'>

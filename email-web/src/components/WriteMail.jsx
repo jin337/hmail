@@ -71,6 +71,9 @@ export default function WriteMail({
   const [formContact] = Form.useForm()
   const [loading, setLoading] = useState(false)
 
+  const isInitializingRef = useRef(false)
+  const lastDetailUidRef = useRef(null)
+
   const [addCC, setAddCC] = useState(false)
 
   const [fileList, setFileList] = useState([])
@@ -104,6 +107,7 @@ export default function WriteMail({
   const handleSend = async (type) => {
     // 调用父组件传递的发送函数
     if (onSend) {
+      setLoading(true)
       let time = ''
       if (customTime) {
         let str = customTime?.date + ' ' + customTime?.time
@@ -127,6 +131,8 @@ export default function WriteMail({
 
   // 监控数据变化
   const onChangeMail = (_, values) => {
+    if (isInitializingRef.current) return
+
     const newToInfo = values?.to_info?.map((e) => ({ ...e, label: getEmailPrefix(e.label) }))
     if (newToInfo !== values?.to_info) {
       form.setFieldValue('to_info', newToInfo)
@@ -147,7 +153,6 @@ export default function WriteMail({
         attachments: fileList,
       },
     }
-
     onChange(newValues)
   }
 
@@ -243,28 +248,29 @@ export default function WriteMail({
 
   // 自动回填
   useEffect(() => {
-    const init = () => {
-      form.setFieldsValue(detail)
-      if (detail?.uid) {
-        setAddCC(detail?.cc_email?.length > 0)
+    if (!detail || !form) return
 
-        const list = (detail?.detail?.attachments || []).map((e) => ({
-          ...e,
-          name: e.file_name,
-          uid: e.part_id,
-        }))
-        setFileList(list)
-      }
-    }
-    form && init()
-  }, [detail, form])
+    const currentUid = detail?.uid
+    if (currentUid === lastDetailUidRef.current) return
 
-  // 写信，默认获取焦点
-  useEffect(() => {
-    if (!detail?.uid) {
-      toRef.current.focus() //获取焦点
+    lastDetailUidRef.current = currentUid
+    isInitializingRef.current = true
+
+    form.setFieldsValue(detail)
+    if (detail?.uid) {
+      setAddCC(detail?.cc_email?.length > 0)
+      const list = (detail?.detail?.attachments || []).map((e) => ({
+        ...e,
+        name: e.file_name,
+        uid: e.part_id,
+      }))
+      setFileList(list)
     }
-  }, [detail, toRef, ccRef])
+
+    setTimeout(() => {
+      isInitializingRef.current = false
+    }, 100)
+  }, [detail])
 
   // 提取验证函数
   const validateEmails = (value, callback) => {
@@ -444,7 +450,7 @@ export default function WriteMail({
   return (
     <Layout className='h-full rounded-t-xl bg-white'>
       {/* 发送邮件头部 */}
-      <Layout.Header className='flex items-center justify-between px-6 pt-6'>
+      <Layout.Header className='flex items-center justify-between px-6 pt-6 pb-2'>
         <Space>
           <Button type='primary' icon={<IconSend />} loading={loading} onClick={() => handleSend('Sent')}>
             发送邮件
@@ -489,7 +495,7 @@ export default function WriteMail({
         <div className='flex h-[calc(100vh-116px)] items-start'>
           {/* 邮件内容 */}
           <Form
-            className='editor-wrap h-full flex-1 overflow-y-auto p-6 pb-0'
+            className='editor-wrap h-full flex-1 overflow-y-auto px-6 pt-4 pb-0'
             form={form}
             autoComplete='off'
             layout='vertical'
@@ -554,7 +560,7 @@ export default function WriteMail({
               />
             </Form.Item>
             <Form.Item field='detail.content'>
-              <Editor />
+              <Editor height={'auto'} />
             </Form.Item>
             <Form.Item field='files'>
               <Upload

@@ -249,7 +249,7 @@ $border-radius: 4px;
 
 .rich-text-editor__content {
   padding: 10px;
-  height: 300px !important;
+  min-height: 200px;
   outline: none;
   overflow-y: auto;
 

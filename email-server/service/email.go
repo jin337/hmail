@@ -12,7 +12,6 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"sort"
 	"strings"
 	"time"
 
@@ -25,59 +24,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/jhillyerd/enmime"
 )
-
-// formatFilter 将字符串数组转换为 MailFilter 结构体
-func formatFilter(filter []string) model.MailFilter {
-	mailFilter := model.MailFilter{}
-	for _, f := range filter {
-		switch f {
-		case "unread":
-			mailFilter.Unread = true
-		case "date_asc":
-			mailFilter.DateAsc = true
-		case "date_desc":
-			mailFilter.DateDesc = true
-		case "size_asc":
-			mailFilter.SizeAsc = true
-		case "size_desc":
-			mailFilter.SizeDesc = true
-		}
-	}
-	return mailFilter
-}
-
-// sortMailList 根据 MailFilter 对邮件列表进行排序
-func sortMailList(list []*model.MailItem, mailFilter model.MailFilter) {
-	if len(list) <= 1 {
-		return
-	}
-
-	// 按时间升序
-	if mailFilter.DateAsc {
-		sort.Slice(list, func(i, j int) bool {
-			return list[i].SendTime.Before(list[j].SendTime)
-		})
-	} else if mailFilter.DateDesc {
-		// 按时间降序
-		sort.Slice(list, func(i, j int) bool {
-			return list[i].SendTime.After(list[j].SendTime)
-		})
-	} else if mailFilter.SizeAsc {
-		// 按大小升序
-		sort.Slice(list, func(i, j int) bool {
-			sizeI := utils.Formatize(list[i].Size)
-			sizeJ := utils.Formatize(list[j].Size)
-			return sizeI < sizeJ
-		})
-	} else if mailFilter.SizeDesc {
-		// 按大小降序
-		sort.Slice(list, func(i, j int) bool {
-			sizeI := utils.Formatize(list[i].Size)
-			sizeJ := utils.Formatize(list[j].Size)
-			return sizeI > sizeJ
-		})
-	}
-}
 
 // MailList 获取邮件列表
 func MailList(email, pwd, folder string, page, size int64, keyword string, filter []string) ([]*model.MailItem, int64, error) {
@@ -98,7 +44,7 @@ func MailList(email, pwd, folder string, page, size int64, keyword string, filte
 	var list []*model.MailItem
 
 	// 处理筛选条件
-	mailFilter := formatFilter(filter)
+	mailFilter := utils.FormatFilter(filter)
 
 	// 搜索邮件
 	searchCrit := &imap.SearchCriteria{}
@@ -174,6 +120,9 @@ func MailList(email, pwd, folder string, page, size int64, keyword string, filte
 			showText = strings.TrimSpace(env.Text)
 			showText = regexp.MustCompile(`\s+`).ReplaceAllString(showText, "")
 			showText = strings.ReplaceAll(showText, "*", "")
+			// 反转义尖括号
+			showText = strings.ReplaceAll(showText, "&lt;", "<")
+			showText = strings.ReplaceAll(showText, "&gt;", ">")
 		}
 
 		fromMail, formInfo, _ := utils.FormatMailName(env.GetHeader("From"))
@@ -245,7 +194,7 @@ func MailList(email, pwd, folder string, page, size int64, keyword string, filte
 	}
 
 	// 排序
-	sortMailList(list, mailFilter)
+	utils.SortMailList(list, mailFilter)
 
 	return list, total, nil
 }
@@ -263,7 +212,7 @@ func StarMailList(email, pwd string, page, size int64, keyword string, filter []
 	var list []*model.MailItem
 
 	// 处理筛选条件
-	mailFilter := formatFilter(filter)
+	mailFilter := utils.FormatFilter(filter)
 
 	// 遍历所有文件夹config.DefaultFolders
 	for _, folder := range config.DefaultFolders {
@@ -401,7 +350,7 @@ func StarMailList(email, pwd string, page, size int64, keyword string, filter []
 	}
 
 	// 排序
-	sortMailList(list, mailFilter)
+	utils.SortMailList(list, mailFilter)
 
 	return list, total, nil
 }
@@ -484,7 +433,7 @@ func MailDetail(email, pwd string, token string, folder string, uid int64, host 
 				fileName := fmt.Sprintf("%s_%s%s", "image", att.PartID, ext)
 
 				// 保存到静态资源目录
-				staticDir := filepath.Join("static", "images", email, folder, fmt.Sprint(uid))
+				staticDir := filepath.Join("static", "images", email, fmt.Sprint(uid))
 				if err := os.MkdirAll(staticDir, 0755); err != nil {
 					fmt.Printf("创建静态目录失败: %v\n", err)
 					continue
@@ -497,8 +446,8 @@ func MailDetail(email, pwd string, token string, folder string, uid int64, host 
 				}
 
 				// 构建 HTTP 访问 URL
-				imageURL := fmt.Sprintf("http://%s/api/viewfile?url=static/images/%s/%s/%d/%s",
-					host, email, folder, uid, fileName)
+				imageURL := fmt.Sprintf("http://%s/api/viewfile?url=static/images/%s/%d/%s",
+					host, email, uid, fileName)
 				cidMap[contentID] = imageURL
 			}
 		}
@@ -514,7 +463,7 @@ func MailDetail(email, pwd string, token string, folder string, uid int64, host 
 				fileName := fmt.Sprintf("%s_%s%s", "image", inline.PartID, ext)
 
 				// 保存到静态资源目录
-				staticDir := filepath.Join("static", "images", email, folder, fmt.Sprint(uid))
+				staticDir := filepath.Join("static", "images", email, fmt.Sprint(uid))
 				if err := os.MkdirAll(staticDir, 0755); err != nil {
 					fmt.Printf("创建静态目录失败: %v\n", err)
 					continue
@@ -526,8 +475,8 @@ func MailDetail(email, pwd string, token string, folder string, uid int64, host 
 					continue
 				}
 				// 构建 HTTP 访问 URL
-				imageURL := fmt.Sprintf("http://%s/api/viewfile?url=static/images/%s/%s/%d/%s",
-					host, email, folder, uid, fileName)
+				imageURL := fmt.Sprintf("http://%s/api/viewfile?url=static/images/%s/%d/%s",
+					host, email, uid, fileName)
 				cidMap[contentID] = imageURL
 			}
 		}
@@ -751,6 +700,13 @@ func DeleteMail(email, pwd string, folder string, uids []int64) error {
 		return fmt.Errorf("执行永久删除失败: %w", err)
 	}
 
+	// 删除图片缓存
+	for _, uid := range uids {
+		cachePath := fmt.Sprintf("static/images/%s/%d", email, uid)
+		if err := os.RemoveAll(cachePath); err != nil {
+			return fmt.Errorf("删除图片缓存失败: %w", err)
+		}
+	}
 	return nil
 }
 

@@ -1,5 +1,28 @@
 @import 'tailwindcss';
 /* 表单内*号换行问题解决方案 */
+
+/* 滚动条基础 */
+::-webkit-scrollbar {
+  width: 8px;
+  background: transparent;
+}
+
+/* 轨道核心 */
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* 滑块 */
+::-webkit-scrollbar-thumb {
+  border-radius: 10px;
+  background-color: rgba(209, 213, 218, 0.8);
+}
+
+/* 上下箭头按钮 */
+::-webkit-scrollbar-button:vertical {
+  height: 2px;
+  background: transparent;
+}
 body {
   background-color: #e6edf5;
   position: relative;
@@ -48,6 +71,32 @@ strong {
   border-bottom-left-radius: 4px;
   border-bottom-right-radius: 4px;
 }
+.mail-menu .arco-checkbox-mask,
+.mail-item .arco-checkbox-mask {
+  width: 16px;
+  height: 16px;
+  border: 1px solid rgba(25, 41, 59, 0.4);
+}
+.mail-menu .arco-checkbox-mask-icon,
+.mail-item .arco-checkbox-mask-icon {
+  width: 10px;
+}
+.arco-checkbox-indeterminate .arco-checkbox-mask,
+.arco-checkbox-checked .arco-checkbox-mask {
+  border-color: transparent;
+}
+.mail-item {
+  position: relative;
+}
+.mail-item:after {
+  content: '';
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: -0.5px;
+  height: 1px;
+  background-color: var(--color-neutral-3);
+}
 
 /* jit-viewer全屏按钮隐藏  */
 .jv-toolbar-btn--fullscreen {
@@ -68,9 +117,6 @@ strong {
 }
 .no-footer .arco-picker-footer {
   display: none;
-}
-.arco-checkbox-mask {
-  border: 1px solid #1d2129;
 }
 
 /* 写邮件的收件人抄送人添加样式 */
@@ -105,4 +151,7 @@ strong {
 .editor-wrap .arco-input-tag .arco-input-tag-tag {
   border-color: transparent;
   background-color: var(--color-fill-2);
+}
+.arco-progress {
+  display: none;
 }

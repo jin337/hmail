@@ -152,7 +152,7 @@ const debounce = (func, wait) => {
   return fn
 }
 
-const RichTextEditor = ({ value = '', onChange }) => {
+const RichTextEditor = ({ value = '', onChange, height = '300px' }) => {
   const editorRef = useRef(null)
 
   const savedRange = useRef(null)
@@ -1320,6 +1320,7 @@ const RichTextEditor = ({ value = '', onChange }) => {
 
       <div
         ref={editorRef}
+        style={{ height }}
         className='rich-text-editor__content'
         contentEditable
         suppressContentEditableWarning

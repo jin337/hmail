@@ -51,6 +51,10 @@ const filterList = [
     ],
   },
   {
+    label: '分割线',
+    value: 'divider',
+  },
+  {
     label: '排序方式',
     children: [
       {
@@ -88,28 +92,13 @@ const filterList = [
 ]
 
 // 标记
-const flagList = [
+const flags = [
+  { flag: 'Seen', key: 1, title: '已读邮件' },
   { flag: 'Seen', key: 2, title: '未读邮件' },
+  { title: '分割线', flag: 'divider' },
+  { flag: 'Flagged', key: 1, title: '星标邮件' },
   { flag: 'Flagged', key: 2, title: '取消星标' },
 ]
-// const FlagList = (flags) => {
-//   // 1:添加 2:取消
-//   const list = [
-//     { flag: 'Seen', key: 2, title: '未读邮件' },
-//     { flag: 'Flagged', key: 2, title: '取消星标' },
-//   ]
-//   if (!flags?.includes('Flagged')) {
-//     list[1].title = '星标邮件'
-//     list[1].key = 1
-//   }
-
-//   if (!flags?.includes('Seen')) {
-//     list[0].title = '已读邮件'
-//     list[0].key = 1
-//   }
-
-//   return list
-// }
 
 // 获取图片id
 const getImageIds = (html) => {
@@ -154,6 +143,8 @@ const MailLayout = () => {
   const [userList, setUserList] = useState([]) // 用户列表
   const [recentlyList, setRecentlyList] = useState([]) // 最近联系人
   const [contactList, setContactList] = useState([]) // 联系人
+
+  const [flagList, setFlagList] = useState(flags)
 
   const pageSize = 25 // 每页数量
 
@@ -346,8 +337,9 @@ const MailLayout = () => {
         is_forward: true,
       }
     }
-
-    newMail && onEdit(newMail)
+    if (newMail) {
+      onEdit(newMail)
+    }
   }
 
   // 删除邮件
@@ -430,22 +422,86 @@ const MailLayout = () => {
     const item = {
       uids,
       folder: from,
+      type: Number(key[1]),
     }
+
     if (key[0] === 'Seen') {
-      onRead(item, Number(key[1]))
+      onRead(item)
     }
 
     if (key[0] === 'Flagged') {
       onStar(item)
     }
   }
+
+  // 标记为列表设置
+  const onChangeMailFlag = (selected) => {
+    const list = mailList?.list || []
+    const selectedMails = list.filter((item) => selected.includes(item.uid))
+
+    if (selectedMails.length === 0) {
+      const newFlags = [
+        { flag: 'Seen', key: 1, title: '已读邮件' },
+        { flag: 'Seen', key: 2, title: '未读邮件' },
+        { title: '分割线', flag: 'divider' },
+        { flag: 'Flagged', key: 1, title: '星标邮件' },
+        { flag: 'Flagged', key: 2, title: '取消星标' },
+      ]
+      setFlagList(newFlags)
+      return
+    }
+
+    const allHasSeen = selectedMails.every((mail) => Array.isArray(mail.flags) && mail.flags.includes('Seen'))
+    const allHasFlagged = selectedMails.every((mail) => Array.isArray(mail.flags) && mail.flags.includes('Flagged'))
+    let readList = []
+
+    if (allHasSeen) {
+      readList = [{ flag: 'Seen', key: 2, title: '未读邮件' }]
+    } else {
+      const someHasSeen = selectedMails.some((mail) => Array.isArray(mail.flags) && mail.flags.includes('Seen'))
+      if (someHasSeen) {
+        readList = [
+          { flag: 'Seen', key: 1, title: '已读邮件' },
+          { flag: 'Seen', key: 2, title: '未读邮件' },
+        ]
+      } else {
+        readList = [{ flag: 'Seen', key: 1, title: '已读邮件' }]
+      }
+    }
+
+    let starList = []
+    if (allHasFlagged) {
+      starList = [{ flag: 'Flagged', key: 2, title: '取消星标' }]
+    } else {
+      const someHasFlagged = selectedMails.some((mail) => Array.isArray(mail.flags) && mail.flags.includes('Flagged'))
+      if (someHasFlagged) {
+        starList = [
+          { flag: 'Flagged', key: 1, title: '星标邮件' },
+          { flag: 'Flagged', key: 2, title: '取消星标' },
+        ]
+      } else {
+        starList = [{ flag: 'Flagged', key: 1, title: '星标邮件' }]
+      }
+    }
+
+    const newFlags = [...readList, { title: '分割线', flag: 'divider' }, ...starList]
+    setFlagList(newFlags)
+  }
+
   // 标记已读
-  const onRead = async (item, type = 1) => {
+  const onRead = async (item) => {
+    if (item.uids.length == 0) {
+      return Message.warning({
+        content: '请选择需要标记的邮件',
+        showIcon: true,
+        position: 'bottom',
+      })
+    }
     const params = {
-      uids: [item.uid],
+      uids: item.uids,
       folder: item.folder,
       status: 'Seen',
-      type,
+      type: item.type, // 1:未读 2:已读
     }
     const { code } = await request.post('/api/mail/status', params)
     if (code === 200) {
@@ -457,12 +513,12 @@ const MailLayout = () => {
           if (!uids.includes(mailItem.uid)) return
 
           let flags = mailItem.flags || []
-          if (type === 1) {
+          if (item.type === 1) {
             if (!flags.includes('Seen')) {
               flags = [...flags, 'Seen']
             }
           }
-          if (type === 2) {
+          if (item.type === 2) {
             flags = flags.filter((f) => f !== 'Seen')
           }
 
@@ -488,13 +544,20 @@ const MailLayout = () => {
   }
 
   // 标记星标
-  const onStar = async (item, isOpen = 1) => {
-    const type = item?.flags?.includes('Flagged') ? 2 : 1 // 1:添加 2:取消
+  const onStar = async (item) => {
+    if (item?.uids?.length == 0) {
+      return Message.warning({
+        content: '请选择需要标记的邮件',
+        showIcon: true,
+        position: 'bottom',
+      })
+    }
+
     const params = {
-      uids: [item.uid],
+      uids: item.uids,
       folder: item.folder,
       status: 'Flagged',
-      type,
+      type: item.type, // 1:添加 2:取消
     }
     const { code } = await request.post('/api/mail/status', params)
     if (code === 200) {
@@ -510,7 +573,7 @@ const MailLayout = () => {
           if (!uidSet.has(mailItem.uid)) return mailItem
 
           let flags = mailItem.flags || []
-          if (type === 1) {
+          if (item.type === 1) {
             if (!flags.includes('Flagged')) {
               flags = [...flags, 'Flagged']
             }
@@ -531,11 +594,11 @@ const MailLayout = () => {
         }
       })
 
-      if (isOpen === 1) {
+      if (currentMail) {
         setCurrentMail((prev) => {
           let newItem = { ...prev }
           let flags = newItem?.flags || []
-          if (type === 1) {
+          if (item.type === 1) {
             flags.push('Flagged')
           } else {
             flags = flags?.filter((item) => item !== 'Flagged')
@@ -638,7 +701,7 @@ const MailLayout = () => {
 
       // 标记已读
       if (!item?.flags || !item.flags?.includes('Seen')) {
-        onRead(item, 1)
+        onRead({ uids: [item.uid], folder: item.folder, type: 1 })
       }
 
       // 草稿编辑
@@ -708,7 +771,7 @@ const MailLayout = () => {
 
   // 写信
   const onEdit = (record) => {
-    setNewMailInfo(null)
+    setCurrentMail(null)
     const isComposeExist = folderList.some((item) => item.key === 'compose')
     if (isComposeExist) {
       return Message.warning('写邮件页已打开，请先关闭')
@@ -720,7 +783,7 @@ const MailLayout = () => {
       compose.title = record.subject
     }
 
-    setCurrentMail(record)
+    setNewMailInfo(record)
     setCurrentFolder(compose)
     setFolderList((prev) => [compose, ...prev])
   }
@@ -857,20 +920,22 @@ const MailLayout = () => {
           size: pageSize,
         })
       } else {
-        setCurrentMail(newMailInfo)
+        if (newMailInfo) {
+          setCurrentMail(newMailInfo)
+        }
       }
     }
     init()
-  }, [currentFolder])
+  }, [currentFolder, newMailInfo])
 
   // 立即加载第一页邮件
   useEffect(() => {
-    const init = async () => {
+    const init = () => {
       setCurrentFolder(menuList[0])
 
-      await getUserList()
-      await getContactList({ prefix: 'user_sent' })
-      await getContactList({ prefix: 'user_contact' })
+      getUserList()
+      getContactList({ prefix: 'user_sent' })
+      getContactList({ prefix: 'user_contact' })
     }
     init()
   }, [])
@@ -918,9 +983,21 @@ const MailLayout = () => {
       contactList, // 联系人
       onEditContact, // 编辑联系人
       flagList, // 标记列表
+      onChangeMailFlag, // 监控标记邮件
       onFlagMail, // 标记邮件
     }),
-    [folderList, currentFolder, onEdit, onCloseEdit, onSelectFilter, mailList, filterKeys]
+    [
+      folderList,
+      currentFolder,
+      onEdit,
+      onCloseEdit,
+      onSelectFilter,
+      mailList,
+      selectedRowKeys,
+      onChangeMailFlag,
+      flagList,
+      filterKeys,
+    ]
   )
 
   return (
