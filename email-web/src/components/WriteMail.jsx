@@ -90,7 +90,7 @@ export default function WriteMail({
 
   const toRef = useRef(null)
   const ccRef = useRef(null)
-  const [lastFocus, setLastFocus] = useState(null) // 缓存最后一次焦点
+  const [lastFocus, setLastFocus] = useState('to_info') // 缓存最后一次焦点
 
   const timeList = [
     {

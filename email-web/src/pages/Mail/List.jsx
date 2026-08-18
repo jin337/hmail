@@ -240,10 +240,9 @@ const ListLayout = () => {
               size='small'
               icon={<IconDelete />}
               onClick={() => {
-                const list = mailData.filter((x) => selected.includes(x.uid))
-                onDelMail(list)
+                onDelMail(mailData.filter((x) => selected.includes(x.uid)))
               }}>
-              删除
+              {currentFolder.folder === 'Deleted' ? '彻底删除' : '删除'}
             </Button>
             <Button size='small' onClick={() => onRead({ uids: selected, folder: currentFolder.folder, type: 1 })}>
               <div className='flex items-center gap-1'>
@@ -297,6 +296,8 @@ const ListLayout = () => {
         )}
         <span className={`${isTable ? 'mr-10' : ''}`}>共 {mailList?.total || 0} 封</span>
       </div>
+
+      {/* 邮件列表 */}
       <Spin block loading={listLoading} className='mail-list h-[calc(100vh-116px)] overflow-auto px-1' ref={tableRef}>
         {mailData?.map((item) =>
           item.key ? (
@@ -310,6 +311,9 @@ const ListLayout = () => {
               key={item.uid}
               className={`mail-item box-border flex w-full cursor-pointer px-3 py-2 hover:bg-(--color-fill-2)${selected?.includes(item?.uid) || item?.uid === currentMail?.uid ? ' selelct-mail' : ''}${!item?.flags?.includes('Seen') ? ' font-bold' : ''}${isTable ? ' items-center' : ''}`}
               onClick={(e) => {
+                if (isSelected(item?.uid)) {
+                  unSelectAll()
+                }
                 if (currentMail?.uid !== item?.uid) {
                   // 排除干扰点击
                   const targetElement = e?.target

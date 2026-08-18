@@ -44,7 +44,7 @@ const Login = () => {
       }
       localStorage.setItem(`USERINFO_${accountId}`, JSON.stringify(userInfo))
 
-      localStorage.setItem('current_account_id', accountId)
+      localStorage.setItem('active_account_id', accountId)
       Message.success('登录成功')
       navigate('/')
     } else {

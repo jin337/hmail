@@ -12,7 +12,7 @@ const baseUrl =
 
 const Home = () => {
   // 本地登录信息
-  const currentAccountId = localStorage.getItem('current_account_id') || ''
+  const currentAccountId = localStorage.getItem('active_account_id') || ''
   const userToken = currentAccountId ? localStorage.getItem(`TOKEN_${currentAccountId}`) : null
 
   const navigate = useNavigate()
@@ -23,13 +23,13 @@ const Home = () => {
   // 退出
   const onLogout = () => {
     if (currentAccountId) {
-      // 删除当前账号独立存储
+      // 删除当前账号独立token、用户信息
       localStorage.removeItem(`TOKEN_${currentAccountId}`)
       localStorage.removeItem(`USERINFO_${currentAccountId}`)
-      localStorage.removeItem(`current_account_id`)
+
+      // 移除当前账号
+      localStorage.removeItem('accountId')
     }
-    // 清空活跃账号标记
-    localStorage.removeItem('current_account_id')
     navigate('/login')
   }
 

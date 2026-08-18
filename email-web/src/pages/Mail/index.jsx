@@ -353,8 +353,6 @@ const MailLayout = () => {
       content: '是否确定删除?',
       className: 'simpleModal',
       onOk: async () => {
-        setSelectedRowKeys([])
-
         if (folder === 'Deleted') {
           const { code } = await request.post('/api/mail/delete', { folder: 'Deleted', uids: ids })
           if (code === 200) {
@@ -714,15 +712,19 @@ const MailLayout = () => {
         }
         onEdit(newItem)
       }
+
+      onChangeMailFlag([item.uid])
     } else {
       Message.error(msg)
     }
 
+    setSelectedRowKeys([])
     setMailLoading(false)
   }
 
   // 获取邮件列表
   const getMailList = async (item) => {
+    setSelectedRowKeys([]) // 清空选中
     setCurrentMail(null) // 清空当前邮件
     let url = '/api/mail/list'
     let params = {
@@ -919,10 +921,6 @@ const MailLayout = () => {
           page: 1,
           size: pageSize,
         })
-      } else {
-        if (newMailInfo) {
-          setCurrentMail(newMailInfo)
-        }
       }
     }
     init()
@@ -1010,8 +1008,8 @@ const MailLayout = () => {
         {currentFolder?.key === 'compose' ? (
           // 写信
           <WriteMail
-            key={currentMail?.uid || '0'}
-            detail={currentMail}
+            key={newMailInfo?.uid || '0'}
+            detail={newMailInfo}
             userList={userList?.list || []}
             onClose={onCloseEdit} // 关闭写邮件页
             onSend={onSend} // 发邮件或存草稿

@@ -1,4 +1,4 @@
-import { } from 'react'
+import { useEffect, useState } from 'react'
 
 import { Button, Card, Divider, Dropdown, Menu, Popover, Space, Spin, Typography } from '@arco-design/web-react'
 import {
@@ -33,6 +33,7 @@ import IconWord from 'src/assets/file_word.svg'
 import IconZip from 'src/assets/file_zip.svg'
 
 import IconMoveFolder from 'src/assets/mail_move_folder.svg'
+import IconMailRead from 'src/assets/mail_read.svg'
 import IconStarUnselect from 'src/assets/mail_star.svg'
 import IconStarSelect from 'src/assets/mail_star_open.svg'
 
@@ -59,6 +60,8 @@ const Detail = () => {
     onUnSchedule,
     flagList,
     onFlagMail,
+    selectedRowKeys,
+    onRead,
   } = useMailContext()
 
   // 预览附件
@@ -94,7 +97,32 @@ const Detail = () => {
     document.body.removeChild(link)
   }
 
-  if (currentMail)
+  const [selectItems, setSelectItems] = useState([])
+  useEffect(() => {
+    const init = () => {
+      if (!selectedRowKeys?.length) {
+        setSelectItems([])
+        return
+      }
+
+      const list = mailList.list || []
+      const allSelected = []
+      for (let i = selectedRowKeys.length - 1; i >= 0; i--) {
+        const uid = selectedRowKeys[i]
+        const findItem = list.find((m) => m.uid === uid)
+        if (findItem) {
+          allSelected.push(findItem)
+        }
+      }
+
+      // 最多保留3条
+      const next = allSelected.slice(0, 3)
+      setSelectItems(next)
+    }
+    init()
+  }, [mailList, selectedRowKeys])
+
+  if (currentMail || selectedRowKeys?.length > 0)
     return (
       <>
         <div className='flex items-center justify-between gap-2 border-b border-gray-200 p-4'>
@@ -105,23 +133,51 @@ const Detail = () => {
                 返回
               </Button>
             )}
-            <Button size='small' icon={<IconDelete />} onClick={() => onDelMail([currentMail])}>
+            <Button
+              size='small'
+              icon={<IconDelete />}
+              onClick={() => {
+                const list = (mailList?.list || []).filter((x) => selectedRowKeys.includes(x.uid))
+                onDelMail(selectedRowKeys.length > 0 ? list : [currentMail])
+              }}>
               {currentFolder.folder === 'Deleted' ? '彻底删除' : '删除'}
             </Button>
-            <Button size='small' icon={<IconReply />} onClick={() => onReplyForward('is_reply')}>
-              回复
-            </Button>
-            <Button size='small' icon={<IconRedo />} onClick={() => onReplyForward('is_forward')}>
-              转发
-            </Button>
+            {selectedRowKeys.length === 0 ? (
+              <>
+                <Button size='small' icon={<IconReply />} onClick={() => onReplyForward('is_reply')}>
+                  回复
+                </Button>
+                <Button size='small' icon={<IconRedo />} onClick={() => onReplyForward('is_forward')}>
+                  转发
+                </Button>
+              </>
+            ) : (
+              <Button size='small' onClick={() => onRead({ uids: selectedRowKeys, folder: currentFolder.folder, type: 1 })}>
+                <div className='flex items-center gap-1'>
+                  <IconMailRead />
+                  全部已读
+                </div>
+              </Button>
+            )}
             <Dropdown
               triggerProps={{ autoAlignPopupWidth: true }}
               trigger='click'
               droplist={
-                <Menu onClickMenuItem={(e) => onFlagMail({ to: e, uids: [currentMail.uid], from: currentMail.folder })}>
-                  {flagList.map((e) => (
-                    <Menu.Item key={e.flag + '_' + e.key}>{e.title}</Menu.Item>
-                  ))}
+                <Menu
+                  onClickMenuItem={(e) => {
+                    onFlagMail({
+                      to: e,
+                      uids: selectedRowKeys.length > 0 ? selectedRowKeys : [currentMail.uid],
+                      from: selectedRowKeys.length > 0 ? currentFolder.folder : currentMail.folder,
+                    })
+                  }}>
+                  {flagList.map((e, i) =>
+                    e.flag === 'divider' ? (
+                      <Divider key={i + `_divider`} style={{ margin: '4px 0' }} />
+                    ) : (
+                      <Menu.Item key={e.flag + '_' + e.key}>{e.title}</Menu.Item>
+                    )
+                  )}
                 </Menu>
               }>
               <Button size='small'>
@@ -136,7 +192,14 @@ const Detail = () => {
               triggerProps={{ autoAlignPopupWidth: true }}
               trigger='click'
               droplist={
-                <Menu onClickMenuItem={(e) => onMoveMail({ to: e, uids: [currentMail.uid], from: currentMail.folder })}>
+                <Menu
+                  onClickMenuItem={(e) =>
+                    onMoveMail({
+                      to: e,
+                      uids: selectedRowKeys.length > 0 ? selectedRowKeys : [currentMail.uid],
+                      from: selectedRowKeys.length > 0 ? currentFolder.folder : currentMail.folder,
+                    })
+                  }>
                   {moveList
                     .filter((e) => ![currentFolder.folder].includes(e.folder))
                     .map((e) => (
@@ -175,117 +238,98 @@ const Detail = () => {
           )}
         </div>
         {/* 邮件详情 */}
-        <Spin block loading={mailLoading} className='h-[calc(100vh-117px)] overflow-y-auto p-4'>
-          <div className='mb-4 flex items-center gap-2'>
-            <span className='text-lg font-bold'>{currentMail.subject}</span>
-            <Button
-              size='mini'
-              type='text'
-              onClick={() => {
-                const type = currentMail?.flags?.includes('Flagged') ? 2 : 1
-                onStar({ uids: [currentMail.uid], folder: currentFolder.folder, type: type })
-              }}>
-              {currentMail?.flags?.includes('Flagged') ? (
-                <IconStarSelect className='text-xl!' />
-              ) : (
-                <IconStarUnselect className='text-xl!' />
-              )}
-            </Button>
-          </div>
-          <div className='mb-4 flex items-start gap-3'>
-            <AvatarImage baseUrl={baseUrl} email={currentMail?.from_info?.email} name={currentMail?.from_info?.name} />
-            <div className='flex-1 text-sm'>
-              <Popover
-                position='bl'
-                trigger='hover'
-                key={currentMail.from}
-                triggerProps={{ mouseEnterDelay: 500, showArrow: false }}
-                content={
-                  <div>
-                    <div className='flex gap-2'>
-                      <AvatarImage baseUrl={baseUrl} email={currentMail?.from_info?.email} name={currentMail?.from_info?.name} />
-                      <div>
-                        <div className='flex items-center gap-2 font-bold'>{currentMail?.from_info?.name}</div>
-                        <Typography.Text copyable>{currentMail.from}</Typography.Text>
-                      </div>
-                    </div>
-                    {![...contactList, { email: userInfo.email }]?.map((e) => e.email).includes(currentMail.from) && (
-                      <div className={'mt-2'}>
-                        <Button
-                          type='primary'
-                          size='small'
-                          long
-                          icon={<IconPlus />}
-                          onClick={() =>
-                            onEditContact({
-                              name: currentMail?.from_info?.name,
-                              email: currentMail.from,
-                              prefix: 'user_contact',
-                            })
-                          }>
-                          添加联系人
-                        </Button>
-                      </div>
-                    )}
+        {selectedRowKeys.length > 0 ? (
+          <div className='relative h-[calc(100vh-117px)] w-full p-4'>
+            {selectItems.map((item, index) => {
+              return (
+                <div
+                  className={`top-card absolute rounded-lg border border-gray-200 bg-white p-4 shadow-md transition-all duration-300 ease-in-out`}
+                  style={{
+                    left: `${(index + 1) * 16}px`,
+                    right: `${(index + 1) * 16}px`,
+                    top: `${(index + 1) * 16}px`,
+                    zIndex: `${selectItems?.length - index}`,
+                  }}
+                  key={index}>
+                  <div className='mb-1 text-lg font-bold'>{item.subject}</div>{' '}
+                  <div className='mb-10 truncate text-gray-600/90'>{item.text}</div>{' '}
+                  <div className='text-[13px] font-light text-gray-400'>
+                    {item.from_info?.name}·{dayjs(item?.send_time).format('YYYY年MM月DD日 HH:mm:ss') || ''}{' '}
                   </div>
-                }>
-                <div className='mb-1'>
-                  <strong>{currentMail?.from_info?.name}</strong>
-                  <span className='text-gray-400 ml-2'>&lt;{currentMail.from}&gt;</span>
                 </div>
-              </Popover>
-              <div className='flex flex-wrap items-start justify-between gap-2'>
-                <div className='flex-1'>
-                  <div className='mb-1 flex'>
-                    <div className='whitespace-nowrap text-gray-400'>收件人</div>
-                    <div className='flex flex-wrap'>
-                      {currentMail?.to_info?.map((e, index) => (
-                        <Popover
-                          position='bl'
-                          trigger='hover'
-                          key={e.email + '_' + index}
-                          triggerProps={{ mouseEnterDelay: 500, showArrow: false }}
-                          content={
-                            <div>
-                              <div className='flex gap-2'>
-                                <AvatarImage baseUrl={baseUrl} email={e?.email} name={e?.name} />
-                                <div>
-                                  <div className='flex items-center gap-2 font-bold'>{e?.name}</div>
-                                  <Typography.Text copyable>{e?.email}</Typography.Text>
-                                </div>
-                              </div>
-                              {![...contactList, { email: userInfo.email }]?.map((e) => e.email).includes(e?.email) && (
-                                <div className={'mt-2'}>
-                                  <Button
-                                    type='primary'
-                                    size='small'
-                                    long
-                                    icon={<IconPlus />}
-                                    onClick={() =>
-                                      onEditContact({
-                                        name: e?.name,
-                                        email: e?.email,
-                                        prefix: 'user_contact',
-                                      })
-                                    }>
-                                    添加联系人
-                                  </Button>
-                                </div>
-                              )}
-                            </div>
-                          }>
-                          <span className='mr-1 ml-3'>{e.name}</span>
-                          <span className='text-gray-400'>&lt;{e.email}&gt;</span>
-                          {index !== currentMail?.to_info?.length - 1 && <span className='text-gray-400'>,</span>}
-                        </Popover>
-                      ))}
+              )
+            })}
+          </div>
+        ) : (
+          <Spin block loading={mailLoading} className='h-[calc(100vh-117px)] overflow-y-auto p-4'>
+            <div className='mb-4 flex items-center gap-2'>
+              <span className='text-lg font-bold'>{currentMail.subject}</span>
+              <Button
+                size='mini'
+                type='text'
+                onClick={() => {
+                  const type = currentMail?.flags?.includes('Flagged') ? 2 : 1
+                  onStar({ uids: [currentMail.uid], folder: currentFolder.folder, type: type })
+                }}>
+                {currentMail?.flags?.includes('Flagged') ? (
+                  <IconStarSelect className='text-xl!' />
+                ) : (
+                  <IconStarUnselect className='text-xl!' />
+                )}
+              </Button>
+            </div>
+            <div className='mb-4 flex items-start gap-3'>
+              <AvatarImage baseUrl={baseUrl} email={currentMail?.from_info?.email} name={currentMail?.from_info?.name} />
+              <div className='flex-1 text-sm'>
+                <Popover
+                  position='bl'
+                  trigger='hover'
+                  key={currentMail.from}
+                  triggerProps={{ mouseEnterDelay: 500, showArrow: false }}
+                  content={
+                    <div>
+                      <div className='flex gap-2'>
+                        <AvatarImage
+                          baseUrl={baseUrl}
+                          email={currentMail?.from_info?.email}
+                          name={currentMail?.from_info?.name}
+                        />
+                        <div>
+                          <div className='flex items-center gap-2 font-bold'>{currentMail?.from_info?.name}</div>
+                          <Typography.Text copyable>{currentMail.from}</Typography.Text>
+                        </div>
+                      </div>
+                      {![...contactList, { email: userInfo.email }]?.map((e) => e.email).includes(currentMail.from) && (
+                        <div className={'mt-2'}>
+                          <Button
+                            type='primary'
+                            size='small'
+                            long
+                            icon={<IconPlus />}
+                            onClick={() =>
+                              onEditContact({
+                                name: currentMail?.from_info?.name,
+                                email: currentMail.from,
+                                prefix: 'user_contact',
+                              })
+                            }>
+                            添加联系人
+                          </Button>
+                        </div>
+                      )}
                     </div>
+                  }>
+                  <div className='mb-1'>
+                    <strong>{currentMail?.from_info?.name}</strong>
+                    <span className='ml-2 text-gray-400'>&lt;{currentMail.from}&gt;</span>
                   </div>
-                  {currentMail?.cc && (
-                    <div className='flex items-center'>
-                      <div className='text-gray-400'>抄送</div>
+                </Popover>
+                <div className='flex flex-wrap items-start justify-between gap-2'>
+                  <div className='flex-1'>
+                    <div className='mb-1 flex'>
+                      <div className='whitespace-nowrap text-gray-400'>收件人</div>
                       <div className='flex flex-wrap'>
-                        {currentMail?.cc_info?.map((e, index) => (
+                        {currentMail?.to_info?.map((e, index) => (
                           <Popover
                             position='bl'
                             trigger='hover'
@@ -322,87 +366,134 @@ const Detail = () => {
                             }>
                             <span className='mr-1 ml-3'>{e.name}</span>
                             <span className='text-gray-400'>&lt;{e.email}&gt;</span>
-                            {index !== currentMail?.cc_info?.length - 1 && <span className='text-gray-400'>,</span>}
+                            {index !== currentMail?.to_info?.length - 1 && <span className='text-gray-400'>,</span>}
                           </Popover>
                         ))}
                       </div>
                     </div>
-                  )}
-                </div>
-                <div className='w-45 text-right text-gray-400'>
-                  {dayjs(currentMail?.send_time).format('YYYY年MM月DD日 HH:mm:ss') || ''}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <Divider />
-          {/* 定时邮件 */}
-          {!['0001-01-01T00:00:00Z', ''].includes(currentMail.schedule) && (
-            <div className='mb-5 flex items-center rounded bg-[#e6edf5] px-4 py-2'>
-              <IconClockCircle className='mr-1 text-blue-500!' />
-              此邮件是定时邮件，将在
-              <span className='mx-2 text-blue-500'>{dayjs(currentMail.schedule).format('YYYY年MM月DD日 HH:mm:ss')}</span>
-              发出。
-              <Button type='text' size='mini' onClick={() => onUnSchedule(currentMail)}>
-                取消发送
-              </Button>
-            </div>
-          )}
-          {/* 邮件内容 */}
-          <div
-            className='mail-detail'
-            dangerouslySetInnerHTML={{
-              __html: currentMail.detail?.content || '<div class="text-gray-500">暂无邮件内容</div>',
-            }}
-          />
-
-          {/* 附件 */}
-          {currentMail?.has_attach && (
-            <Card
-              className='mt-10'
-              title={
-                <>
-                  <IconAttachment className='mr-1' />
-                  {currentMail?.detail?.attachments?.length}个 附件 {currentMail?.detail?.attach_size}
-                </>
-              }>
-              <div className='flex flex-col gap-2'>
-                {currentMail?.detail?.attachments?.map((item, index) => (
-                  <div key={index} className='flex items-center justify-between gap-2 bg-gray-100 p-2 hover:bg-gray-200'>
-                    <div className='flex flex-1 items-center'>
-                      <span className='mr-2'>
-                        {item?.file_type === 'video' && <IconVideo />}
-                        {item?.file_type === 'audio' && <IconAudio />}
-                        {item?.file_type === 'zip' && <IconZip />}
-                        {item?.file_type === 'image' && <IconImage />}
-
-                        {item?.file_type === 'ppt' && <IconPpt />}
-                        {item?.file_type === 'pdf' && <IconPdf />}
-                        {item?.file_type === 'excel' && <IconExcel />}
-                        {item?.file_type === 'word' && <IconWord />}
-
-                        {item?.file_type === 'text' && <IconText />}
-                      </span>
-                      {item.file_name}
-                      <span className='text-gray-400'>（{item.size}）</span>
-                    </div>
-                    <Space>
-                      <Button type='text' size='small' onClick={() => onPreviewAttachment(item)}>
-                        <IconEye />
-                        预览
-                      </Button>
-                      <Button type='text' size='small' onClick={() => onDownloadAttachment(item)}>
-                        <IconToBottom />
-                        下载
-                      </Button>
-                    </Space>
+                    {currentMail?.cc && (
+                      <div className='flex items-center'>
+                        <div className='text-gray-400'>抄送</div>
+                        <div className='flex flex-wrap'>
+                          {currentMail?.cc_info?.map((e, index) => (
+                            <Popover
+                              position='bl'
+                              trigger='hover'
+                              key={e.email + '_' + index}
+                              triggerProps={{ mouseEnterDelay: 500, showArrow: false }}
+                              content={
+                                <div>
+                                  <div className='flex gap-2'>
+                                    <AvatarImage baseUrl={baseUrl} email={e?.email} name={e?.name} />
+                                    <div>
+                                      <div className='flex items-center gap-2 font-bold'>{e?.name}</div>
+                                      <Typography.Text copyable>{e?.email}</Typography.Text>
+                                    </div>
+                                  </div>
+                                  {![...contactList, { email: userInfo.email }]?.map((e) => e.email).includes(e?.email) && (
+                                    <div className={'mt-2'}>
+                                      <Button
+                                        type='primary'
+                                        size='small'
+                                        long
+                                        icon={<IconPlus />}
+                                        onClick={() =>
+                                          onEditContact({
+                                            name: e?.name,
+                                            email: e?.email,
+                                            prefix: 'user_contact',
+                                          })
+                                        }>
+                                        添加联系人
+                                      </Button>
+                                    </div>
+                                  )}
+                                </div>
+                              }>
+                              <span className='mr-1 ml-3'>{e.name}</span>
+                              <span className='text-gray-400'>&lt;{e.email}&gt;</span>
+                              {index !== currentMail?.cc_info?.length - 1 && <span className='text-gray-400'>,</span>}
+                            </Popover>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
-                ))}
+                  <div className='w-45 text-right text-gray-400'>
+                    {dayjs(currentMail?.send_time).format('YYYY年MM月DD日 HH:mm:ss') || ''}
+                  </div>
+                </div>
               </div>
-            </Card>
-          )}
-        </Spin>
+            </div>
+
+            <Divider />
+            {/* 定时邮件 */}
+            {!['0001-01-01T00:00:00Z', ''].includes(currentMail.schedule) && (
+              <div className='mb-5 flex items-center rounded bg-[#e6edf5] px-4 py-2'>
+                <IconClockCircle className='mr-1 text-blue-500!' />
+                此邮件是定时邮件，将在
+                <span className='mx-2 text-blue-500'>{dayjs(currentMail.schedule).format('YYYY年MM月DD日 HH:mm:ss')}</span>
+                发出。
+                <Button type='text' size='mini' onClick={() => onUnSchedule(currentMail)}>
+                  取消发送
+                </Button>
+              </div>
+            )}
+            {/* 邮件内容 */}
+            <div
+              className='mail-detail'
+              dangerouslySetInnerHTML={{
+                __html: currentMail.detail?.content || '<div class="text-gray-500">暂无邮件内容</div>',
+              }}
+            />
+
+            {/* 附件 */}
+            {currentMail?.has_attach && (
+              <Card
+                className='mt-10'
+                title={
+                  <>
+                    <IconAttachment className='mr-1' />
+                    {currentMail?.detail?.attachments?.length}个 附件 {currentMail?.detail?.attach_size}
+                  </>
+                }>
+                <div className='flex flex-col gap-2'>
+                  {currentMail?.detail?.attachments?.map((item, index) => (
+                    <div key={index} className='flex items-center justify-between gap-2 bg-gray-100 p-2 hover:bg-gray-200'>
+                      <div className='flex flex-1 items-center'>
+                        <span className='mr-2'>
+                          {item?.file_type === 'video' && <IconVideo />}
+                          {item?.file_type === 'audio' && <IconAudio />}
+                          {item?.file_type === 'zip' && <IconZip />}
+                          {item?.file_type === 'image' && <IconImage />}
+
+                          {item?.file_type === 'ppt' && <IconPpt />}
+                          {item?.file_type === 'pdf' && <IconPdf />}
+                          {item?.file_type === 'excel' && <IconExcel />}
+                          {item?.file_type === 'word' && <IconWord />}
+
+                          {item?.file_type === 'text' && <IconText />}
+                        </span>
+                        {item.file_name}
+                        <span className='text-gray-400'>（{item.size}）</span>
+                      </div>
+                      <Space>
+                        <Button type='text' size='small' onClick={() => onPreviewAttachment(item)}>
+                          <IconEye />
+                          预览
+                        </Button>
+                        <Button type='text' size='small' onClick={() => onDownloadAttachment(item)}>
+                          <IconToBottom />
+                          下载
+                        </Button>
+                      </Space>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            )}
+          </Spin>
+        )}
       </>
     )
 
