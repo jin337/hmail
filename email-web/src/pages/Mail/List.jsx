@@ -311,21 +311,21 @@ const ListLayout = () => {
               key={item.uid}
               className={`mail-item box-border flex w-full cursor-pointer px-3 py-2 hover:bg-(--color-fill-2)${selected?.includes(item?.uid) || item?.uid === currentMail?.uid ? ' selelct-mail' : ''}${!item?.flags?.includes('Seen') ? ' font-bold' : ''}${isTable ? ' items-center' : ''}`}
               onClick={(e) => {
-                if (isSelected(item?.uid)) {
+                // 排除干扰点击
+                const targetElement = e?.target
+
+                const isCheckboxClick = targetElement
+                  ? targetElement?.classList.contains('arco-checkbox') ||
+                    targetElement?.classList.contains('arco-checkbox-input') ||
+                    targetElement?.closest('.arco-checkbox')
+                  : false
+
+                const isStar = isSvg(e)
+
+                if (!isCheckboxClick && isSelected(item?.uid)) {
                   unSelectAll()
                 }
                 if (currentMail?.uid !== item?.uid) {
-                  // 排除干扰点击
-                  const targetElement = e?.target
-
-                  const isCheckboxClick = targetElement
-                    ? targetElement?.classList.contains('arco-checkbox') ||
-                      targetElement?.classList.contains('arco-checkbox-input') ||
-                      targetElement?.closest('.arco-checkbox')
-                    : false
-
-                  const isStar = isSvg(e)
-
                   // 排除非跳转项
                   if (isCheckboxClick || isStar) return
                   setCurrentMail(item)
