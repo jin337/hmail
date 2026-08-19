@@ -580,80 +580,6 @@ const RichTextEditor = ({ value = '', onChange, height = '300px' }) => {
     redoStack.current = []
   }, [])
 
-  // 处理列表:Tab 缩进
-  const handleTabIndent = () => {
-    const rootEl = editorRef.current
-    if (!rootEl) return false
-    const sel = window.getSelection()
-    if (!sel.rangeCount || sel.isCollapsed) return false
-
-    let node = sel.anchorNode
-    while (node && node !== rootEl && node.nodeName !== 'LI') {
-      node = node.parentNode
-    }
-    if (!node || node === rootEl) return false
-
-    const li = node
-    const prevLi = li.previousElementSibling
-    if (!prevLi) return false
-
-    const parentList = li.parentElement
-    const listTag = parentList.nodeName
-
-    let subList = prevLi.nextElementSibling
-    if (!subList || !['UL', 'OL'].includes(subList.nodeName)) {
-      subList = document.createElement(listTag)
-      Object.assign(subList.style, {
-        listStyleType: listTag === 'UL' ? 'disc' : 'decimal',
-        marginLeft: '20px',
-      })
-      prevLi.after(subList)
-    }
-
-    subList.appendChild(li)
-    return true
-  }
-
-  // 处理列表:Shift+Tab
-  const handleTabOutdent = () => {
-    const rootEl = editorRef.current
-    if (!rootEl) return false
-    const sel = window.getSelection()
-    if (!sel.rangeCount || sel.isCollapsed) return false
-
-    let node = sel.anchorNode
-    while (node && node !== rootEl && node.nodeName !== 'LI') {
-      node = node.parentNode
-    }
-    if (!node || node === rootEl) return false
-
-    const li = node
-    const parentList = li.parentElement
-    const aboveLi = parentList.previousElementSibling
-
-    if (aboveLi && aboveLi.nodeName === 'LI') {
-      const afterList = document.createElement(parentList.nodeName)
-      Object.assign(afterList.style, {
-        listStyleType: parentList.style.listStyleType,
-        marginLeft: parentList.style.marginLeft,
-      })
-      let next = li.nextSibling
-      while (next) {
-        afterList.appendChild(next)
-        next = li.nextSibling
-      }
-
-      parentList.parentNode.insertBefore(li, parentList.nextSibling)
-      if (afterList.firstChild) {
-        parentList.parentNode.insertBefore(afterList, li.nextSibling)
-      }
-      if (!parentList.firstChild) {
-        parentList.remove()
-      }
-    }
-    return true
-  }
-
   // 清除格式
   const handleClear = (range, rootEl) => {
     // 仅处理有选区的情况
@@ -690,38 +616,23 @@ const RichTextEditor = ({ value = '', onChange, height = '300px' }) => {
       })
 
       const firstLi = replacements[0].li
-      const outerList = firstLi.parentElement
-      const outerParent = outerList.parentNode
-      const allLiInList = Array.from(outerList.querySelectorAll(':scope > li'))
-      const selectLiSet = new Set(replacements.map((r) => r.li))
-
-      const isAllLiSelected = allLiInList.every((li) => selectLiSet.has(li))
-
-      let anchorNode = firstLi.nextElementSibling
-      while (anchorNode && selectLiSet.has(anchorNode)) {
-        anchorNode = anchorNode.nextElementSibling
-      }
-      if (!anchorNode) {
-        anchorNode = outerList.nextSibling
-      }
-      let realAnchor
-      if (anchorNode && outerList.contains(anchorNode)) {
-        realAnchor = outerList
-      } else {
-        realAnchor = anchorNode ?? null
+      let outerList = firstLi.parentElement
+      const outerNode = outerList.parentNode
+      while (outerList && outerList !== rootEl && ['UL', 'OL'].includes(outerList.nodeName)) {
+        const parent = outerList.parentElement
+        if (parent && ['UL', 'OL'].includes(parent.nodeName)) {
+          outerList = parent
+        } else {
+          break
+        }
       }
 
+      const insertBeforeNode = outerList
       for (const { div } of replacements) {
-        outerParent.insertBefore(div, realAnchor)
+        outerNode.insertBefore(div, insertBeforeNode)
       }
 
-      for (const { li } of replacements) {
-        li.remove()
-      }
-
-      if (isAllLiSelected) {
-        outerList.remove()
-      }
+      outerList.remove()
     }
 
     // 恢复选区
@@ -1268,23 +1179,6 @@ const RichTextEditor = ({ value = '', onChange, height = '300px' }) => {
         // Ctrl+Y / Ctrl+Shift+Z
         e.preventDefault()
         handleRedo()
-      } else if (e.key === 'Tab' && !e.ctrlKey && !e.metaKey && !e.altKey) {
-        e.preventDefault()
-        const rootEl = editorRef.current
-        if (!rootEl) return
-        const offset = saveRangeOffset(rootEl)
-        let handled
-        if (e.shiftKey) {
-          handled = handleTabOutdent()
-        } else {
-          handled = handleTabIndent()
-        }
-        if (handled) {
-          isInternalChange.current = true
-          onChange?.(rootEl.innerHTML)
-          restoreRangeByOffset(rootEl, offset)
-          saveHistory()
-        }
       }
     },
     [handleUndo, handleRedo]

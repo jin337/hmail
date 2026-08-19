@@ -26,7 +26,7 @@ const MenuLayout = () => {
 
       <Menu className='mail-menu bg-transparent! px-2' selectedKeys={[currentFolder?.key || '']} onClickMenuItem={onSelectMenu}>
         {folderList?.map((item) => (
-          <Menu.Item key={item.key} className='leading-8! text-(--color-text-1)!'>
+          <Menu.Item key={item.key} className='leading-7! text-(--color-text-1)!'>
             <div className='flex items-center'>
               {cloneElement(item.icon, { className: 'text-(--color-text-1)! text-lg' })}
               <span className='inline-block w-27 overflow-hidden align-middle text-ellipsis whitespace-nowrap'>{item.title}</span>

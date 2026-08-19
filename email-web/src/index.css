@@ -15,7 +15,8 @@
 /* 滑块 */
 ::-webkit-scrollbar-thumb {
   border-radius: 10px;
-  background-color: rgba(209, 213, 218, 0.8);
+  background-color: transparent;
+  transition: background-color 0.2s ease;
 }
 
 /* 上下箭头按钮 */
@@ -23,9 +24,12 @@
   height: 2px;
   background: transparent;
 }
+
 body {
   background-color: #e6edf5;
   position: relative;
+  font-size: 13px;
+  color: #000;
 }
 strong {
   display: inline-block;
@@ -48,11 +52,16 @@ strong {
   justify-content: space-between;
   align-items: center;
   background-color: transparent;
+  font-size: 13px;
+  color: #000 !important;
 }
 .mail-menu .arco-menu-item.arco-menu-selected {
   background-color: rgba(15, 122, 245, 0.149);
   font-weight: bold;
   border-radius: 4px;
+}
+.mail-list:hover::-webkit-scrollbar-thumb {
+  background-color: rgba(209, 213, 218, 0.8);
 }
 .mail-list .selelct-mail,
 .mail-list .selelct-mail:hover {
@@ -154,4 +163,12 @@ strong {
 }
 .arco-progress {
   display: none;
+}
+
+.editor-contact .arco-input-inner-wrapper {
+  background-color: transparent;
+  border: 1px solid var(--color-border-1);
+}
+.mail-detail a {
+  color: #0e70df;
 }

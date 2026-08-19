@@ -19,7 +19,7 @@ const Content = () => {
 
   return (
     <Layout className='relative rounded-t-xl bg-white'>
-      <Layout.Sider width={isTable ? (currentMail ? 0 : '100%') : '360px'} className={`box-shadow-none z-10 flex-1`}>
+      <Layout.Sider width={isTable ? (currentMail ? 0 : '100%') : '410px'} className={`box-shadow-none z-10 flex-1`}>
         {/* 邮件列表 */}
         <List />
       </Layout.Sider>
@@ -27,7 +27,7 @@ const Content = () => {
       <Layout.Content>
         {/* 切换模式按钮 */}
         {!(isTable && currentMail) && (
-          <div className='absolute top-4 right-4 z-20'>
+          <div className='absolute top-2.5 right-4 z-20'>
             <Button size='small' onClick={cutTable} icon={isTable ? <IconLayout /> : <IconMenu />}></Button>
           </div>
         )}

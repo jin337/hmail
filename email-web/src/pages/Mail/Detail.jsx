@@ -245,9 +245,9 @@ const Detail = () => {
                 <div
                   className={`top-card absolute rounded-lg border border-gray-200 bg-white p-4 shadow-md transition-all duration-300 ease-in-out`}
                   style={{
-                    left: `${(index + 1) * 16}px`,
-                    right: `${(index + 1) * 16}px`,
-                    top: `${(index + 1) * 16}px`,
+                    left: `${(index + 1) * 10}px`,
+                    right: `${(index + 1) * 10}px`,
+                    top: `${(index > 1 ? index + 1 : 1) * 10}px`,
                     zIndex: `${selectItems?.length - index}`,
                   }}
                   key={index}>

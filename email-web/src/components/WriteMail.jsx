@@ -258,6 +258,7 @@ export default function WriteMail({
 
     form.setFieldsValue(detail)
     if (detail?.uid) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setAddCC(detail?.cc_email?.length > 0)
       const list = (detail?.detail?.attachments || []).map((e) => ({
         ...e,
@@ -576,7 +577,10 @@ export default function WriteMail({
             </Form.Item>
           </Form>
           {/* 联系人 */}
-          <Card title='联系人' className='h-full w-60 border-t-0!' bodyStyle={{ overflowY: 'auto', height: 'calc(100% - 50px)' }}>
+          <Card
+            title='联系人'
+            className='h-full w-60 border-t-0! border-r-0! editor-contact'
+            bodyStyle={{ overflowY: 'auto', height: 'calc(100% - 50px)' }}>
             <Input
               prefix={<IconSearch />}
               placeholder='搜索联系人'

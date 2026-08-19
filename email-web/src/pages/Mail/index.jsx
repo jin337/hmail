@@ -270,12 +270,18 @@ const MailLayout = () => {
     let newMail = null
 
     const to_reply = currentMail?.to_info
-      ?.map((t) => `<span style="color: rgb(0, 0, 0);">${t.name}</span>` + ' &lt;' + t.email + '&gt;')
+      ?.map(
+        (t) =>
+          `<span style="color: rgb(0, 0, 0);">${t.name}</span> <span style="color: rgb(149, 157, 166);">&lt;${t.email}&gt;</span>`
+      )
       .join(', ')
 
     const cc_reply = currentMail?.cc
       ? currentMail?.cc_info
-          ?.map((t) => `<span style="color: rgb(0, 0, 0);">${t.name}</span>` + ' &lt;' + t.email + '&gt;')
+          ?.map(
+            (t) =>
+              `<span style="color: rgb(0, 0, 0);">${t.name}</span> <span style="color: rgb(149, 157, 166);">&lt;${t.email}&gt;</span>`
+          )
           .join(', ')
       : ''
 
@@ -284,12 +290,12 @@ const MailLayout = () => {
     <div><br></div>
     <article>
       <div style="display:flex;align-items:center;padding-top:8px">
-        <span style="color:#959DA6;font-size:12px;line-height:30px">原始邮件</span>
-        <span style="flex-grow:1;border-top:1px solid rgba(21, 46, 74, 0.07);margin-left:8px"></span>
-      </div>
-      <div style="line-height: 20px; border-radius: 6px; background-color: rgba(20, 46, 77, 0.05); color: rgb(92, 97, 102); margin: 0px; padding: 8px; width: 100%;">
+        <div style="color:#959DA6;font-size:12px;line-height:30px">原始邮件</div>
+        <hr style="border-width: medium; border-style: none; border-color: currentcolor; border-image: none;flex-grow:1;border-top:1px solid rgba(21, 46, 74, 0.07);margin-left:8px">
+            </div>
+      <div style="line-height: 20px; border-radius: 6px; background-color: rgba(20, 46, 77, 0.05); color: rgb(0, 0, 0); margin: 0px; padding: 8px; width: 100%;">
         <div style="line-height: 20px; font-size: 12px;">
-          发件人：<span style="color: rgb(0, 0, 0);">${currentMail?.from_info?.name}</span>&lt;${currentMail?.from}&gt;
+          发件人：<span style="color: rgb(0, 0, 0);">${currentMail?.from_info?.name}</span><span style="color: rgb(149, 157, 166);">&lt;${currentMail?.from}&gt;</span>
         </div>
         <div style="line-height: 20px; font-size: 12px;">
           发件时间：<span style="color: rgb(0, 0, 0);">${dayjs(currentMail?.date).format('YYYY年MM月DD日 HH:mm:ss')}</span>
@@ -694,7 +700,14 @@ const MailLayout = () => {
           file_type: getFileType(e.file_type),
         })),
       }
-      newData.content = transHtmlAttrs(newData.content, 'src', 'data-href')
+      let content = transHtmlAttrs(newData.content, 'src', 'data-href')
+      newData.content = content.replace(
+        /<span style="color: rgb\(149, 157, 166\);">(&lt;([a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+)&gt;)<\/span>/g,
+        (match, fullInner, email) => {
+          return `&lt;<a href="mailto:${email}" target="_blank" rel="noopener noreferrer" title="给TA写信">${email}</a>&gt;`
+        }
+      )
+
       setCurrentMail({ ...item, detail: newData })
 
       // 标记已读
