@@ -433,6 +433,29 @@ const RichTextEditor = ({ value = '', onChange, height = '300px' }) => {
 
     return childNodes
   }
+
+  // handleClear保留图片和HR
+  const stripInlineFormat = (el) => {
+    if (el.nodeType !== Node.ELEMENT_NODE) return
+    for (let i = el.childNodes.length - 1; i >= 0; i--) {
+      const node = el.childNodes[i]
+      if (node.nodeType === Node.TEXT_NODE) {
+        continue
+      }
+      if (['IMG', 'HR'].includes(node.tagName)) {
+        continue
+      }
+      if (['SPAN'].includes(node.tagName)) {
+        while (node.firstChild) {
+          el.insertBefore(node.firstChild, node)
+        }
+        node.remove()
+      } else {
+        stripInlineFormat(node)
+      }
+    }
+    el.removeAttribute('style')
+  }
   // 切换行内样式
   const applyStyle = (el, key, value) => {
     const computed = getComputedStyle(el)
@@ -636,8 +659,8 @@ const RichTextEditor = ({ value = '', onChange, height = '300px' }) => {
     // 仅处理有选区的情况
     if (range.collapsed) return
 
-    // 保存选区偏移，后面恢复
-    const offsetInfo = saveRangeOffset(rootEl)
+    // 保存选区
+    const offset = saveRangeOffset(rootEl)
 
     // 获取选中的子节点
     const childNodes = getChildNodes(range, rootEl)
@@ -645,47 +668,64 @@ const RichTextEditor = ({ value = '', onChange, height = '300px' }) => {
     // 收集需要替换的 LI 及其对应的 DIV
     const replacements = []
     for (const child of childNodes) {
-      child.textContent = child.innerText
-      child.removeAttribute('style')
+      stripInlineFormat(child)
 
       if (child.nodeName === 'LI') {
-        const directTextParts = []
-        for (const node of child.childNodes) {
-          if (node.nodeType === Node.TEXT_NODE) {
-            directTextParts.push(node.textContent)
-          } else if (node.nodeType === Node.ELEMENT_NODE && !['UL', 'OL'].includes(node.nodeName)) {
-            directTextParts.push(node.textContent)
-          }
-        }
-
         const divEl = document.createElement('div')
-        divEl.textContent = directTextParts.join('')
+        for (const node of [...child.childNodes]) {
+          if (['UL', 'OL'].includes(node.nodeName)) {
+            continue
+          }
+          divEl.appendChild(node)
+        }
         replacements.push({ li: child, div: divEl })
       }
     }
 
     if (replacements.length > 0) {
+      replacements.sort((a, b) => {
+        const idxA = Array.from(a.li.parentNode.children).indexOf(a.li)
+        const idxB = Array.from(b.li.parentNode.children).indexOf(b.li)
+        return idxA - idxB
+      })
+
       const firstLi = replacements[0].li
-      let outerList = firstLi.parentElement
-      while (outerList && outerList !== rootEl && ['UL', 'OL'].includes(outerList.nodeName)) {
-        const parent = outerList.parentElement
-        if (parent && ['UL', 'OL'].includes(parent.nodeName)) {
-          outerList = parent
-        } else {
-          break
-        }
+      const outerList = firstLi.parentElement
+      const outerParent = outerList.parentNode
+      const allLiInList = Array.from(outerList.querySelectorAll(':scope > li'))
+      const selectLiSet = new Set(replacements.map((r) => r.li))
+
+      const isAllLiSelected = allLiInList.every((li) => selectLiSet.has(li))
+
+      let anchorNode = firstLi.nextElementSibling
+      while (anchorNode && selectLiSet.has(anchorNode)) {
+        anchorNode = anchorNode.nextElementSibling
+      }
+      if (!anchorNode) {
+        anchorNode = outerList.nextSibling
+      }
+      let realAnchor
+      if (anchorNode && outerList.contains(anchorNode)) {
+        realAnchor = outerList
+      } else {
+        realAnchor = anchorNode ?? null
       }
 
-      const insertBeforeNode = outerList
       for (const { div } of replacements) {
-        outerList.parentNode.insertBefore(div, insertBeforeNode)
+        outerParent.insertBefore(div, realAnchor)
       }
 
-      outerList.remove()
+      for (const { li } of replacements) {
+        li.remove()
+      }
+
+      if (isAllLiSelected) {
+        outerList.remove()
+      }
     }
 
     // 恢复选区
-    restoreRangeByOffset(rootEl, offsetInfo)
+    restoreRangeByOffset(rootEl, offset)
   }
 
   // 执行撤销
@@ -1303,7 +1343,8 @@ const RichTextEditor = ({ value = '', onChange, height = '300px' }) => {
   // 初始化时记录第一条历史
   useEffect(() => {
     if (editorRef.current && undoStack.current.length === 0) {
-      saveHistory()
+      // 保存历史记录
+      debouncedSaveHistoryRef.current?.()
     }
   }, [saveHistory])
 
