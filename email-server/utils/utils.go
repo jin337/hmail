@@ -240,15 +240,15 @@ func FormatFilter(filter []string) model.MailFilter {
 	mailFilter := model.MailFilter{}
 	for _, f := range filter {
 		switch f {
-		case "unread":
+		case "unread": // 未读
 			mailFilter.Unread = true
-		case "date_asc":
+		case "date_asc": // 时间升序
 			mailFilter.DateAsc = true
-		case "date_desc":
+		case "date_desc": // 时间降序
 			mailFilter.DateDesc = true
-		case "size_asc":
+		case "size_asc": // 大小升序
 			mailFilter.SizeAsc = true
-		case "size_desc":
+		case "size_desc": // 大小降序
 			mailFilter.SizeDesc = true
 		}
 	}

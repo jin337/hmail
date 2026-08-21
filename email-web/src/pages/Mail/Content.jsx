@@ -68,6 +68,7 @@ const Content = () => {
   return (
     <Layout className='relative rounded-t-xl bg-white'>
       <Layout.Sider
+        style={{ minWidth: isTable && !isMove ? 'auto' : '350px' }}
         resizeBoxProps={{
           directions: ['right'],
           resizeTriggers: {
@@ -79,7 +80,7 @@ const Content = () => {
           },
           onMoving,
         }}
-        width={isTable && !isMove ? (currentMail ? 0 : '100%') : 410}
+        width={isTable && !isMove ? (currentMail ? 0 : '100%') : '410px'}
         className={`shadow-none!`}>
         {/* 邮件列表 */}
         <List />

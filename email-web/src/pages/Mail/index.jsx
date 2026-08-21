@@ -775,6 +775,7 @@ const MailLayout = () => {
     if (!isRefresh && !refreshCount) {
       setSelectedRowKeys([]) // 清空选中
       setCurrentMail(null) // 清空当前邮件
+      setListLoading(true)
     }
 
     let url = '/api/mail/list'
@@ -789,7 +790,6 @@ const MailLayout = () => {
       }
     }
 
-    setListLoading(true)
     let { code, data, msg } = await request.post(url, params)
     if (code === 200) {
       const list = data?.list || []
