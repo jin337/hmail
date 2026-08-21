@@ -1,21 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
-import { Button, Card, Divider, Dropdown, Menu, Popover, Space, Spin, Typography } from '@arco-design/web-react'
-import {
-  IconArrowLeft,
-  IconAttachment,
-  IconClockCircle,
-  IconDelete,
-  IconDown,
-  IconEye,
-  IconLeft,
-  IconPlus,
-  IconRedo,
-  IconReply,
-  IconRight,
-  IconStar,
-  IconToBottom,
-} from '@arco-design/web-react/icon'
+import { Button, Card, Divider, Empty, Popover, Space, Spin, Typography } from '@arco-design/web-react'
+import { IconAttachment, IconClockCircle, IconEmail, IconEye, IconPlus, IconToBottom } from '@arco-design/web-react/icon'
 
 import dayjs from 'dayjs'
 
@@ -32,8 +18,6 @@ import IconVideo from 'src/assets/file_video.svg'
 import IconWord from 'src/assets/file_word.svg'
 import IconZip from 'src/assets/file_zip.svg'
 
-import IconMoveFolder from 'src/assets/mail_move_folder.svg'
-import IconMailRead from 'src/assets/mail_read.svg'
 import IconStarUnselect from 'src/assets/mail_star.svg'
 import IconStarSelect from 'src/assets/mail_star_open.svg'
 
@@ -46,23 +30,16 @@ const Detail = () => {
     mailList,
     currentMail,
     mailLoading,
-    setCurrentMail,
-    onCutMail,
     currentFolder,
-    moveList,
-    isTable,
     contactList,
     onEditContact,
+    onEdit,
     onStar,
-    onDelMail,
-    onMoveMail,
-    onReplyForward,
     onUnSchedule,
-    flagList,
-    onFlagMail,
     selectedRowKeys,
-    onRead,
   } = useMailContext()
+
+  const detailRef = useRef()
 
   // 预览附件
   const onPreviewAttachment = (item) => {
@@ -97,6 +74,7 @@ const Detail = () => {
     document.body.removeChild(link)
   }
 
+  // 选中邮件
   const [selectItems, setSelectItems] = useState([])
   useEffect(() => {
     const init = () => {
@@ -122,132 +100,49 @@ const Detail = () => {
     init()
   }, [mailList, selectedRowKeys])
 
-  if (currentMail || selectedRowKeys?.length > 0)
+  // 邮件内容点击邮箱地址
+  useEffect(() => {
+    if (!detailRef.current) return
+    const container = detailRef.current
+
+    const onMailLink = (e) => {
+      const aDom = e.target.closest('a[data-mail-email]')
+      if (!aDom) return
+
+      e.preventDefault()
+      e.stopPropagation()
+
+      const email = aDom.dataset.mailEmail
+      if (email) {
+        const name = email.split('@')[0]
+        onEdit({
+          to_info: [{ label: name, value: email }],
+        })
+      }
+    }
+
+    // 只给外层容器绑定一次click
+    container.addEventListener('click', onMailLink)
+
+    return () => {
+      container.removeEventListener('click', onMailLink)
+    }
+  }, [currentMail, onEdit])
+
+  if (currentMail || selectedRowKeys?.length > 0) {
     return (
       <>
-        <div className='flex items-center justify-between gap-2 border-b border-gray-200 p-4'>
-          {/* 操作按钮 */}
-          <div className='flex flex-wrap items-center gap-2'>
-            {isTable && currentMail && (
-              <Button size='small' icon={<IconArrowLeft />} onClick={() => setCurrentMail()}>
-                返回
-              </Button>
-            )}
-            <Button
-              size='small'
-              icon={<IconDelete />}
-              onClick={() => {
-                const list = (mailList?.list || []).filter((x) => selectedRowKeys.includes(x.uid))
-                onDelMail(selectedRowKeys.length > 0 ? list : [currentMail])
-              }}>
-              {currentFolder.folder === 'Deleted' ? '彻底删除' : '删除'}
-            </Button>
-            {selectedRowKeys.length === 0 ? (
-              <>
-                <Button size='small' icon={<IconReply />} onClick={() => onReplyForward('is_reply')}>
-                  回复
-                </Button>
-                <Button size='small' icon={<IconRedo />} onClick={() => onReplyForward('is_forward')}>
-                  转发
-                </Button>
-              </>
-            ) : (
-              <Button size='small' onClick={() => onRead({ uids: selectedRowKeys, folder: currentFolder.folder, type: 1 })}>
-                <div className='flex items-center gap-1'>
-                  <IconMailRead />
-                  全部已读
-                </div>
-              </Button>
-            )}
-            <Dropdown
-              triggerProps={{ autoAlignPopupWidth: true }}
-              trigger='click'
-              droplist={
-                <Menu
-                  onClickMenuItem={(e) => {
-                    onFlagMail({
-                      to: e,
-                      uids: selectedRowKeys.length > 0 ? selectedRowKeys : [currentMail.uid],
-                      from: selectedRowKeys.length > 0 ? currentFolder.folder : currentMail.folder,
-                    })
-                  }}>
-                  {flagList.map((e, i) =>
-                    e.flag === 'divider' ? (
-                      <Divider key={i + `_divider`} style={{ margin: '4px 0' }} />
-                    ) : (
-                      <Menu.Item key={e.flag + '_' + e.key}>{e.title}</Menu.Item>
-                    )
-                  )}
-                </Menu>
-              }>
-              <Button size='small'>
-                <div className='flex items-center gap-1'>
-                  <IconStar />
-                  标记为
-                  <IconDown />
-                </div>
-              </Button>
-            </Dropdown>
-            <Dropdown
-              triggerProps={{ autoAlignPopupWidth: true }}
-              trigger='click'
-              droplist={
-                <Menu
-                  onClickMenuItem={(e) =>
-                    onMoveMail({
-                      to: e,
-                      uids: selectedRowKeys.length > 0 ? selectedRowKeys : [currentMail.uid],
-                      from: selectedRowKeys.length > 0 ? currentFolder.folder : currentMail.folder,
-                    })
-                  }>
-                  {moveList
-                    .filter((e) => ![currentFolder.folder].includes(e.folder))
-                    .map((e) => (
-                      <Menu.Item key={e.folder}>{e.title}</Menu.Item>
-                    ))}
-                </Menu>
-              }>
-              <Button size='small'>
-                <div className='flex items-center gap-1'>
-                  <IconMoveFolder />
-                  移动到
-                  <IconDown />
-                </div>
-              </Button>
-            </Dropdown>
-          </div>
-
-          {/* 切换邮件 */}
-          {isTable && (
-            <Button.Group className='flex!' type='text'>
-              <Button
-                size='small'
-                icon={<IconLeft />}
-                disabled={currentMail?.uid === mailList?.list[0]?.uid}
-                onClick={() => onCutMail(currentMail, 'prev')}>
-                上一封
-              </Button>
-              <Button
-                size='small'
-                disabled={currentMail?.uid === mailList?.list[mailList?.list?.length - 1]?.uid}
-                onClick={() => onCutMail(currentMail, 'next')}>
-                下一封
-                <IconRight />
-              </Button>
-            </Button.Group>
-          )}
-        </div>
         {/* 邮件详情 */}
         {selectedRowKeys.length > 0 ? (
           <div className='relative h-[calc(100vh-117px)] w-full p-4'>
             {selectItems.map((item, index) => {
               return (
                 <div
-                  className={`top-card absolute rounded-lg border border-gray-200 bg-white p-4 shadow-md transition-all duration-300 ease-in-out`}
+                  className={`top-card absolute h-36 rounded-lg border border-gray-200 bg-white p-4 shadow-md transition-all duration-300 ease-in-out`}
                   style={{
                     left: `${(index + 1) * 10}px`,
                     right: `${(index + 1) * 10}px`,
-                    top: `${(index > 1 ? index + 1 : 1) * 10}px`,
+                    top: `${(index + 1) * 10}px`,
                     zIndex: `${selectItems?.length - index}`,
                   }}
                   key={index}>
@@ -269,7 +164,7 @@ const Detail = () => {
                 type='text'
                 onClick={() => {
                   const type = currentMail?.flags?.includes('Flagged') ? 2 : 1
-                  onStar({ uids: [currentMail.uid], folder: currentFolder.folder, type: type })
+                  onStar({ uids: [currentMail.uid], folder: currentMail.folder, type: type })
                 }}>
                 {currentMail?.flags?.includes('Flagged') ? (
                   <IconStarSelect className='text-xl!' />
@@ -441,6 +336,7 @@ const Detail = () => {
             )}
             {/* 邮件内容 */}
             <div
+              ref={detailRef}
               className='mail-detail'
               dangerouslySetInnerHTML={{
                 __html: currentMail.detail?.content || '<div class="text-gray-500">暂无邮件内容</div>',
@@ -496,7 +392,15 @@ const Detail = () => {
         )}
       </>
     )
+  }
 
-  return <div className='flex h-full items-center justify-center text-gray-300'>请在左侧选择一封邮件查看详情</div>
+  return (
+    <div className='flex h-full items-center justify-center text-gray-300'>
+      <Empty
+        description={<span className='text-base'>未选中任何邮件</span>}
+        icon={<IconEmail className='stroke-1! text-[140px]!' />}
+      />
+    </div>
+  )
 }
 export default Detail

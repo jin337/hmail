@@ -355,6 +355,52 @@ func StarMailList(email, pwd string, page, size int64, keyword string, filter []
 	return list, total, nil
 }
 
+// UnreadMailTotal 未读邮件总数
+func UnreadMailTotal(email, pwd string) (map[string]int64, error) {
+	// 验证用户
+	imapClient, err := utils.DialIMAPClient(email, pwd)
+	if err != nil {
+		return nil, err
+	}
+	defer imapClient.Logout()
+
+	total := make(map[string]int64)
+	total["Star"] = 0 // 初始化
+
+	for _, folder := range config.DefaultFolders {
+		// 选择文件夹
+		_, err = imapClient.Select(folder, false)
+		if err != nil {
+			fmt.Printf("选择文件夹 %s 失败: %v\n", folder, err)
+			continue
+		}
+
+		// 搜索邮件
+		searchCrit := &imap.SearchCriteria{
+			WithoutFlags: []string{imap.SeenFlag},
+		}
+		ids, err := imapClient.Search(searchCrit)
+		if err != nil {
+			return total, err
+		}
+		// 获取总数
+		total[folder] = int64(len(ids))
+
+		starCriter := &imap.SearchCriteria{
+			WithFlags:    []string{imap.FlaggedFlag},
+			WithoutFlags: []string{imap.SeenFlag},
+		}
+		starIds, err := imapClient.Search(starCriter)
+		if err != nil {
+			return total, err
+		}
+		// 星标邮件中的未读邮件数
+		total["Star"] += int64(len(starIds)) // += 累加全部文件夹
+	}
+
+	return total, nil
+}
+
 // MailDetail 获取邮件详情
 func MailDetail(email, pwd string, token string, folder string, uid int64, host string) (*model.MailDetail, error) {
 	// 验证用户

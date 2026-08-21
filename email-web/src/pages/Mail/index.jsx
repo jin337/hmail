@@ -125,6 +125,8 @@ const MailLayout = () => {
   const { currentAccountId, baseUrl, userInfo, searchWord, setSearchWord, registerMethod } = useOutletContext()
 
   const tableRef = useRef()
+  const [refreshCount, setRefreshCount] = useState(0) // 刷新次数
+  const timerRef = useRef(null) // 定时器
 
   const [folderList, setFolderList] = useState(menuList) // 目录菜单
   const [currentFolder, setCurrentFolder] = useState({}) // 当前文件夹
@@ -135,6 +137,7 @@ const MailLayout = () => {
   const [selectedRowKeys, setSelectedRowKeys] = useState([]) // 已选择行
 
   const [isTable, setIsTable] = useState(() => localStorage.getItem('isTable') === 'true') // 表格模式
+  const [isMove, setIsMove] = useState(false) // 移动模式
 
   const [currentMail, setCurrentMail] = useState(null) // 当前邮件
   const [mailLoading, setMailLoading] = useState(false) // 邮件加载中
@@ -146,7 +149,7 @@ const MailLayout = () => {
 
   const [flagList, setFlagList] = useState(flags)
 
-  const pageSize = 25 // 每页数量
+  const pageSize = 35 // 每页数量
 
   // 取消发送
   const onUnSchedule = async (item, type = 2) => {
@@ -350,9 +353,20 @@ const MailLayout = () => {
 
   // 删除邮件
   const onDelMail = async (items) => {
-    if (!items.length) return Message.error('请选择要删除的邮件')
-    const ids = items.map((e) => e.uid)
-    const folder = items?.length === 1 ? items[0].folder : currentFolder.folder
+    const list = items.filter(Boolean)
+    if (!list.length) {
+      return Message.warning({
+        content: '未选中任何邮件',
+        showIcon: true,
+        position: 'bottom',
+      })
+    }
+    const ids = list.map((e) => e.uid)
+    const folder = list?.length === 1 ? list[0].folder : currentFolder.folder
+
+    if (folder === 'Star') {
+      return Message.warning('请选择非星标邮件')
+    }
 
     Modal.confirm({
       title: '提示',
@@ -399,11 +413,28 @@ const MailLayout = () => {
 
   // 移动邮件
   const onMoveMail = async ({ uids, from, to }) => {
-    if (!uids.length) return Message.error('请选择要移动的邮件')
+    if (from === 'Star') {
+      return Message.warning('请选择非星标邮件')
+    }
+    const list = uids.filter(Boolean)
+    if (!list.length) {
+      return Message.warning({
+        content: '未选中任何邮件',
+        showIcon: true,
+        position: 'bottom',
+      })
+    }
+    if (from === to) {
+      return Message.warning({
+        content: '请选择不同的文件夹',
+        showIcon: true,
+        position: 'bottom',
+      })
+    }
     const { code } = await request.post('/api/mail/move', {
       from_folder: from,
       to_folder: to,
-      uids: uids,
+      uids: list,
     })
     if (code !== 200) {
       Message.error('移动失败')
@@ -439,30 +470,23 @@ const MailLayout = () => {
   }
 
   // 标记为列表设置
-  const onChangeMailFlag = (selected) => {
-    const list = mailList?.list || []
-    const selectedMails = list.filter((item) => selected.includes(item.uid))
+  const onChangeMailFlag = (selected, list = mailList?.list) => {
+    const selectedMails = (list || []).filter((item) => selected.includes(item.uid))
 
-    if (selectedMails.length === 0) {
-      const newFlags = [
-        { flag: 'Seen', key: 1, title: '已读邮件' },
-        { flag: 'Seen', key: 2, title: '未读邮件' },
-        { title: '分割线', flag: 'divider' },
-        { flag: 'Flagged', key: 1, title: '星标邮件' },
-        { flag: 'Flagged', key: 2, title: '取消星标' },
-      ]
-      setFlagList(newFlags)
+    // 完全没有选中，退出
+    if (selected.length === 0 && selectedMails.length === 0) {
       return
     }
 
     const allHasSeen = selectedMails.every((mail) => Array.isArray(mail.flags) && mail.flags.includes('Seen'))
     const allHasFlagged = selectedMails.every((mail) => Array.isArray(mail.flags) && mail.flags.includes('Flagged'))
+    const someHasSeen = selectedMails.some((mail) => Array.isArray(mail.flags) && mail.flags.includes('Seen'))
+    const someHasFlagged = selectedMails.some((mail) => Array.isArray(mail.flags) && mail.flags.includes('Flagged'))
     let readList = []
 
     if (allHasSeen) {
       readList = [{ flag: 'Seen', key: 2, title: '未读邮件' }]
     } else {
-      const someHasSeen = selectedMails.some((mail) => Array.isArray(mail.flags) && mail.flags.includes('Seen'))
       if (someHasSeen) {
         readList = [
           { flag: 'Seen', key: 1, title: '已读邮件' },
@@ -477,7 +501,6 @@ const MailLayout = () => {
     if (allHasFlagged) {
       starList = [{ flag: 'Flagged', key: 2, title: '取消星标' }]
     } else {
-      const someHasFlagged = selectedMails.some((mail) => Array.isArray(mail.flags) && mail.flags.includes('Flagged'))
       if (someHasFlagged) {
         starList = [
           { flag: 'Flagged', key: 1, title: '星标邮件' },
@@ -494,103 +517,110 @@ const MailLayout = () => {
 
   // 标记已读
   const onRead = async (item) => {
-    if (item.uids.length == 0) {
+    if (item.folder === 'Star') {
+      return Message.warning('请选择非星标邮件')
+    }
+
+    const list = item.uids.filter(Boolean)
+    if (list.length == 0) {
       return Message.warning({
-        content: '请选择需要标记的邮件',
+        content: '未选中任何邮件',
         showIcon: true,
         position: 'bottom',
       })
     }
+    if (item.folder === 'Star') {
+      return Message.warning('请选择非星标邮件')
+    }
     const params = {
-      uids: item.uids,
+      uids: list,
       folder: item.folder,
       status: 'Seen',
       type: item.type, // 1:未读 2:已读
     }
     const { code } = await request.post('/api/mail/status', params)
     if (code === 200) {
+      const newList = [...mailList.list]
+      const { uids } = params
+
+      newList.forEach((mailItem) => {
+        if (!uids.includes(mailItem.uid)) return
+
+        let flags = mailItem.flags || []
+        if (item.type === 1) {
+          if (!flags.includes('Seen')) {
+            flags = [...flags, 'Seen']
+          }
+        }
+        if (item.type === 2) {
+          flags = flags.filter((f) => f !== 'Seen')
+        }
+
+        mailItem.flags = flags
+      })
       setMailList((prev) => {
-        const newList = [...prev.list]
-        const { uids } = params
-
-        newList.forEach((mailItem) => {
-          if (!uids.includes(mailItem.uid)) return
-
-          let flags = mailItem.flags || []
-          if (item.type === 1) {
-            if (!flags.includes('Seen')) {
-              flags = [...flags, 'Seen']
-            }
-          }
-          if (item.type === 2) {
-            flags = flags.filter((f) => f !== 'Seen')
-          }
-
-          mailItem.flags = flags
-        })
-
+        if (!Array.isArray(uids) || uids.length === 0) return prev
         return {
           ...prev,
           list: newList,
-          folder: item.folder,
         }
       })
 
-      setFolderList((prev) =>
-        prev.map((item) => {
-          if (item.folder === 'INBOX') {
-            return { ...item, total: item.total - 1 }
-          }
-          return item
-        })
-      )
+      getUnReadTotal()
+
+      onChangeMailFlag(params.uids, newList)
     }
   }
 
   // 标记星标
   const onStar = async (item) => {
-    if (item?.uids?.length == 0) {
+    if (item.folder === 'Star') {
+      return Message.warning('请选择非星标邮件')
+    }
+
+    const list = item.uids.filter(Boolean)
+    if (list?.length == 0) {
       return Message.warning({
-        content: '请选择需要标记的邮件',
+        content: '未选中任何邮件',
         showIcon: true,
         position: 'bottom',
       })
     }
 
     const params = {
-      uids: item.uids,
+      uids: list,
       folder: item.folder,
       status: 'Flagged',
       type: item.type, // 1:添加 2:取消
     }
     const { code } = await request.post('/api/mail/status', params)
     if (code === 200) {
-      setMailList((prev) => {
-        const uids = params.uids
-        if (!Array.isArray(uids) || uids.length === 0) return prev
+      const uids = params.uids
+      let newList = [...mailList.list]
+      const uidSet = new Set(uids)
 
-        let newList = [...prev.list]
-        const uidSet = new Set(uids)
+      // 遍历更新flags
+      newList = newList.map((mailItem) => {
+        if (!uidSet.has(mailItem.uid)) return mailItem
 
-        // 遍历更新flags
-        newList = newList.map((mailItem) => {
-          if (!uidSet.has(mailItem.uid)) return mailItem
-
-          let flags = mailItem.flags || []
-          if (item.type === 1) {
-            if (!flags.includes('Flagged')) {
-              flags = [...flags, 'Flagged']
-            }
-          } else {
-            flags = flags.filter((item) => item !== 'Flagged')
+        let flags = mailItem.flags || []
+        if (item.type === 1) {
+          if (!flags.includes('Flagged')) {
+            flags = [...flags, 'Flagged']
           }
-          return { ...mailItem, flags }
-        })
-
-        // 当前是星标文件夹，把本次操作的全部uid过滤移除
-        if (currentFolder.folder === 'Star') {
-          newList = newList.filter((item) => !uidSet.has(item.uid))
+        } else {
+          flags = flags.filter((item) => item !== 'Flagged')
         }
+        return { ...mailItem, flags }
+      })
+
+      // 当前是星标文件夹，把本次操作的全部uid过滤移除
+      if (currentFolder.folder === 'Star') {
+        newList = newList.filter((item) => !uidSet.has(item.uid))
+      }
+
+      setMailList((prev) => {
+        if (!Array.isArray(uids) || uids.length === 0) return prev
 
         return {
           ...prev,
@@ -614,6 +644,10 @@ const MailLayout = () => {
           return newItem
         })
       }
+
+      getUnReadTotal()
+
+      onChangeMailFlag(params.uids, newList)
     }
   }
 
@@ -704,7 +738,7 @@ const MailLayout = () => {
       newData.content = content.replace(
         /<span style="color: rgb\(149, 157, 166\);">(&lt;([a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+)&gt;)<\/span>/g,
         (match, fullInner, email) => {
-          return `&lt;<a href="mailto:${email}" target="_blank" rel="noopener noreferrer" title="给TA写信">${email}</a>&gt;`
+          return `&lt;<a href="mailto:${email}" target="_blank" rel="noopener noreferrer" data-mail-email="${email}" title="给TA写信">${email}</a>&gt;`
         }
       )
 
@@ -713,6 +747,9 @@ const MailLayout = () => {
       // 标记已读
       if (!item?.flags || !item.flags?.includes('Seen')) {
         onRead({ uids: [item.uid], folder: item.folder, type: 1 })
+      } else {
+        // 设置标记为内容
+        onChangeMailFlag([item.uid], mailList.list)
       }
 
       // 草稿编辑
@@ -725,8 +762,6 @@ const MailLayout = () => {
         }
         onEdit(newItem)
       }
-
-      onChangeMailFlag([item.uid])
     } else {
       Message.error(msg)
     }
@@ -736,9 +771,12 @@ const MailLayout = () => {
   }
 
   // 获取邮件列表
-  const getMailList = async (item) => {
-    setSelectedRowKeys([]) // 清空选中
-    setCurrentMail(null) // 清空当前邮件
+  const getMailList = async (item, isRefresh) => {
+    if (!isRefresh && !refreshCount) {
+      setSelectedRowKeys([]) // 清空选中
+      setCurrentMail(null) // 清空当前邮件
+    }
+
     let url = '/api/mail/list'
     let params = {
       ...item,
@@ -767,10 +805,24 @@ const MailLayout = () => {
           list: [...mailList.list, ...list],
         })
       }
+
+      // 刷新邮件列表
+      InboxRefresh()
     } else {
       Message.error(msg)
     }
     setListLoading(false)
+  }
+
+  // 获取未读邮件数量
+  const getUnReadTotal = async () => {
+    const { code, data, msg } = await request.post('/api/mail/unread-total')
+    if (code === 200) {
+      const list = folderList.map((item) => ({ ...item, total: data[item.folder] || 0 }))
+      setFolderList(list)
+    } else {
+      Message.error(msg)
+    }
   }
 
   // 切换选中邮件
@@ -825,6 +877,38 @@ const MailLayout = () => {
     })
   }
 
+  // 自动刷新，获取收件箱邮件
+  const InboxRefresh = () => {
+    setRefreshCount((prevCount) => {
+      // 1分钟刷新一次，20分钟以后，5分钟刷新一次
+      let count = prevCount >= 20 ? 5 * 60 * 1000 : 60 * 1000
+
+      // 最大刷新次数：50次:20个10分钟+6个5分钟
+      if (prevCount >= 50) {
+        if (timerRef.current) clearTimeout(timerRef.current)
+        return
+      }
+      // 先清除已有定时器
+      if (timerRef.current) clearTimeout(timerRef.current)
+
+      const params = {
+        folder: currentFolder.folder,
+        keyword: searchWord,
+        filter: filterKeys,
+        page: 1,
+        size: pageSize,
+      }
+
+      timerRef.current = setTimeout(async () => {
+        await getMailList(params, true)
+        //本次请求完成，再开启下一轮计时
+        setRefreshCount((prev) => prev + 1)
+        InboxRefresh()
+      }, count)
+      return prevCount
+    })
+  }
+
   //   滚动到顶部
   const scrollToTop = () => {
     const scrollContainer = tableRef?.current?.querySelector('.arco-table-body')
@@ -845,7 +929,7 @@ const MailLayout = () => {
         const { scrollTop, scrollHeight, clientHeight } = e.target
         const distanceToBottom = scrollHeight - scrollTop - clientHeight
 
-        if (distanceToBottom <= 300 && !listLoading) {
+        if (distanceToBottom <= 200 && !listLoading) {
           let currentPage = Math.ceil(mailList.list.length / pageSize)
           if (currentPage < totalPages) {
             getMailList({
@@ -858,7 +942,7 @@ const MailLayout = () => {
           }
         }
       }, 500),
-    [totalPages, mailList.list, searchWord]
+    [totalPages, mailList.list, searchWord, currentFolder.folder, filterKeys, listLoading]
   )
 
   const onScroll = useCallback(
@@ -869,18 +953,21 @@ const MailLayout = () => {
   )
 
   // 监听邮件滚动加载事件
+  const bindRef = useRef(false)
   useEffect(() => {
-    const scrollContainer = tableRef?.current
+    const scrollContainer = tableRef.current
+    if (!scrollContainer) return
 
-    if (scrollContainer) {
+    // 避免重复绑定
+    if (!bindRef.current) {
       scrollContainer.addEventListener('scroll', onScroll)
+      bindRef.current = true
     }
 
     return () => {
-      if (scrollContainer) {
-        scrollContainer.removeEventListener('scroll', onScroll)
-      }
+      scrollContainer.removeEventListener('scroll', onScroll)
       throttledScrollHandler.cancel()
+      bindRef.current = false
     }
   }, [onScroll, throttledScrollHandler])
 
@@ -942,8 +1029,9 @@ const MailLayout = () => {
   // 立即加载第一页邮件
   useEffect(() => {
     const init = () => {
-      setCurrentFolder(menuList[0])
+      getUnReadTotal()
 
+      setCurrentFolder(folderList[0])
       getUserList()
       getContactList({ prefix: 'user_sent' })
       getContactList({ prefix: 'user_contact' })
@@ -973,6 +1061,8 @@ const MailLayout = () => {
       onSelectFilter, // 筛选事件
       isTable, // 是否表格模式
       setIsTable, // 设置表格模式
+      isMove, // 是否移动模式
+      setIsMove, // 设置是否移动模式
 
       selectedRowKeys, // 选中邮件
       setSelectedRowKeys, // 设置选中邮件

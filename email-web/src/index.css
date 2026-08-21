@@ -1,6 +1,8 @@
 @import 'tailwindcss';
 /* 表单内*号换行问题解决方案 */
-
+strong {
+  display: inline-block;
+}
 /* 滚动条基础 */
 ::-webkit-scrollbar {
   width: 8px;
@@ -16,7 +18,10 @@
 ::-webkit-scrollbar-thumb {
   border-radius: 10px;
   background-color: transparent;
-  transition: background-color 0.2s ease;
+  transition: background-color 0.2s 0.2s ease-in-out;
+}
+.overflow-y-auto:hover::-webkit-scrollbar-thumb {
+  background-color: rgba(209, 213, 218, 0.8);
 }
 
 /* 上下箭头按钮 */
@@ -30,9 +35,6 @@ body {
   position: relative;
   font-size: 13px;
   color: #000;
-}
-strong {
-  display: inline-block;
 }
 .arco-spin-children {
   width: 100%;
@@ -60,8 +62,8 @@ strong {
   font-weight: bold;
   border-radius: 4px;
 }
-.mail-list:hover::-webkit-scrollbar-thumb {
-  background-color: rgba(209, 213, 218, 0.8);
+.mail-menu .arco-menu-item.arco-menu-selected .total {
+  color: rgb(var(--primary-6));
 }
 .mail-list .selelct-mail,
 .mail-list .selelct-mail:hover {
@@ -171,4 +173,7 @@ strong {
 }
 .mail-detail a {
   color: #0e70df;
+}
+.arco-resizebox {
+  min-width: 350px;
 }

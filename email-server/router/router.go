@@ -60,16 +60,17 @@ func SetupRouter(r *gin.Engine) {
 			// 需要 JWT 认证
 			mailAuth := mail.Use(middleware.JWTAuth())
 			{
-				mailAuth.POST("/list", controller.MailList)               // 邮件列表
-				mailAuth.POST("/star-list", controller.StarMailList)      // 星标邮件列表
-				mailAuth.POST("/detail", controller.MailDetail)           // 邮件详情
-				mailAuth.POST("/status", controller.MarkFlag)             // 标记邮件状态
-				mailAuth.POST("/download", controller.DownloadAttachment) // 下载附件
-				mailAuth.POST("/move", controller.MoveMail)               // 移动邮件
-				mailAuth.POST("/delete", controller.DeleteMail)           // 删除邮件
-				mailAuth.POST("/save-draft", controller.SaveDraft)        // 保存草稿
-				mailAuth.POST("/send", controller.SendEmail)              // 发送邮件
-				mailAuth.POST("/un-schedule", controller.UnScheduleEmail) // 取消定时发送
+				mailAuth.POST("/list", controller.MailList)                // 邮件列表
+				mailAuth.POST("/star-list", controller.StarMailList)       // 星标邮件列表
+				mailAuth.POST("/unread-total", controller.UnreadMailTotal) // 未读邮件总数
+				mailAuth.POST("/detail", controller.MailDetail)            // 邮件详情
+				mailAuth.POST("/status", controller.MarkFlag)              // 标记邮件状态
+				mailAuth.POST("/download", controller.DownloadAttachment)  // 下载附件
+				mailAuth.POST("/move", controller.MoveMail)                // 移动邮件
+				mailAuth.POST("/delete", controller.DeleteMail)            // 删除邮件
+				mailAuth.POST("/save-draft", controller.SaveDraft)         // 保存草稿
+				mailAuth.POST("/send", controller.SendEmail)               // 发送邮件
+				mailAuth.POST("/un-schedule", controller.UnScheduleEmail)  // 取消定时发送
 			}
 		}
 	}

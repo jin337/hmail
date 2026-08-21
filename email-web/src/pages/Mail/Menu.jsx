@@ -30,8 +30,8 @@ const MenuLayout = () => {
             <div className='flex items-center'>
               {cloneElement(item.icon, { className: 'text-(--color-text-1)! text-lg' })}
               <span className='inline-block w-27 overflow-hidden align-middle text-ellipsis whitespace-nowrap'>{item.title}</span>
+              {item.total > 0 && <span className='total text-gray-600 text-xs'>{item.total}</span>}
             </div>
-            {item?.key === 'inbox' && item?.total > 0 && <span className='font-medium text-blue-600'>{item.total}</span>}
             {item?.key === 'compose' && (
               <Button
                 className='m-0!'

@@ -39,6 +39,14 @@ type Contact struct {
 	Name  string `json:"name"`  // 姓名
 }
 
+type Folder struct {
+	INBOX   int64 `json:"INBOX"`
+	Drafts  int64 `json:"Drafts"`
+	Sent    int64 `json:"Sent"`
+	Deleted int64 `json:"Deleted"`
+	Star    int64 `json:"Star"`
+}
+
 // 邮件信息
 type MailItem struct {
 	Uid        int64       `json:"uid"`        // 邮件ID

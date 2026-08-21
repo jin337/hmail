@@ -95,6 +95,23 @@ func StarMailList(c *gin.Context) {
 	})
 }
 
+// UnreadMailTotal 获取未读邮件数量
+func UnreadMailTotal(c *gin.Context) {
+	email, _ := c.Get("userEmail")
+	pwd, _ := c.Get("userPwd")
+
+	total, err := service.UnreadMailTotal(email.(string), pwd.(string))
+	if err != nil {
+		c.JSON(200, gin.H{"code": 500, "msg": "获取未读邮件数量失败: " + err.Error()})
+		return
+	}
+	c.JSON(200, gin.H{
+		"code": 200,
+		"msg":  "success",
+		"data": total,
+	})
+}
+
 // MailDetail 获取邮件详情
 func MailDetail(c *gin.Context) {
 	email, _ := c.Get("userEmail")

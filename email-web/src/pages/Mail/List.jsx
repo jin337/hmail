@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
-import { Button, Checkbox, Divider, Dropdown, Empty, Menu, Space, Spin } from '@arco-design/web-react'
+import { Button, Checkbox, Divider, Dropdown, Menu, Space, Spin } from '@arco-design/web-react'
 import { IconAttachment, IconCheck, IconClose, IconDelete, IconDown, IconSort, IconStar } from '@arco-design/web-react/icon'
 
 import dayjs from 'dayjs'
@@ -96,6 +96,7 @@ const ListLayout = () => {
     onMoveMail,
     moveList,
     onRead,
+    isMove,
   } = useMailContext()
   const [mailData, setMailData] = useState([])
 
@@ -141,15 +142,21 @@ const ListLayout = () => {
   }, [selected])
 
   // 监控邮件列表
+  const prevFolderRef = useRef(currentFolder?.folder)
+
   useEffect(() => {
     const init = () => {
-      unSelectAll()
+      const currentFolderId = currentFolder?.folder
+      if (prevFolderRef.current !== currentFolderId) {
+        unSelectAll()
+      }
+      prevFolderRef.current = currentFolderId
 
       const list = groupMailByTime(mailList?.list || [])
       setMailData(list)
     }
     init()
-  }, [mailList])
+  }, [mailList?.list, currentFolder?.folder, filterKeys])
 
   return (
     <>
@@ -239,7 +246,7 @@ const ListLayout = () => {
               </Dropdown>
             )}
           </div>
-          {currentFolder.folder !== 'Star' && isTable && (
+          {currentFolder.folder !== 'Star' && isTable && !isMove && (
             <Space>
               <Button
                 size='small'
@@ -300,17 +307,17 @@ const ListLayout = () => {
             </Space>
           )}
         </div>
-        <span className={`${isTable ? 'mr-10' : ''}`}>共 {mailList?.total || 0} 封</span>
+        <span className={`${isTable && !isMove ? 'mr-10' : ''}`}>共 {mailList?.total || 0} 封</span>
       </div>
 
       {/* 邮件列表 */}
-      <Spin block loading={listLoading} className='mail-list h-[calc(100vh-116px)] overflow-auto px-1' ref={tableRef}>
+      <Spin block loading={listLoading} className='mail-list h-[calc(100vh-116px)] overflow-y-auto px-1' ref={tableRef}>
         {mailData?.map((item, index) =>
           item.key ? (
             <div
-              className={`cursor-pointer px-3 ${index == 0 ? 'pt-2' : 'pt-3.5'} mb-1 text-(--color-text-2) underline-offset-3 hover:underline`}
+              className={`cursor-pointer px-3 underline-offset-3 ${index == 0 ? 'pt-2' : 'pt-3.5'} mb-1 text-(--color-text-2)`}
               key={item.key}>
-              <span onClick={() => onSelectGroup(item)}>
+              <span className='hover:underline' onClick={() => onSelectGroup(item)}>
                 <span className='mr-1 font-bold'>{item.title}</span>({item.total}&nbsp;封)
               </span>
             </div>
@@ -414,7 +421,7 @@ const ListLayout = () => {
                     <div className='w-18 text-right'>{formatMailTime(item?.send_time)}</div>
                   </div>
                   <div className='truncate'>{item?.subject || ''}</div>
-                  <div className='flex items-center justify-between'>
+                  <div className='flex h-6 items-center justify-between'>
                     <div className={'flex-1 truncate font-light text-gray-400'}>{item?.text || ''}</div>
                     {item?.flags?.includes('Flagged') && <IconStarSelect className='cursor-pointer text-xl!' />}
                   </div>
@@ -425,8 +432,8 @@ const ListLayout = () => {
         )}
         {/* 列表为空 */}
         {mailData?.length === 0 && (
-          <div className='flex h-full w-full items-center justify-center'>
-            <Empty description='暂无数据' />
+          <div className='flex h-[calc(100vh-116px)] w-full items-center justify-center text-lg text-gray-600/80'>
+            暂无邮件待处理
           </div>
         )}
       </Spin>
