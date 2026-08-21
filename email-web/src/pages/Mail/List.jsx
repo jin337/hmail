@@ -407,7 +407,7 @@ const ListLayout = () => {
                       {currentFolder?.folder === 'Sent' ? (
                         <>
                           <IconSent />
-                          <div className={`${item?.to_info.length > 1 ? 'flex-1' : ''} truncate`}>
+                          <div className={`${item?.to_info?.length > 1 ? 'flex-1' : ''} truncate`}>
                             {item?.to_info?.map((t) => t.name).join(', ') || item?.to}
                             {item?.cc_info?.length > 0 ? ',  ' : ''}
                             {item?.cc_info?.map((t) => t.name).join(', ') || item?.cc}

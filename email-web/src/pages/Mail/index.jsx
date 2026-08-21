@@ -149,7 +149,7 @@ const MailLayout = () => {
 
   const [flagList, setFlagList] = useState(flags)
 
-  const pageSize = 35 // 每页数量
+  const pageSize = 50 // 每页数量
 
   // 取消发送
   const onUnSchedule = async (item, type = 2) => {
