@@ -242,9 +242,9 @@ func FormatFilter(filter []string) model.MailFilter {
 		switch f {
 		case "unread": // 未读
 			mailFilter.Unread = true
-		case "date_asc": // 时间升序
+		case "date_asc": // 由旧到新
 			mailFilter.DateAsc = true
-		case "date_desc": // 时间降序
+		case "date_desc": //由新到旧
 			mailFilter.DateDesc = true
 		case "size_asc": // 大小升序
 			mailFilter.SizeAsc = true
@@ -261,13 +261,13 @@ func SortMailList(list []*model.MailItem, mailFilter model.MailFilter) {
 		return
 	}
 
-	// 按时间升序
+	// 由旧到新
 	if mailFilter.DateAsc {
 		sort.Slice(list, func(i, j int) bool {
 			return list[i].SendTime.Before(list[j].SendTime)
 		})
 	} else if mailFilter.DateDesc {
-		// 按时间降序
+		//由新到旧
 		sort.Slice(list, func(i, j int) bool {
 			return list[i].SendTime.After(list[j].SendTime)
 		})

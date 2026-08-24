@@ -29,7 +29,7 @@ const showMailIcon = (flags) => {
 }
 
 // 邮件分组
-const groupMailByTime = (list) => {
+const groupMailByTime = (list, keys) => {
   if (list?.length === 0) return []
   const today = dayjs()
   // 定义分组容器，顺序决定最终展示顺序
@@ -57,13 +57,18 @@ const groupMailByTime = (list) => {
   })
 
   // 映射标题（和你需求对应）
-  const groupMap = [
+  let groupMap = [
     { key: 'today', title: '今天' },
     { key: 'yesterday', title: '昨日' },
     { key: 'thisWeek', title: '周一' },
     { key: 'lastWeek', title: '上周' },
     { key: 'older', title: '更早' },
   ]
+
+  // 由旧到新
+  if (keys.includes('date_asc')) {
+    groupMap.reverse()
+  }
 
   const list2 = []
   groupMap.forEach(({ key, title }) => {
@@ -152,7 +157,7 @@ const ListLayout = () => {
       }
       prevFolderRef.current = currentFolderId
 
-      const list = groupMailByTime(mailList?.list || [])
+      const list = groupMailByTime(mailList?.list || [], filterKeys)
       setMailData(list)
     }
     init()

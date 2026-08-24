@@ -258,9 +258,15 @@ const MailLayout = () => {
     if (url) {
       const { code, msg } = await request.post(url, formData, { headers: { 'Content-Type': 'multipart/form-data' } })
       if (code === 200) {
-        Message.success(msg)
-        onCloseEdit(type === 'Sent' ? 'sent' : 'drafts') // 关闭邮件，跳转到发导航
-        getContactList({ prefix: 'user_sent' }) // 更新联系人
+        // 定时发送
+        if (customTime) {
+          Message.success('定时邮件已保存，将在指定时间发出')
+          onCloseEdit('drafts') // 切到草稿箱，邮件还在这里等待调度
+        } else {
+          Message.success(msg)
+          onCloseEdit(type === 'Sent' ? 'sent' : 'drafts') // 关闭邮件，跳转到发导航
+          getContactList({ prefix: 'user_sent' })
+        }
       } else {
         Message.error(msg)
       }
@@ -782,7 +788,7 @@ const MailLayout = () => {
     let params = {
       ...item,
     }
-    if (item.folder === 'Star') {
+    if (item?.folder === 'Star') {
       url = '/api/mail/star-list'
       params = {
         filter: item.filter,
@@ -807,7 +813,9 @@ const MailLayout = () => {
       }
 
       // 刷新邮件列表
-      InboxRefresh()
+      InboxRefresh(params)
+      // 获取未读邮件数量
+      getUnReadTotal()
     } else {
       Message.error(msg)
     }
@@ -878,7 +886,7 @@ const MailLayout = () => {
   }
 
   // 自动刷新，获取收件箱邮件
-  const InboxRefresh = () => {
+  const InboxRefresh = (params) => {
     setRefreshCount((prevCount) => {
       // 1分钟刷新一次，20分钟以后，5分钟刷新一次
       let count = prevCount >= 20 ? 5 * 60 * 1000 : 60 * 1000
@@ -888,22 +896,14 @@ const MailLayout = () => {
         if (timerRef.current) clearTimeout(timerRef.current)
         return
       }
+
       // 先清除已有定时器
       if (timerRef.current) clearTimeout(timerRef.current)
-
-      const params = {
-        folder: currentFolder.folder,
-        keyword: searchWord,
-        filter: filterKeys,
-        page: 1,
-        size: pageSize,
-      }
-
       timerRef.current = setTimeout(async () => {
         await getMailList(params, true)
         //本次请求完成，再开启下一轮计时
         setRefreshCount((prev) => prev + 1)
-        InboxRefresh()
+        InboxRefresh(params)
       }, count)
       return prevCount
     })
@@ -1021,6 +1021,9 @@ const MailLayout = () => {
           page: 1,
           size: pageSize,
         })
+
+        // 自动刷新，重新计时
+        setRefreshCount(0)
       }
     }
     init()
@@ -1029,8 +1032,6 @@ const MailLayout = () => {
   // 立即加载第一页邮件
   useEffect(() => {
     const init = () => {
-      getUnReadTotal()
-
       setCurrentFolder(folderList[0])
       getUserList()
       getContactList({ prefix: 'user_sent' })

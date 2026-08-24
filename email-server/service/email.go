@@ -165,14 +165,17 @@ func MailList(email, pwd, folder string, page, size int64, keyword string, filte
 				break
 			}
 		}
-
+		var fromInfoItem *model.MailInfo
+		if len(formInfo) > 0 {
+			fromInfoItem = formInfo[0]
+		}
 		item := &model.MailItem{
 			Uid:        int64(msg.Uid),
 			MessageId:  env.GetHeader("Message-Id"),
 			ReplyTo:    &inReplyToVal,
 			References: &referencesVal,
 			From:       fromMail,
-			FromInfo:   formInfo[0],
+			FromInfo:   fromInfoItem,
 			To:         toMail,
 			ToInfo:     toInfo,
 			Cc:         ccMail,
@@ -321,14 +324,17 @@ func StarMailList(email, pwd string, page, size int64, keyword string, filter []
 					break
 				}
 			}
-
+			var fromInfoItem *model.MailInfo
+			if len(formInfo) > 0 {
+				fromInfoItem = formInfo[0]
+			}
 			item := &model.MailItem{
 				Uid:        int64(msg.Uid),
 				MessageId:  env.GetHeader("Message-Id"),
 				ReplyTo:    &inReplyToVal,
 				References: &referencesVal,
 				From:       fromMail,
-				FromInfo:   formInfo[0],
+				FromInfo:   fromInfoItem,
 				To:         toMail,
 				ToInfo:     toInfo,
 				Cc:         ccMail,
@@ -353,52 +359,6 @@ func StarMailList(email, pwd string, page, size int64, keyword string, filter []
 	utils.SortMailList(list, mailFilter)
 
 	return list, total, nil
-}
-
-// UnreadMailTotal 未读邮件总数
-func UnreadMailTotal(email, pwd string) (map[string]int64, error) {
-	// 验证用户
-	imapClient, err := utils.DialIMAPClient(email, pwd)
-	if err != nil {
-		return nil, err
-	}
-	defer imapClient.Logout()
-
-	total := make(map[string]int64)
-	total["Star"] = 0 // 初始化
-
-	for _, folder := range config.DefaultFolders {
-		// 选择文件夹
-		_, err = imapClient.Select(folder, false)
-		if err != nil {
-			fmt.Printf("选择文件夹 %s 失败: %v\n", folder, err)
-			continue
-		}
-
-		// 搜索邮件
-		searchCrit := &imap.SearchCriteria{
-			WithoutFlags: []string{imap.SeenFlag},
-		}
-		ids, err := imapClient.Search(searchCrit)
-		if err != nil {
-			return total, err
-		}
-		// 获取总数
-		total[folder] = int64(len(ids))
-
-		starCriter := &imap.SearchCriteria{
-			WithFlags:    []string{imap.FlaggedFlag},
-			WithoutFlags: []string{imap.SeenFlag},
-		}
-		starIds, err := imapClient.Search(starCriter)
-		if err != nil {
-			return total, err
-		}
-		// 星标邮件中的未读邮件数
-		total["Star"] += int64(len(starIds)) // += 累加全部文件夹
-	}
-
-	return total, nil
 }
 
 // MailDetail 获取邮件详情
@@ -826,17 +786,35 @@ func BuildRawEmail(email, pwd string, from, to []string, cc []string, subject, b
 		return newHTML, images
 	}
 
+	// 创建MIME分隔
+	var createMimePart = func(w io.Writer, header textproto.MIMEHeader, boundary string) (io.Writer, error) {
+		_, err := fmt.Fprintf(w, "\r\n--%s\r\n", boundary)
+		if err != nil {
+			return nil, err
+		}
+		for k, vals := range header {
+			for _, v := range vals {
+				_, err = fmt.Fprintf(w, "%s: %s\r\n", k, v)
+				if err != nil {
+					return nil, err
+				}
+			}
+		}
+		_, err = w.Write([]byte("\r\n"))
+		return w, err
+	}
+
 	buf := new(bytes.Buffer)
 
-	// 模仿QQ boundary命名规则
 	mixedBoundary := fmt.Sprintf("----=_NextPart_%s", strings.ReplaceAll(uuid.NewString(), "-", "_"))
 
 	headers := make(map[string]string)
 	headers["MIME-Version"] = "1.0"
+	headers["X-Priority"] = "3"
+	headers["Content-Transfer-Encoding"] = "8Bit"
 	headers["Date"] = time.Now().UTC().Format(time.RFC1123)
 	headers["Subject"] = mime.BEncoding.Encode("utf-8", subject)
-	// 重点：换行 + Tab + 带引号boundary
-	headers["Content-Type"] = fmt.Sprintf("multipart/mixed;\n\tboundary=\"%s\"", mixedBoundary)
+	headers["Content-Type"] = fmt.Sprintf("multipart/mixed;\r\n\tboundary=\"%s\"", mixedBoundary)
 	headers["Message-ID"] = fmt.Sprintf("<%s@%s>", uuid.NewString(), strings.Split(email, "@")[1])
 
 	if extra.InReplyTo != "" {
@@ -882,7 +860,7 @@ func BuildRawEmail(email, pwd string, from, to []string, cc []string, subject, b
 	// 内容
 	altBoundary := fmt.Sprintf("----=_NextPart_%s", strings.ReplaceAll(uuid.NewString(), "-", "_"))
 	altHeader := textproto.MIMEHeader{}
-	altHeader.Set("Content-Type", fmt.Sprintf("multipart/alternative;\n\tboundary=\"%s\"", altBoundary))
+	altHeader.Set("Content-Type", fmt.Sprintf("multipart/alternative;\r\n\tboundary=\"%s\"", altBoundary))
 
 	altPart, err := createMimePart(buf, altHeader, mixedBoundary)
 	if err != nil {
@@ -891,7 +869,7 @@ func BuildRawEmail(email, pwd string, from, to []string, cc []string, subject, b
 
 	// text/plain
 	plainHeader := textproto.MIMEHeader{}
-	plainHeader.Set("Content-Type", "text/plain;\n\tcharset=\"utf-8\"")
+	plainHeader.Set("Content-Type", "text/plain;\r\n\tcharset=\"utf-8\"")
 	plainHeader.Set("Content-Transfer-Encoding", "base64")
 	plainPart, err := createMimePart(altPart, plainHeader, altBoundary)
 	if err == nil {
@@ -902,7 +880,7 @@ func BuildRawEmail(email, pwd string, from, to []string, cc []string, subject, b
 	// text/html
 	processedHTML, inlineImages := processInlineBase64Images(body)
 	htmlHeader := textproto.MIMEHeader{}
-	htmlHeader.Set("Content-Type", "text/html;\n\tcharset=\"utf-8\"")
+	htmlHeader.Set("Content-Type", "text/html;\r\n\tcharset=\"utf-8\"")
 	htmlHeader.Set("Content-Transfer-Encoding", "base64")
 	htmlPart, err := createMimePart(altPart, htmlHeader, altBoundary)
 	if err != nil {
@@ -916,10 +894,10 @@ func BuildRawEmail(email, pwd string, from, to []string, cc []string, subject, b
 	// 从 HTML 中提取的内联图片
 	for _, img := range inlineImages {
 		imgHeader := textproto.MIMEHeader{}
-		imgHeader.Set("Content-Type", fmt.Sprintf("%s;\n\tname=\"%s\"", img.ContentType, encodeFileName(img.CID)))
+		imgHeader.Set("Content-Type", fmt.Sprintf("%s;\r\n\tname=\"%s\"", img.ContentType, encodeFileName(img.CID)))
 		imgHeader.Set("Content-Transfer-Encoding", "base64")
 		imgHeader.Set("Content-ID", fmt.Sprintf("<%s>", img.CID))
-		imgHeader.Set("Content-Disposition", fmt.Sprintf("inline;\n\tfilename=\"%s\"", encodeFileName(img.CID)))
+		imgHeader.Set("Content-Disposition", fmt.Sprintf("inline;\r\n\tfilename=\"%s\"", encodeFileName(img.CID)))
 
 		imgPart, err := createMimePart(buf, imgHeader, mixedBoundary)
 		if err != nil {
@@ -932,10 +910,10 @@ func BuildRawEmail(email, pwd string, from, to []string, cc []string, subject, b
 	// 内联图片 inline
 	for _, inline := range extra.OriginInlines {
 		imgHeader := textproto.MIMEHeader{}
-		imgHeader.Set("Content-Type", fmt.Sprintf("%s;\n\tname=\"%s\"", inline.ContentType, encodeFileName(inline.FileName)))
+		imgHeader.Set("Content-Type", fmt.Sprintf("%s;\r\n\tname=\"%s\"", inline.ContentType, encodeFileName(inline.FileName)))
 		imgHeader.Set("Content-Transfer-Encoding", "base64")
 		imgHeader.Set("Content-ID", fmt.Sprintf("<%s>", inline.CID))
-		imgHeader.Set("Content-Disposition", fmt.Sprintf("inline;\n\tfilename=\"%s\"", encodeFileName(inline.FileName)))
+		imgHeader.Set("Content-Disposition", fmt.Sprintf("inline;\r\n\tfilename=\"%s\"", encodeFileName(inline.FileName)))
 
 		imgPart, err := createMimePart(buf, imgHeader, mixedBoundary)
 		if err != nil {
@@ -948,9 +926,9 @@ func BuildRawEmail(email, pwd string, from, to []string, cc []string, subject, b
 	// 原邮件附件
 	for _, att := range extra.OriginAttaches {
 		attachHeader := textproto.MIMEHeader{}
-		attachHeader.Set("Content-Type", fmt.Sprintf("%s;\n\tname=\"%s\"", att.ContentType, encodeFileName(att.FileName)))
+		attachHeader.Set("Content-Type", fmt.Sprintf("%s;\r\n\tname=\"%s\"", att.ContentType, encodeFileName(att.FileName)))
 		attachHeader.Set("Content-Transfer-Encoding", "base64")
-		attachHeader.Set("Content-Disposition", fmt.Sprintf("attachment;\n\tfilename=\"%s\"", encodeFileName(att.FileName)))
+		attachHeader.Set("Content-Disposition", fmt.Sprintf("attachment;\r\n\tfilename=\"%s\"", encodeFileName(att.FileName)))
 
 		attPart, err := createMimePart(buf, attachHeader, mixedBoundary)
 		if err != nil {
@@ -981,9 +959,9 @@ func BuildRawEmail(email, pwd string, from, to []string, cc []string, subject, b
 		}
 
 		attachHeader := textproto.MIMEHeader{}
-		attachHeader.Set("Content-Type", fmt.Sprintf("%s;\n\tname=\"%s\"", contentType, encodeFileName(file.Filename)))
+		attachHeader.Set("Content-Type", fmt.Sprintf("%s;\r\n\tname=\"%s\"", contentType, encodeFileName(file.Filename)))
 		attachHeader.Set("Content-Transfer-Encoding", "base64")
-		attachHeader.Set("Content-Disposition", fmt.Sprintf("attachment;\n\tfilename=\"%s\"", encodeFileName(file.Filename)))
+		attachHeader.Set("Content-Disposition", fmt.Sprintf("attachment;\r\n\tfilename=\"%s\"", encodeFileName(file.Filename)))
 
 		attPart, err := createMimePart(buf, attachHeader, mixedBoundary)
 		if err != nil {
@@ -996,24 +974,6 @@ func BuildRawEmail(email, pwd string, from, to []string, cc []string, subject, b
 	_, _ = fmt.Fprintf(buf, "\r\n--%s--\r\n", mixedBoundary)
 
 	return buf.Bytes(), nil
-}
-
-// 创建MIME分隔
-func createMimePart(w io.Writer, header textproto.MIMEHeader, boundary string) (io.Writer, error) {
-	_, err := fmt.Fprintf(w, "\r\n--%s\r\n", boundary)
-	if err != nil {
-		return nil, err
-	}
-	for k, vals := range header {
-		for _, v := range vals {
-			_, err = fmt.Fprintf(w, "%s: %s\r\n", k, v)
-			if err != nil {
-				return nil, err
-			}
-		}
-	}
-	_, err = w.Write([]byte("\r\n"))
-	return w, err
 }
 
 // ScheduleSendEmail 定时发送邮件
@@ -1249,4 +1209,50 @@ func UnScheduleEmail(email, pwd string, folder string, uid int64, opType int64, 
 	}
 	fmt.Printf("定时任务已取消，Message-ID:%s\n", header.Get("Message-ID"))
 	return nil
+}
+
+// UnreadMailTotal 未读邮件总数
+func UnreadMailTotal(email, pwd string) (map[string]int64, error) {
+	// 验证用户
+	imapClient, err := utils.DialIMAPClient(email, pwd)
+	if err != nil {
+		return nil, err
+	}
+	defer imapClient.Logout()
+
+	total := make(map[string]int64)
+	total["Star"] = 0 // 初始化
+
+	for _, folder := range config.DefaultFolders {
+		// 选择文件夹
+		_, err = imapClient.Select(folder, false)
+		if err != nil {
+			fmt.Printf("选择文件夹 %s 失败: %v\n", folder, err)
+			continue
+		}
+
+		// 搜索邮件
+		searchCrit := &imap.SearchCriteria{
+			WithoutFlags: []string{imap.SeenFlag},
+		}
+		ids, err := imapClient.Search(searchCrit)
+		if err != nil {
+			return total, err
+		}
+		// 获取总数
+		total[folder] = int64(len(ids))
+
+		starCriter := &imap.SearchCriteria{
+			WithFlags:    []string{imap.FlaggedFlag},
+			WithoutFlags: []string{imap.SeenFlag},
+		}
+		starIds, err := imapClient.Search(starCriter)
+		if err != nil {
+			return total, err
+		}
+		// 星标邮件中的未读邮件数
+		total["Star"] += int64(len(starIds)) // += 累加全部文件夹
+	}
+
+	return total, nil
 }
