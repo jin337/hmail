@@ -29,6 +29,7 @@ export default defineConfig({
   ],
   build: {
     outDir: 'Web',
+    chunkSizeWarningLimit: 800,
     rollupOptions: {
       output: {
         entryFileNames: 'assets/js/[name]-[hash].js',
@@ -46,6 +47,7 @@ export default defineConfig({
           for (const { name, deps } of chunkMap) {
             if (deps.some((dep) => id.includes(dep))) return name
           }
+          return 'chunk-other'
         },
       },
       // 忽略第三方警告
