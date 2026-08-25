@@ -1034,16 +1034,16 @@ func ScheduleSendEmail(email, pwd string, to []string, cc []string, raw []byte) 
 		// 发送成功后，将邮件从草稿箱移动到已发送文件夹
 		if msgID != "" {
 			if uid, err := utils.GetUid(email, pwd, msgID, config.FolderDrafts); err == nil {
-				// 移除Draft标记
-				if err = UpdateMailFlag(email, pwd, config.FolderDrafts, []int64{uid}, 2, "Draft"); err != nil {
-					fmt.Printf("标记邮件失败: %v\n", err)
-				}
-				// 移动邮件
+				// 直接移动，移动后再统一处理标记
 				if err = MoveMail(email, pwd, config.FolderDrafts, config.FolderSent, []int64{uid}); err != nil {
 					fmt.Printf("移动邮件失败: %v\n", err)
-				} else {
-					fmt.Printf("邮件已发送成功，并已移动到已发送文件夹\n")
+					return
 				}
+				// 移动成功后，在已发送文件夹移除 Draft 标记
+				if err = UpdateMailFlag(email, pwd, config.FolderSent, []int64{uid}, 2, "Draft"); err != nil {
+					fmt.Printf("移除Draft标记失败: %v\n", err)
+				}
+				fmt.Printf("邮件已发送成功，并已移动到已发送文件夹\n")
 			}
 		} else {
 			fmt.Printf("未找到 Message-ID，跳过移动操作\n")

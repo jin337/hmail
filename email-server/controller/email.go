@@ -417,14 +417,13 @@ func SendEmail(c *gin.Context) {
 		return
 	}
 
-	// 发送邮件
-	if err := service.ScheduleSendEmail(email.(string), pwd.(string), toList, ccList, raw); err != nil {
-		c.JSON(200, gin.H{"code": 500, "msg": "发送失败", "err": err.Error()})
-		return
-	}
-
-	// 如果是定时发送，不立即保存到已发送，而是保存到草稿箱
 	if xScheduleSend == "" {
+		// 发送邮件
+		if err := service.ScheduleSendEmail(email.(string), pwd.(string), toList, ccList, raw); err != nil {
+			c.JSON(200, gin.H{"code": 500, "msg": "发送失败", "err": err.Error()})
+			return
+		}
+
 		// 立即发送：存入已发送
 		err = service.SaveMailToFolder(email.(string), pwd.(string), config.FolderSent, raw)
 		if err != nil {
@@ -445,6 +444,12 @@ func SendEmail(c *gin.Context) {
 		err = service.SaveMailToFolder(email.(string), pwd.(string), config.FolderDrafts, raw)
 		if err != nil {
 			c.JSON(200, gin.H{"code": 500, "msg": "定时发送已设置，但保存草稿失败", "err": err.Error()})
+			return
+		}
+
+		// 发送邮件
+		if err := service.ScheduleSendEmail(email.(string), pwd.(string), toList, ccList, raw); err != nil {
+			c.JSON(200, gin.H{"code": 500, "msg": "发送失败", "err": err.Error()})
 			return
 		}
 

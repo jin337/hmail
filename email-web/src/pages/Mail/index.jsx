@@ -127,6 +127,7 @@ const MailLayout = () => {
   const tableRef = useRef()
   const [refreshCount, setRefreshCount] = useState(0) // 刷新次数
   const timerRef = useRef(null) // 定时器
+  const refreshParamsRef = useRef(null) // 自动刷新的最新参数
 
   const [folderList, setFolderList] = useState(menuList) // 目录菜单
   const [currentFolder, setCurrentFolder] = useState({}) // 当前文件夹
@@ -783,6 +784,8 @@ const MailLayout = () => {
       setCurrentMail(null) // 清空当前邮件
       setListLoading(true)
     }
+    // 更新自动刷新的参数为当前最新
+    refreshParamsRef.current = item
 
     let url = '/api/mail/list'
     let params = {
@@ -900,10 +903,11 @@ const MailLayout = () => {
       // 先清除已有定时器
       if (timerRef.current) clearTimeout(timerRef.current)
       timerRef.current = setTimeout(async () => {
-        await getMailList(params, true)
+        const latestParams = refreshParamsRef.current || params
+        await getMailList(latestParams, true)
         //本次请求完成，再开启下一轮计时
         setRefreshCount((prev) => prev + 1)
-        InboxRefresh(params)
+        InboxRefresh(latestParams)
       }, count)
       return prevCount
     })
@@ -1014,6 +1018,12 @@ const MailLayout = () => {
     const init = () => {
       if (!currentFolder?.folder) return
       if (currentFolder.key !== 'compose') {
+        // 切换文件夹时，清除旧的自动刷新定时器
+        if (timerRef.current) {
+          clearTimeout(timerRef.current)
+          timerRef.current = null
+        }
+
         getMailList({
           folder: currentFolder.folder,
           keyword: searchWord,
