@@ -11,9 +11,6 @@
   },
   "dependencies": {
     "@arco-design/web-react": "^2.66.15",
-    "@slate-serializers/html": "^2.5.5",
-    "@wangeditor/editor": "^5.1.23",
-    "@wangeditor/editor-for-react": "^1.0.6",
     "axios": "^1.13.5",
     "crypto-js": "^4.2.0",
     "dayjs": "^1.11.19",
@@ -21,10 +18,7 @@
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "react-redux": "^9.2.0",
-    "react-router": "^7.13.0",
-    "slate": "^0.126.2",
-    "slate-history": "^0.113.1",
-    "slate-react": "^0.126.0"
+    "react-router": "^7.13.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.2",

@@ -6,7 +6,6 @@ import { router } from './router'
 
 // 样式
 import '@arco-design/web-react/dist/css/arco.css'
-import '@wangeditor/editor/dist/css/style.css'
 import 'jit-viewer/style.css'
 import './index.css'
 

@@ -1049,6 +1049,15 @@ const MailLayout = () => {
       getContactList({ prefix: 'user_contact' })
     }
     init()
+
+    return () => {
+      // 销毁定时器
+      if (timerRef.current) {
+        clearTimeout(timerRef.current)
+        timerRef.current = null
+        refreshParamsRef.current = null
+      }
+    }
   }, [])
 
   // 统一上下文数据
