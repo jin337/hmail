@@ -929,6 +929,7 @@ const MailLayout = () => {
   const totalPages = Math.ceil(mailList?.total / pageSize)
   const throttledScrollHandler = useMemo(
     () =>
+      // eslint-disable-next-line react-hooks/refs
       throttle((e) => {
         const { scrollTop, scrollHeight, clientHeight } = e.target
         const distanceToBottom = scrollHeight - scrollTop - clientHeight
