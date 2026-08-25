@@ -808,52 +808,57 @@ func BuildRawEmail(email, pwd string, from, to []string, cc []string, subject, b
 
 	mixedBoundary := fmt.Sprintf("----=_NextPart_%s", strings.ReplaceAll(uuid.NewString(), "-", "_"))
 
-	headers := make(map[string]string)
-	headers["MIME-Version"] = "1.0"
-	headers["X-Priority"] = "3"
-	headers["Content-Transfer-Encoding"] = "8Bit"
-	headers["Date"] = time.Now().UTC().Format(time.RFC1123)
-	headers["Subject"] = mime.BEncoding.Encode("utf-8", subject)
-	headers["Content-Type"] = fmt.Sprintf("multipart/mixed;\r\n\tboundary=\"%s\"", mixedBoundary)
-	headers["Message-ID"] = fmt.Sprintf("<%s@%s>", uuid.NewString(), strings.Split(email, "@")[1])
+	adminPwd := config.GetConfig(constant.AdminPassword)
 
-	if extra.InReplyTo != "" {
-		headers["In-Reply-To"] = extra.InReplyTo
-	}
-	if extra.References != "" {
-		headers["References"] = extra.References
-	}
-	if extra.XScheduleSend != "" {
-		t, err := time.ParseInLocation("2006-01-02 15:04:05", extra.XScheduleSend, time.UTC)
-		if err == nil {
-			headers["X-Schedule-Send"] = t.Format(time.RFC1123)
-		}
-	}
-
-	// 发件人
-	fromAddr := utils.FormatMailAddr(config.GetConfig(constant.AdminPassword), from[0])
-	headers["From"] = fromAddr
-
-	// 收件人
+	// From
+	fromAddr := utils.FormatMailAddr(adminPwd, from[0])
+	_, _ = fmt.Fprintf(buf, "From: %s\r\n", fromAddr)
+	// To
 	toAddrs := make([]string, 0, len(to))
 	for _, addr := range to {
-		toAddrs = append(toAddrs, utils.FormatMailAddr(config.GetConfig(constant.AdminPassword), addr))
+		toAddrs = append(toAddrs, utils.FormatMailAddr(adminPwd, addr))
 	}
-	headers["To"] = strings.Join(toAddrs, ", ")
-
-	// 抄送
+	_, _ = fmt.Fprintf(buf, "To: %s\r\n", strings.Join(toAddrs, ", "))
+	// Cc
 	if len(cc) > 0 {
 		ccAddrs := make([]string, 0, len(cc))
 		for _, addr := range cc {
-			ccAddrs = append(ccAddrs, utils.FormatMailAddr(config.GetConfig(constant.AdminPassword), addr))
+			ccAddrs = append(ccAddrs, utils.FormatMailAddr(adminPwd, addr))
 		}
-		headers["Cc"] = strings.Join(ccAddrs, ", ")
+		_, _ = fmt.Fprintf(buf, "Cc: %s\r\n", strings.Join(ccAddrs, ", "))
+	}
+	// Subject
+	_, _ = fmt.Fprintf(buf, "Subject: %s\r\n", mime.BEncoding.Encode("utf-8", subject))
+	// MIME-Version
+	_, _ = fmt.Fprintf(buf, "MIME-Version: 1.0\r\n")
+	// Content-Type
+	_, _ = fmt.Fprintf(buf, "Content-Type: multipart/mixed;\r\n\tboundary=\"%s\"\r\n", mixedBoundary)
+	// Content-Transfer-Encoding
+	_, _ = fmt.Fprintf(buf, "Content-Transfer-Encoding: 8Bit\r\n")
+	// Date
+	_, _ = fmt.Fprintf(buf, "Date: %s\r\n", time.Now().UTC().Format(time.RFC1123))
+	// X-Priority
+	_, _ = fmt.Fprintf(buf, "X-Priority: 3\r\n")
+	// Message-ID
+	_, _ = fmt.Fprintf(buf, "Message-ID: <%s@%s>\r\n", uuid.NewString(), strings.Split(email, "@")[1])
+	// In-Reply-To
+	if extra.InReplyTo != "" {
+		_, _ = fmt.Fprintf(buf, "In-Reply-To: %s\r\n", extra.InReplyTo)
+	}
+	// References
+	if extra.References != "" {
+		_, _ = fmt.Fprintf(buf, "References: %s\r\n", extra.References)
+	}
+	// X-Schedule-Send（自定义头放最后）
+	if extra.XScheduleSend != "" {
+		// 用户输入的是本地时间字符串，按本地时区解析后转为 UTC 的 RFC1123 格式
+		t, err := time.ParseInLocation("2006-01-02 15:04:05", extra.XScheduleSend, time.Local)
+		if err == nil {
+			_, _ = fmt.Fprintf(buf, "X-Schedule-Send: %s\r\n", t.UTC().Format(time.RFC1123))
+		}
 	}
 
-	// 写入头部
-	for k, v := range headers {
-		_, _ = fmt.Fprintf(buf, "%s: %s\r\n", k, v)
-	}
+	// 头部结束空行
 	_, _ = buf.WriteString("\r\n")
 	_, _ = fmt.Fprintf(buf, "This is a multi-part message in MIME format.\r\n")
 
@@ -988,69 +993,107 @@ func ScheduleSendEmail(email, pwd string, to []string, cc []string, raw []byte) 
 		return SmtpSendEmail(email, pwd, to, cc, raw)
 	}
 
-	targetUTC, err := time.Parse("Mon, 02 Jan 2006 15:04:05 UTC", scheduleSend)
+	// X-Schedule-Send 时间解析
+	targetUTC, err := time.Parse(time.RFC1123, scheduleSend)
 	if err != nil {
-		return fmt.Errorf("解析UTC定时时间失败: %w", err)
+		return fmt.Errorf("解析定时时间失败: %w", err)
 	}
-	// 解析时间
-	targetLocal := targetUTC.Add(-8 * time.Hour)
-	nowUTC := time.Now().UTC()
-	duration := targetLocal.Sub(nowUTC)
+	// 计算等待时长
+	duration := targetUTC.Sub(time.Now().UTC())
 
 	// 如果时间已过，立即发送
 	if duration <= 0 {
-		return SmtpSendEmail(email, pwd, to, cc, raw)
+		if err := SmtpSendEmail(email, pwd, to, cc, raw); err != nil {
+			return err
+		}
+		if messageID == "" {
+			return fmt.Errorf("[定时发送] 未找到 Message-ID，跳过移动操作\n")
+		}
+		uid, err := utils.GetUid(email, pwd, messageID, config.FolderDrafts)
+		if err != nil {
+			return fmt.Errorf("[定时发送] 未找到对应草稿，跳过移动: %v\n", err)
+		}
+		// 发送成功后将草稿移动到已发送
+		moveDraftToSent(email, pwd, uid)
+
+		return nil
 	}
 
 	// 启动一个独立的协程，定时发送
 	go func(msgID string, waitDur time.Duration) {
-		fmt.Printf("定时任务已启动，等待 %v 后发送，\nMessage-ID:%s\n", waitDur, msgID)
+		defer func() {
+			if r := recover(); r != nil {
+				fmt.Printf("[定时发送] Message-ID=%s: %v\n", msgID, r)
+			}
+		}()
+
+		fmt.Printf("[定时发送] 任务已启动，等待 %v 后发送，Message-ID=%s\n", waitDur, msgID)
 		time.Sleep(waitDur)
 
-		// 根据messageID查找草稿箱当前邮件UID
+		// 根据 messageID 查找草稿箱当前邮件 UID
 		uid, err := utils.GetUid(email, pwd, msgID, config.FolderDrafts)
 		if err != nil {
-			fmt.Printf("定时发送终止：未找到对应草稿:%v\n", err)
+			fmt.Printf("[定时发送] 未找到对应草稿，可能已被删除: %v\n", err)
 			return
 		}
-		// 拉取当前最新完整raw
+
+		// 拉取当前最新完整 raw（支持用户在定时前修改草稿内容）
 		newRaw, err := utils.GetMailRawByUID(email, pwd, config.FolderDrafts, uid)
 		if err != nil {
-			fmt.Printf("定时发送终止：读取邮件raw失败:%v\n", err)
+			fmt.Printf("[定时发送] 读取邮件 raw 失败: %v\n", err)
 			return
 		}
-		// 校验最新邮件是否还有 X-Schedule-Send 头部
+
+		// 校验最新邮件是否还有 X-Schedule-Send 头部（用户可能已取消定时）
 		latestSchedule := utils.GetExtractHeader(newRaw, "X-Schedule-Send")
 		if latestSchedule == "" {
+			fmt.Printf("[定时发送] 用户已取消定时，跳过发送，Message-ID=%s\n", msgID)
 			return
 		}
 
-		// 校验通过，使用新raw发送邮件
-		if err := SmtpSendEmail(email, pwd, to, cc, newRaw); err != nil {
-			fmt.Printf("定时发送邮件失败 [%s]: %v\n", latestSchedule, err)
+		// 带重试发送邮件
+		if err := sendWithRetry(email, pwd, to, cc, newRaw); err != nil {
+			fmt.Printf("[定时发送] 发送失败 [%s]: %v\n", latestSchedule, err)
 			return
 		}
 
-		// 发送成功后，将邮件从草稿箱移动到已发送文件夹
-		if msgID != "" {
-			if uid, err := utils.GetUid(email, pwd, msgID, config.FolderDrafts); err == nil {
-				// 直接移动，移动后再统一处理标记
-				if err = MoveMail(email, pwd, config.FolderDrafts, config.FolderSent, []int64{uid}); err != nil {
-					fmt.Printf("移动邮件失败: %v\n", err)
-					return
-				}
-				// 移动成功后，在已发送文件夹移除 Draft 标记
-				if err = UpdateMailFlag(email, pwd, config.FolderSent, []int64{uid}, 2, "Draft"); err != nil {
-					fmt.Printf("移除Draft标记失败: %v\n", err)
-				}
-				fmt.Printf("邮件已发送成功，并已移动到已发送文件夹\n")
-			}
-		} else {
-			fmt.Printf("未找到 Message-ID，跳过移动操作\n")
-		}
+		// 发送成功后：先移除 Draft 标记，再 MOVE 到已发送
+		moveDraftToSent(email, pwd, uid)
+
+		fmt.Printf("[定时发送] 邮件已发送成功并移动到已发送，Message-ID=%s\n", msgID)
 	}(messageID, duration)
 
 	return nil
+}
+
+// sendWithRetry 带重试的 SMTP 发送，重试2次，间隔递增
+func sendWithRetry(email, pwd string, to, cc []string, raw []byte) error {
+	var lastErr error
+	retryIntervals := []time.Duration{5 * time.Second, 15 * time.Second}
+
+	for attempt := 0; attempt <= len(retryIntervals); attempt++ {
+		if err := SmtpSendEmail(email, pwd, to, cc, raw); err != nil {
+			lastErr = err
+			if attempt < len(retryIntervals) {
+				fmt.Printf("[定时发送] 第 %d 次发送失败，%v 后重试: %v\n", attempt+1, retryIntervals[attempt], err)
+				time.Sleep(retryIntervals[attempt])
+				continue
+			}
+			return fmt.Errorf("重试 %d 次后仍失败: %w", attempt+1, lastErr)
+		}
+		return nil
+	}
+	return lastErr
+}
+
+// moveDraftToSent 将指定 UID 的邮件从草稿箱移动到已发送（先移除 Draft 标记再 MOVE）
+func moveDraftToSent(email, pwd string, uid int64) {
+	if err := UpdateMailFlag(email, pwd, config.FolderDrafts, []int64{uid}, 2, "Draft"); err != nil {
+		fmt.Printf("[定时发送] 移除 Draft 标记失败: %v\n", err)
+	}
+	if err := MoveMail(email, pwd, config.FolderDrafts, config.FolderSent, []int64{uid}); err != nil {
+		fmt.Printf("[定时发送] 移动到已发送失败（邮件已发出）: %v\n", err)
+	}
 }
 
 // SmtpSendEmail 发送邮件

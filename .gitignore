@@ -35,3 +35,4 @@ dist-ssr
 /email-web/Web
 /hmail.zip
 /hmai-*
+/email-server/.gocache

@@ -256,132 +256,46 @@ func DeleteMail(c *gin.Context) {
 	})
 }
 
-// SaveDraft 保存草稿
-func SaveDraft(c *gin.Context) {
-	email, _ := c.Get("userEmail")
-	pwd, _ := c.Get("userPwd")
-
-	to := c.PostForm("to")
-	cc := c.PostForm("cc")
-	subject := c.PostForm("subject")
-	content := c.PostForm("content")
-
-	files := c.Request.MultipartForm.File["files"]
-	if len(files) == 0 {
-		files = nil
-	}
-	// in-reply-to
-	inReplyTo := c.PostForm("in_reply_to")
-	// references
-	references := c.PostForm("references")
-	// 文件夹
-	folder := c.PostForm("folder")
-	// 根据 partIDs 保留旧附件
-	partIds := c.PostForm("part_ids")
-	// 旧草稿uid
-	uidStr := c.PostForm("uid")
-	var uid int64
-	if uidStr != "" {
-		if _, parseErr := fmt.Sscanf(uidStr, "%d", &uid); parseErr != nil {
-			c.JSON(200, gin.H{"code": 400, "msg": "无效的 UID 格式"})
-			return
-		}
-	}
-
-	// 获取旧邮件资源
-	var inlineList []model.MailInline
-	var keepAttachList []model.MailOriginAttach
-	if uidStr != "" && folder != "" {
-		inline, attach, err := utils.GetMailResource(email.(string), pwd.(string), folder, int64(uid), partIds)
-		if err != nil {
-			c.JSON(200, gin.H{"code": 500, "msg": "获取旧邮件资源失败: " + err.Error()})
-			return
-		}
-		inlineList = inline
-		keepAttachList = attach
-	}
-
-	// 构建邮件
-	toList := strings.Split(to, ",")
-	var ccList []string
-	if cc != "" {
-		ccList = strings.Split(cc, ",")
-	}
-	extra := model.EmailExtra{
-		InReplyTo:      inReplyTo,
-		References:     references,
-		OriginInlines:  inlineList,
-		OriginAttaches: keepAttachList,
-	}
-	raw, err := service.BuildRawEmail(email.(string), pwd.(string), []string{email.(string)}, toList, ccList, subject, content, files, extra)
-	if err != nil {
-		c.JSON(200, gin.H{"code": 500, "msg": "构建邮件失败", "err": err.Error()})
-		return
-	}
-
-	// 保存联系人
-	for _, to := range toList {
-		name, mail, err := utils.GetMailName(config.GetConfig(constant.AdminPassword), to)
-		if err != nil {
-			fmt.Printf("获取联系人名称失败: %v，使用邮箱前缀作为默认名称\n", err)
-		}
-		_ = service.SaveContact("user_sent", email.(string), mail, name)
-	}
-
-	// 更新草稿
-	if uidStr != "" {
-		err := service.UpdateDraft(email.(string), pwd.(string), config.FolderDrafts, raw, int64(uid))
-		if err != nil {
-			c.JSON(200, gin.H{"code": 500, "msg": "更新草稿失败", "err": err.Error()})
-			return
-		}
-		c.JSON(200, gin.H{"code": 200, "msg": "草稿更新成功", "uid": uid})
-	} else {
-		// 新建草稿
-		err := service.SaveMailToFolder(email.(string), pwd.(string), config.FolderDrafts, raw)
-		if err != nil {
-			c.JSON(200, gin.H{"code": 500, "msg": "保存草稿失败", "err": err.Error()})
-			return
-		}
-		c.JSON(200, gin.H{"code": 200, "msg": "草稿保存成功"})
-	}
+// emailBuildResult 邮件构建结果，供 SendEmail 和 SaveDraft 共用
+type emailBuildResult struct {
+	raw           []byte
+	toList        []string
+	ccList        []string
+	uid           int64
+	uidStr        string
+	folder        string
+	xScheduleSend string
 }
 
-// SendEmail 发送邮件
-func SendEmail(c *gin.Context) {
-	email, _ := c.Get("userEmail")
-	pwd, _ := c.Get("userPwd")
-
+// buildEmailFromRequest 从请求中解析参数并构建 raw 邮件，供 SendEmail 和 SaveDraft 共用
+func buildEmailFromRequest(c *gin.Context, email, pwd string, stripDataHref bool) (*emailBuildResult, error) {
 	to := c.PostForm("to")
 	cc := c.PostForm("cc")
 	subject := c.PostForm("subject")
+	content := c.PostForm("content")
+
+	// 移除 data-href 属性
+	var imgDataHrefRegex = regexp.MustCompile(`\s+data-href=["'][^"']*["']`)
+	if stripDataHref {
+		content = imgDataHrefRegex.ReplaceAllString(content, "")
+	}
+
 	files := c.Request.MultipartForm.File["files"]
 	if len(files) == 0 {
 		files = nil
 	}
 
-	content := c.PostForm("content")
-	// 删除img内的data-href
-	var imgDataHrefRegex = regexp.MustCompile(`\s+data-href=["'][^"']*["']`)
-	content = imgDataHrefRegex.ReplaceAllString(content, "")
-
-	// in-reply-to
 	inReplyTo := c.PostForm("in_reply_to")
-	// references
 	references := c.PostForm("references")
-	// 定时
 	xScheduleSend := c.PostForm("x-schedule-send")
-	// 文件夹
 	folder := c.PostForm("folder")
-	// 根据 partIDs 保留旧附件
 	partIds := c.PostForm("part_ids")
-	// 旧草稿uid
 	uidStr := c.PostForm("uid")
+
 	var uid int64
 	if uidStr != "" {
 		if _, parseErr := fmt.Sscanf(uidStr, "%d", &uid); parseErr != nil {
-			c.JSON(200, gin.H{"code": 400, "msg": "无效的 UID 格式"})
-			return
+			return nil, fmt.Errorf("无效的 UID 格式")
 		}
 	}
 
@@ -389,10 +303,9 @@ func SendEmail(c *gin.Context) {
 	var inlineList []model.MailInline
 	var keepAttachList []model.MailOriginAttach
 	if uidStr != "" && folder != "" {
-		inline, attach, err := utils.GetMailResource(email.(string), pwd.(string), folder, int64(uid), partIds)
+		inline, attach, err := utils.GetMailResource(email, pwd, folder, uid, partIds)
 		if err != nil {
-			c.JSON(200, gin.H{"code": 500, "msg": "获取旧邮件资源失败: " + err.Error()})
-			return
+			return nil, fmt.Errorf("获取旧邮件资源失败: %w", err)
 		}
 		inlineList = inline
 		keepAttachList = attach
@@ -411,74 +324,143 @@ func SendEmail(c *gin.Context) {
 		OriginInlines:  inlineList,
 		OriginAttaches: keepAttachList,
 	}
-	raw, err := service.BuildRawEmail(email.(string), pwd.(string), []string{email.(string)}, toList, ccList, subject, content, files, extra)
+	raw, err := service.BuildRawEmail(email, pwd, []string{email}, toList, ccList, subject, content, files, extra)
 	if err != nil {
-		c.JSON(200, gin.H{"code": 500, "msg": "构建邮件失败", "err": err.Error()})
+		return nil, fmt.Errorf("构建邮件失败: %w", err)
+	}
+
+	return &emailBuildResult{
+		raw:           raw,
+		toList:        toList,
+		ccList:        ccList,
+		uid:           uid,
+		uidStr:        uidStr,
+		folder:        folder,
+		xScheduleSend: xScheduleSend,
+	}, nil
+}
+
+// saveContactsAsync 异步保存联系人
+func saveContactsAsync(toList []string, userEmail string) {
+	go func() {
+		for _, to := range toList {
+			name, mail, err := utils.GetMailName(config.GetConfig(constant.AdminPassword), to)
+			if err != nil {
+				fmt.Printf("获取联系人名称失败: %v，使用邮箱前缀作为默认名称\n", err)
+			}
+			_ = service.SaveContact("user_sent", userEmail, mail, name)
+		}
+	}()
+}
+
+// SaveDraft 保存草稿
+func SaveDraft(c *gin.Context) {
+	email, _ := c.Get("userEmail")
+	pwd, _ := c.Get("userPwd")
+
+	result, err := buildEmailFromRequest(c, email.(string), pwd.(string), false)
+	if err != nil {
+		c.JSON(200, gin.H{"code": 500, "msg": err.Error()})
 		return
 	}
 
-	if xScheduleSend == "" {
-		// 发送邮件
-		if err := service.ScheduleSendEmail(email.(string), pwd.(string), toList, ccList, raw); err != nil {
+	// 异步保存联系人
+	saveContactsAsync(result.toList, email.(string))
+
+	// 更新草稿
+	if result.uidStr != "" {
+		err := service.UpdateDraft(email.(string), pwd.(string), config.FolderDrafts, result.raw, result.uid)
+		if err != nil {
+			c.JSON(200, gin.H{"code": 500, "msg": "更新草稿失败", "err": err.Error()})
+			return
+		}
+		c.JSON(200, gin.H{"code": 200, "msg": "草稿更新成功", "uid": result.uid})
+	} else {
+		// 新建草稿
+		err := service.SaveMailToFolder(email.(string), pwd.(string), config.FolderDrafts, result.raw)
+		if err != nil {
+			c.JSON(200, gin.H{"code": 500, "msg": "保存草稿失败", "err": err.Error()})
+			return
+		}
+		c.JSON(200, gin.H{"code": 200, "msg": "草稿保存成功"})
+	}
+}
+
+// SendEmail 发送邮件
+func SendEmail(c *gin.Context) {
+	email, _ := c.Get("userEmail")
+	pwd, _ := c.Get("userPwd")
+
+	result, err := buildEmailFromRequest(c, email.(string), pwd.(string), true)
+	if err != nil {
+		c.JSON(200, gin.H{"code": 500, "msg": err.Error()})
+		return
+	}
+
+	// 参数校验：收件人不能为空
+	if len(result.toList) == 0 || (len(result.toList) == 1 && strings.TrimSpace(result.toList[0]) == "") {
+		c.JSON(200, gin.H{"code": 400, "msg": "收件人不能为空"})
+		return
+	}
+
+	if result.xScheduleSend == "" {
+		// 立即发送
+		if err := service.ScheduleSendEmail(email.(string), pwd.(string), result.toList, result.ccList, result.raw); err != nil {
 			c.JSON(200, gin.H{"code": 500, "msg": "发送失败", "err": err.Error()})
 			return
 		}
 
-		// 立即发送：存入已发送
-		err = service.SaveMailToFolder(email.(string), pwd.(string), config.FolderSent, raw)
-		if err != nil {
-			c.JSON(200, gin.H{"code": 500, "msg": "发送成功，存入已发送失败", "err": err.Error()})
+		var warnMsg string
+		if result.uidStr != "" {
+			// 从草稿发送：先移除 Draft 标记，再 MOVE 到已发送（原子操作，保留原始邮件）
+			if err := service.UpdateMailFlag(email.(string), pwd.(string), config.FolderDrafts, []int64{result.uid}, 2, "Draft"); err != nil {
+				fmt.Printf("移除 Draft 标记失败: %v\n", err)
+			}
+			if err := service.MoveMail(email.(string), pwd.(string), config.FolderDrafts, config.FolderSent, []int64{result.uid}); err != nil {
+				warnMsg = "，但移动到已发送失败"
+				fmt.Printf("移动到已发送失败: %v\n", err)
+			}
+		} else {
+			// 新建邮件直接发送：存入已发送
+			if err := service.SaveMailToFolder(email.(string), pwd.(string), config.FolderSent, result.raw); err != nil {
+				warnMsg = "，但存入已发送失败"
+				fmt.Printf("存入已发送失败: %v\n", err)
+			}
+		}
+
+		c.JSON(200, gin.H{"code": 200, "msg": "发送成功" + warnMsg})
+	} else {
+		// 定时发送：先启动定时任务，再存草稿，最后打标签
+		if err := service.ScheduleSendEmail(email.(string), pwd.(string), result.toList, result.ccList, result.raw); err != nil {
+			c.JSON(200, gin.H{"code": 500, "msg": "定时发送设置失败", "err": err.Error()})
 			return
 		}
 
-		// 删除草稿
-		if uidStr != "" {
-			err = service.DeleteMail(email.(string), pwd.(string), config.FolderDrafts, []int64{uid})
-			if err != nil {
-				c.JSON(200, gin.H{"code": 500, "msg": "删除草稿失败: " + err.Error()})
-				return
-			}
-		}
-	} else {
-		// 定时发送：存入草稿箱，等待定时发送后再移动到已发送
-		err = service.SaveMailToFolder(email.(string), pwd.(string), config.FolderDrafts, raw)
-		if err != nil {
+		// 存入草稿箱
+		if err := service.SaveMailToFolder(email.(string), pwd.(string), config.FolderDrafts, result.raw); err != nil {
 			c.JSON(200, gin.H{"code": 500, "msg": "定时发送已设置，但保存草稿失败", "err": err.Error()})
 			return
 		}
 
-		// 发送邮件
-		if err := service.ScheduleSendEmail(email.(string), pwd.(string), toList, ccList, raw); err != nil {
-			c.JSON(200, gin.H{"code": 500, "msg": "发送失败", "err": err.Error()})
-			return
-		}
-
-		// 增加定时标签
-		messageID := utils.GetExtractHeader(raw, "Message-ID")
-
-		// 发送成功后，将邮件从草稿箱移动到已发送文件夹
+		// 给定时邮件打 Draft 标签，通过 Message-ID 反查 UID
+		messageID := utils.GetExtractHeader(result.raw, "Message-ID")
 		if messageID != "" {
-			if uid, err := utils.GetUid(email.(string), pwd.(string), messageID, config.FolderDrafts); err == nil {
-				// 添加重要标签
-				if err = service.UpdateMailFlag(email.(string), pwd.(string), config.FolderDrafts, []int64{uid}, 1, "Draft"); err != nil {
-					fmt.Printf("标记邮件失败: %v\n", err)
+			if scheduleUID, err := utils.GetUid(email.(string), pwd.(string), messageID, config.FolderDrafts); err == nil {
+				if err = service.UpdateMailFlag(email.(string), pwd.(string), config.FolderDrafts, []int64{scheduleUID}, 1, "Draft"); err != nil {
+					fmt.Printf("标记定时邮件失败: %v\n", err)
 				}
+			} else {
+				fmt.Printf("定时邮件打标签失败：未找到对应草稿 UID: %v\n", err)
 			}
 		} else {
-			fmt.Printf("未找到 Message-ID，跳过移动操作\n")
+			fmt.Printf("未找到 Message-ID，跳过定时邮件标记\n")
 		}
+
+		c.JSON(200, gin.H{"code": 200, "msg": "定时发送已设置"})
 	}
 
-	// 保存联系人
-	for _, to := range toList {
-		name, mail, err := utils.GetMailName(config.GetConfig(constant.AdminPassword), to)
-		if err != nil {
-			fmt.Printf("获取联系人名称失败: %v，使用邮箱前缀作为默认名称\n", err)
-		}
-		_ = service.SaveContact("user_sent", email.(string), mail, name)
-	}
-
-	c.JSON(200, gin.H{"code": 200, "msg": "发送成功"})
+	// 异步保存联系人
+	saveContactsAsync(result.toList, email.(string))
 }
 
 // UnScheduleEmail 取消定时发送
