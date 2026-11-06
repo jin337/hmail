@@ -7,6 +7,7 @@ dayjs.locale('zh-cn')
 export function throttle(fn, delay) {
   let timer = null // 用于存储定时器
   let lastTime = 0 // 记录上一次执行的时间
+  let lastArgs = null // 记录等待期间最后一次调用的参数
 
   // 返回被节流包裹后的函数
   const throttledFn = function (...args) {
@@ -24,14 +25,20 @@ export function throttle(fn, delay) {
       fn.apply(this, args)
       // 更新上次执行时间
       lastTime = now
+      lastArgs = null
     } else if (!timer) {
       // 如果还没到时间，且没有设置尾部定时器，则设置一个定时器
       // 保证在停止滚动后，最后一次操作也能被执行
+      lastArgs = args
       timer = setTimeout(() => {
-        fn.apply(this, args)
+        fn.apply(this, lastArgs)
         lastTime = Date.now()
         timer = null
+        lastArgs = null
       }, remaining)
+    } else {
+      // 已经存在尾部定时器时，只更新参数，保证执行的是最新一次
+      lastArgs = args
     }
   }
 
@@ -42,6 +49,7 @@ export function throttle(fn, delay) {
       timer = null
     }
     lastTime = 0
+    lastArgs = null
   }
 
   return throttledFn

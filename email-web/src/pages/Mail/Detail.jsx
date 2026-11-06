@@ -5,7 +5,7 @@ import { IconAttachment, IconClockCircle, IconEmail, IconEye, IconPlus, IconToBo
 
 import dayjs from 'dayjs'
 
-import request from 'src/api/request'
+import { downloadAttachment } from 'src/api/mail'
 import { useMailContext } from './MailContext'
 
 import IconAudio from 'src/assets/file_aduio.svg'
@@ -62,9 +62,7 @@ const Detail = () => {
       part_id: item.part_id,
       folder: currentFolder.folder,
     }
-    const res = await request.post('/api/mail/download', params, {
-      responseType: 'blob',
-    })
+    const res = await downloadAttachment(params)
     const url = window.URL.createObjectURL(res)
     const link = document.createElement('a')
     link.href = url

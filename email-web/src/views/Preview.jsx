@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router'
 
 import { createViewer } from 'jit-viewer'
 
-import request from 'src/api/request'
+import { downloadAttachment } from 'src/api/mail'
 
 const Preview = () => {
   const containerRef = useRef()
@@ -15,9 +15,7 @@ const Preview = () => {
     const jsonString = decodeURIComponent(atob(base64Str))
     const params = JSON.parse(jsonString)
 
-    const result = await request.post('/api/mail/download', params, {
-      responseType: 'blob',
-    })
+    const result = await downloadAttachment(params)
     const url = window.URL.createObjectURL(result)
 
     // 类型

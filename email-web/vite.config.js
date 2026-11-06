@@ -1,3 +1,5 @@
+import { fileURLToPath, URL } from 'node:url'
+
 import react from '@vitejs/plugin-react-swc'
 import { defineConfig } from 'vite'
 
@@ -16,7 +18,7 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      src: '/src',
+      src: fileURLToPath(new URL('./src', import.meta.url)),
     },
   },
   plugins: [
@@ -56,5 +58,13 @@ export default defineConfig({
         warn(warning)
       },
     },
+  },
+  test: {
+    environment: 'jsdom',
+    globals: true,
+    css: false,
+    setupFiles: './src/test/setup.js',
+    include: ['src/**/*.test.{js,jsx}'],
+    restoreMocks: true,
   },
 })

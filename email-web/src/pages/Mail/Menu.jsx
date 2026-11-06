@@ -12,7 +12,7 @@ const MenuLayout = () => {
   const onSelectMenu = (key) => {
     const item = folderList.find((item) => item.key === key)
     setCurrentFolder(item)
-    setSearchWord()
+    setSearchWord('')
     setSelectedRowKeys([])
   }
 

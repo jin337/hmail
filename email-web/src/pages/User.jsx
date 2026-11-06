@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 import { Button, Form, Grid, Input, Layout, Message, Modal, Radio, Space, Table, Tag } from '@arco-design/web-react'
 import { IconPlus } from '@arco-design/web-react/icon'
 
-import request from 'src/api/request'
+import { createUser, deleteUser as deleteUserApi, fetchUserList, updateUser } from 'src/api/user'
 
 const suffix = import.meta.env.VITE_SUFFIX
 
@@ -62,15 +62,13 @@ const UserPage = () => {
       is_admin: values.is_admin,
     }
 
-    let url = '/api/user/update'
     if (!editUser?.id) {
-      url = '/api/user/create'
       params.password = values.password
     } else {
       params.id = editUser.id
     }
 
-    const { code, msg } = await request.post(url, params)
+    const { code, msg } = editUser?.id ? await updateUser(params) : await createUser(params)
     if (code === 200) {
       Message.success(msg)
       getUserList()
@@ -106,7 +104,7 @@ const UserPage = () => {
       content: `请确认是否删除 ${record.email}?`,
       className: 'simpleModal',
       onOk: async () => {
-        const { code, msg } = await request.post('/api/user/delete', { email: record.email })
+        const { code, msg } = await deleteUserApi({ email: record.email })
         if (code === 200) {
           Message.success(msg)
           getUserList()
@@ -118,7 +116,7 @@ const UserPage = () => {
   }
   // 获取用户列表
   const getUserList = async () => {
-    const { code, data, msg } = await request.post('/api/user/list')
+    const { code, data, msg } = await fetchUserList()
     if (code === 200) {
       setTableData(data)
     } else {

@@ -259,7 +259,7 @@ export default function WriteMail({
     form.setFieldsValue(detail)
     if (detail?.uid) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      setAddCC(detail?.cc_email?.length > 0)
+      setAddCC(detail?.cc_info?.length > 0)
       const list = (detail?.detail?.attachments || []).map((e) => ({
         ...e,
         name: e.file_name,
@@ -603,7 +603,7 @@ export default function WriteMail({
             <div className='h-[calc(100% - 48px)] mt-4'>
               {searchList?.length > 0 ? (
                 searchList.map((item) => (
-                  <div key={item.itemkey} className='mb-3 cursor-pointer' onClick={() => onSelectUser([item.email])}>
+                  <div key={item.email} className='mb-3 cursor-pointer' onClick={() => onSelectUser([item.email])}>
                     <div className='text-(--color-text-1)'>{item.full_name}</div>
                     <div className='text-[13px] text-gray-400'>{item.email}</div>
                   </div>

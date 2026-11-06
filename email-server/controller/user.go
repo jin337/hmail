@@ -1,291 +1,211 @@
 package controller
 
 import (
-	"email-server/config"
-	"email-server/constant"
+	"email-server/apperr"
 	"email-server/model"
-	"email-server/service"
 	"email-server/utils"
-	"net/http"
-	"strings"
 
 	"github.com/gin-gonic/gin"
 )
 
-// Login 登录
-func Login(c *gin.Context) {
-	// 验证参数
+// Login 登录。
+func (h *Handler) Login(c *gin.Context) {
 	var req model.LoginReq
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(200, gin.H{"code": 400, "msg": "参数错误"})
+	if !bindJSON(c, &req) {
+		return
+	}
+	if err := utils.CheckRequired(
+		utils.Required("Email", req.Email),
+		utils.Required("Password", req.Password),
+	); err != nil {
+		fail(c, apperr.CodeBadRequest, err.Error())
 		return
 	}
 
-	// 验证必传参数
-	if err := utils.ValidateRequiredParams([]string{"Email", "Password"}, req); err != nil {
-		c.JSON(200, gin.H{"code": 400, "msg": err.Error()})
-		return
-	}
-
-	// 获取用户信息
-	user, err := service.Login(config.GetConfig(constant.AdminPassword), req.Email, req.Password, config.DefaultFolders)
+	user, err := h.svc.Login(req.Email, req.Password)
 	if err != nil {
-		c.JSON(200, gin.H{"code": 500, "msg": err.Error()})
+		fail(c, apperr.CodeInternal, err.Error())
 		return
 	}
-
-	c.JSON(200, gin.H{
-		"code": 200,
-		"msg":  "登录成功",
-		"data": user,
-	})
+	ok(c, user, "登录成功")
 }
 
-// ChangePassword 修改密码
-func ChangePassword(c *gin.Context) {
-	email, _ := c.Get("userEmail")
+// ChangePassword 修改密码。
+func (h *Handler) ChangePassword(c *gin.Context) {
+	email, _ := currentUser(c)
 
 	var req model.PasswordReq
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(200, gin.H{"code": 400, "msg": "参数错误"})
+	if !bindJSON(c, &req) {
 		return
 	}
-	// 验证必传参数
-	if err := utils.ValidateRequiredParams([]string{"OldPassword", "NewPassword"}, req); err != nil {
-		c.JSON(200, gin.H{"code": 400, "msg": err.Error()})
+	if err := utils.CheckRequired(
+		utils.Required("OldPassword", req.OldPassword),
+		utils.Required("NewPassword", req.NewPassword),
+	); err != nil {
+		fail(c, apperr.CodeBadRequest, err.Error())
 		return
 	}
 
-	err := service.UpdatePassword(config.GetConfig(constant.AdminPassword), email.(string), req.OldPassword, req.NewPassword)
-	if err != nil {
-		c.JSON(200, gin.H{"code": 500, "msg": err.Error()})
+	if err := h.svc.ChangePassword(email, req.OldPassword, req.NewPassword); err != nil {
+		fail(c, apperr.CodeInternal, err.Error())
 		return
 	}
-	c.JSON(200, gin.H{
-		"code": 200,
-		"msg":  "修改密码成功",
-	})
+	okMsg(c, "修改密码成功")
 }
 
-// UserList 获取用户列表
-func UserList(c *gin.Context) {
-	email, _ := c.Get("userEmail")
-	list, total, err := service.UserList(config.GetConfig(constant.AdminPassword), email.(string))
+// UserList 获取用户列表。
+func (h *Handler) UserList(c *gin.Context) {
+	email, _ := currentUser(c)
+
+	list, total, err := h.svc.UserList(email)
 	if err != nil {
-		c.JSON(200, gin.H{"code": 500, "msg": "获取用户列表失败: " + err.Error()})
+		fail(c, apperr.CodeInternal, "获取用户列表失败: "+err.Error())
 		return
 	}
-	c.JSON(200, gin.H{
-		"code": 200,
-		"msg":  "success",
-		"data": gin.H{
-			"list":  list,
-			"total": total,
-		},
-	})
+	ok(c, gin.H{"list": list, "total": total}, "success")
 }
 
-// CreateUser 创建用户
-func CreateUser(c *gin.Context) {
+// CreateUser 创建用户。
+func (h *Handler) CreateUser(c *gin.Context) {
 	var req model.UserReq
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(200, gin.H{"code": 400, "msg": "参数错误"})
+	if !bindJSON(c, &req) {
+		return
+	}
+	if err := utils.CheckRequired(
+		utils.Required("Email", req.Email),
+		utils.Required("Password", req.Password),
+	); err != nil {
+		fail(c, apperr.CodeBadRequest, err.Error())
 		return
 	}
 
-	// 验证必传参数
-	if err := utils.ValidateRequiredParams([]string{"Email", "Password"}, req); err != nil {
-		c.JSON(200, gin.H{"code": 400, "msg": err.Error()})
+	if err := h.svc.CreateUser(req.Email, req.Password, req.PersonFirstName, req.PersonLastName, req.IsAdmin); err != nil {
+		fail(c, apperr.CodeInternal, err.Error())
 		return
 	}
-
-	err := service.CreateUser(config.DefaultFolders, config.GetConfig(constant.AdminPassword), req.Email, req.Password, req.PersonFirstName, req.PersonLastName, req.IsAdmin)
-	if err != nil {
-		c.JSON(200, gin.H{"code": 500, "msg": err.Error()})
-		return
-	}
-	c.JSON(200, gin.H{
-		"code": 200,
-		"msg":  "创建用户成功",
-	})
+	okMsg(c, "创建用户成功")
 }
 
-// DeleteUser 删除用户
-func DeleteUser(c *gin.Context) {
+// DeleteUser 删除用户。
+func (h *Handler) DeleteUser(c *gin.Context) {
 	var req model.UserDeleteReq
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(200, gin.H{"code": 400, "msg": "参数错误"})
+	if !bindJSON(c, &req) {
+		return
+	}
+	if err := utils.CheckRequired(utils.Required("Email", req.Email)); err != nil {
+		fail(c, apperr.CodeBadRequest, err.Error())
 		return
 	}
 
-	// 验证必传参数
-	if err := utils.ValidateRequiredParams([]string{"Email"}, req); err != nil {
-		c.JSON(200, gin.H{"code": 400, "msg": err.Error()})
+	if err := h.svc.DeleteUser(req.Email); err != nil {
+		fail(c, apperr.CodeInternal, err.Error())
 		return
 	}
-
-	err := service.DeleteUser(config.GetConfig(constant.AdminPassword), req.Email)
-	if err != nil {
-		c.JSON(200, gin.H{"code": 500, "msg": err.Error()})
-		return
-	}
-	c.JSON(200, gin.H{
-		"code": 200,
-		"msg":  "删除用户成功",
-	})
+	okMsg(c, "删除用户成功")
 }
 
-// UpdateUser 更新用户
-func UpdateUser(c *gin.Context) {
+// UpdateUser 更新用户。
+func (h *Handler) UpdateUser(c *gin.Context) {
 	var req model.UserUpdateReq
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(200, gin.H{"code": 400, "msg": "参数错误"})
+	if !bindJSON(c, &req) {
+		return
+	}
+	if err := utils.CheckRequired(utils.Required("Email", req.Email)); err != nil {
+		fail(c, apperr.CodeBadRequest, err.Error())
 		return
 	}
 
-	// 验证必传参数
-	if err := utils.ValidateRequiredParams([]string{"Email"}, req); err != nil {
-		c.JSON(200, gin.H{"code": 400, "msg": err.Error()})
+	if err := h.svc.UpdateUser(req.Email, req.PersonFirstName, req.PersonLastName, req.IsAdmin); err != nil {
+		fail(c, apperr.CodeInternal, err.Error())
 		return
 	}
-
-	err := service.UpdateUser(config.GetConfig(constant.AdminPassword), req.Email, req.PersonFirstName, req.PersonLastName, req.IsAdmin)
-	if err != nil {
-		c.JSON(200, gin.H{"code": 500, "msg": err.Error()})
-		return
-	}
-	c.JSON(200, gin.H{
-		"code": 200,
-		"msg":  "更新用户成功",
-	})
+	okMsg(c, "更新用户成功")
 }
 
-// ContactList 获取联系人列表
-func ContactList(c *gin.Context) {
-	email, _ := c.Get("userEmail")
+// ContactList 获取联系人列表。
+func (h *Handler) ContactList(c *gin.Context) {
+	email, _ := currentUser(c)
 
 	var req model.ContactReq
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(200, gin.H{"code": 400, "msg": "参数错误"})
+	if !bindJSON(c, &req) {
 		return
 	}
 
-	list, total, err := service.ContactList(req.Prefix, email.(string))
+	list, total, err := h.svc.ContactList(req.Prefix, email)
 	if err != nil {
-		c.JSON(200, gin.H{"code": 500, "msg": "获取联系人列表失败: " + err.Error()})
+		fail(c, apperr.CodeInternal, "获取联系人列表失败: "+err.Error())
 		return
 	}
-	c.JSON(200, gin.H{
-		"code": 200,
-		"msg":  "success",
-		"data": gin.H{
-			"list":  list,
-			"total": total,
-		},
-	})
+	ok(c, gin.H{"list": list, "total": total}, "success")
 }
 
-// SaveContact	保存联系人
-func SaveContact(c *gin.Context) {
-	email, _ := c.Get("userEmail")
+// SaveContact 保存联系人。
+func (h *Handler) SaveContact(c *gin.Context) {
+	email, _ := currentUser(c)
 
 	var req model.ContactReq
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(200, gin.H{"code": 400, "msg": "参数错误"})
+	if !bindJSON(c, &req) {
+		return
+	}
+	if err := utils.CheckRequired(
+		utils.Required("Email", req.Email),
+		utils.Required("Name", req.Name),
+	); err != nil {
+		fail(c, apperr.CodeBadRequest, err.Error())
 		return
 	}
 
-	// 验证必传参数
-	if err := utils.ValidateRequiredParams([]string{"Email", "Name"}, req); err != nil {
-		c.JSON(200, gin.H{"code": 400, "msg": err.Error()})
+	if err := h.svc.SaveContact(req.Prefix, email, req.Email, req.Name); err != nil {
+		fail(c, apperr.CodeInternal, "保存联系人失败: "+err.Error())
 		return
 	}
-
-	err := service.SaveContact(req.Prefix, email.(string), req.Email, req.Name)
-	if err != nil {
-		c.JSON(200, gin.H{"code": 500, "msg": "保存联系人失败: " + err.Error()})
-		return
-	}
-
-	c.JSON(200, gin.H{
-		"code": 200,
-		"msg":  "保存成功",
-	})
+	okMsg(c, "保存成功")
 }
 
-// DeleteContact 删除联系人
-func DeleteContact(c *gin.Context) {
-	email, _ := c.Get("userEmail")
+// DeleteContact 删除联系人。
+func (h *Handler) DeleteContact(c *gin.Context) {
+	email, _ := currentUser(c)
 
 	var req model.ContactReq
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(200, gin.H{"code": 400, "msg": "参数错误"})
+	if !bindJSON(c, &req) {
+		return
+	}
+	if err := utils.CheckRequired(utils.Required("Email", req.Email)); err != nil {
+		fail(c, apperr.CodeBadRequest, err.Error())
 		return
 	}
 
-	// 验证必传参数
-	if err := utils.ValidateRequiredParams([]string{"Email"}, req); err != nil {
-		c.JSON(200, gin.H{"code": 400, "msg": err.Error()})
+	if err := h.svc.DeleteContact(req.Prefix, email, req.Email); err != nil {
+		fail(c, apperr.CodeInternal, "删除联系人失败: "+err.Error())
 		return
 	}
-
-	err := service.DeleteContact(req.Prefix, email.(string), req.Email)
-	if err != nil {
-		c.JSON(200, gin.H{"code": 500, "msg": "删除联系人失败: " + err.Error()})
-		return
-	}
-
-	c.JSON(200, gin.H{
-		"code": 200,
-		"msg":  "删除成功",
-	})
+	okMsg(c, "删除成功")
 }
 
-// ClearContact 清空联系人
-func ClearContact(c *gin.Context) {
-	email, _ := c.Get("userEmail")
+// ClearContact 清空联系人。
+func (h *Handler) ClearContact(c *gin.Context) {
+	email, _ := currentUser(c)
 
 	var req model.ContactReq
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(200, gin.H{"code": 400, "msg": "参数错误"})
+	if !bindJSON(c, &req) {
 		return
 	}
 
-	err := service.ClearContact(req.Prefix, email.(string))
-	if err != nil {
-		c.JSON(200, gin.H{"code": 500, "msg": "清空联系人失败: " + err.Error()})
+	if err := h.svc.ClearContact(req.Prefix, email); err != nil {
+		fail(c, apperr.CodeInternal, "清空联系人失败: "+err.Error())
 		return
 	}
-
-	c.JSON(200, gin.H{
-		"code": 200,
-		"msg":  "删除成功",
-	})
+	okMsg(c, "删除成功")
 }
 
-// UploadAvatar	上传头像
-func UploadAvatar(c *gin.Context) {
-	email, _ := c.Get("userEmail")
-	fileHeader, _ := c.FormFile("file")
+// UploadAvatar 上传头像。
+func (h *Handler) UploadAvatar(c *gin.Context) {
+	email, _ := currentUser(c)
 
-	err := service.UploadAvatar(email.(string), fileHeader)
-	if err != nil {
-		c.JSON(200, gin.H{"code": 500, "msg": err.Error()})
+	file, _ := c.FormFile("file")
+	if err := h.svc.UploadAvatar(email, file); err != nil {
+		fail(c, apperr.CodeInternal, err.Error())
 		return
 	}
-	c.JSON(200, gin.H{
-		"code": 200,
-		"msg":  "更新头像成功",
-	})
-}
-
-// ViewFile 读取文件
-func ViewFile(c *gin.Context) {
-	url := c.Query("url")
-	if url == "" {
-		c.JSON(200, gin.H{"code": 500, "msg": "参数缺失 "})
-		return
-	}
-	cleanUrl := strings.Split(url, "?")[0]
-	http.ServeFile(c.Writer, c.Request, cleanUrl)
+	okMsg(c, "更新头像成功")
 }

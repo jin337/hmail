@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Outlet, useLocation, useNavigate } from 'react-router'
 
 import { Avatar, Button, Dropdown, Input, Layout, Menu, Tag } from '@arco-design/web-react'
@@ -19,6 +19,7 @@ const Home = () => {
   const location = useLocation()
   const [userInfo, setUserInfo] = useState(JSON.parse(localStorage.getItem(`USERINFO_${currentAccountId}`) || '{}'))
   const [searchWord, setSearchWord] = useState('') // 搜索
+  const [searchSeq, setSearchSeq] = useState(0) // 搜索触发序号（父页 -> 子页单向通知）
 
   // 退出
   const onLogout = () => {
@@ -50,17 +51,13 @@ const Home = () => {
     onLogout,
     searchWord,
     setSearchWord,
-    registerMethod: (name, fn) => {
-      childMethods.current[name] = fn
-    },
+    searchSeq,
   }
 
-  // 子页面事件
-  const childMethods = useRef({})
+  // 顶部搜索：更新关键词并递增触发序号
   const onParentSearch = (val) => {
-    if (childMethods.current.onSearch) {
-      childMethods.current.onSearch(val)
-    }
+    setSearchWord(val)
+    setSearchSeq((prev) => prev + 1)
   }
 
   return (
@@ -83,7 +80,7 @@ const Home = () => {
                 value={searchWord}
                 onChange={setSearchWord}
                 onSearch={onParentSearch}
-                onClear={onParentSearch}
+                onClear={() => onParentSearch('')}
               />
             </div>
           )}

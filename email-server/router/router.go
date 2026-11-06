@@ -1,77 +1,66 @@
+// Package router 负责 HTTP 路由注册。
 package router
 
 import (
 	"email-server/config"
-	"email-server/constant"
 	"email-server/controller"
 	"email-server/middleware"
 
 	"github.com/gin-gonic/gin"
 )
 
-func SetupRouter(r *gin.Engine) {
-	// 判断环境变量
-	envValue := config.GetConfig(constant.GinMode)
-	var apiPrefix string
-	if envValue == "debug" {
-		apiPrefix = "/api"
+// Setup 注册所有路由。
+//
+// 路由前缀取自配置（debug 默认为 /api，release 默认为 /），
+// 前端固定调用 /api/...，因此生产环境建议显式设置 api.prefix=/api。
+func Setup(r *gin.Engine, h *controller.Handler, cfg config.Config) {
+	switch cfg.Mode {
+	case "debug":
 		gin.SetMode(gin.DebugMode)
-	} else {
-		apiPrefix = "/"
+	case "release":
 		gin.SetMode(gin.ReleaseMode)
+	case "test":
+		gin.SetMode(gin.TestMode)
 	}
 
-	r.Static("/static", "./static") // 路径映射
+	r.Static("/static", cfg.StaticDir)
 
-	// 创建路由组
-	public := r.Group(apiPrefix)
+	public := r.Group(cfg.APIPrefix)
+	auth := middleware.JWTAuth(cfg.JWT.Secret, h.EnsureScheduledRestored)
 
+	public.POST("/login", h.Login)
+	public.GET("/viewfile", h.ViewFile)
+
+	user := public.Group("/user")
 	{
-		public.POST("/login", controller.Login)      // 登录
-		public.GET("/viewfile", controller.ViewFile) // 查看文件
+		user.POST("/chgpwd", auth, h.ChangePassword)
+		user.POST("/list", auth, h.UserList)
+		user.POST("/create", auth, h.CreateUser)
+		user.POST("/delete", auth, h.DeleteUser)
+		user.POST("/update", auth, h.UpdateUser)
+		user.POST("/uploadavatar", auth, h.UploadAvatar)
 
-		// 用户相关
-		user := public.Group("/user")
+		contact := user.Group("/contact")
 		{
-			// 需要 JWT 认证
-			useAuth := user.Use(middleware.JWTAuth())
-			{
-				useAuth.POST("/chgpwd", controller.ChangePassword)     // 修改密码
-				useAuth.POST("/list", controller.UserList)             // 用户列表
-				useAuth.POST("/create", controller.CreateUser)         // 创建用户
-				useAuth.POST("/delete", controller.DeleteUser)         // 删除用户
-				useAuth.POST("/update", controller.UpdateUser)         // 修改用户信息
-				useAuth.POST("/uploadavatar", controller.UploadAvatar) // 上传头像
-
-				// 联系人相关
-				contact := user.Group("/contact")
-				{
-					contact.POST("/list", controller.ContactList)     // 联系人列表
-					contact.POST("/save", controller.SaveContact)     // 保存联系人
-					contact.POST("/delete", controller.DeleteContact) // 删除联系人
-					contact.POST("/clear", controller.ClearContact)   // 清空联系人
-				}
-			}
+			contact.POST("/list", auth, h.ContactList)
+			contact.POST("/save", auth, h.SaveContact)
+			contact.POST("/delete", auth, h.DeleteContact)
+			contact.POST("/clear", auth, h.ClearContact)
 		}
+	}
 
-		// 邮件相关
-		mail := public.Group("/mail")
-		{
-			// 需要 JWT 认证
-			mailAuth := mail.Use(middleware.JWTAuth())
-			{
-				mailAuth.POST("/list", controller.MailList)                // 邮件列表
-				mailAuth.POST("/star-list", controller.StarMailList)       // 星标邮件列表
-				mailAuth.POST("/unread-total", controller.UnreadMailTotal) // 未读邮件总数
-				mailAuth.POST("/detail", controller.MailDetail)            // 邮件详情
-				mailAuth.POST("/status", controller.MarkFlag)              // 标记邮件状态
-				mailAuth.POST("/download", controller.DownloadAttachment)  // 下载附件
-				mailAuth.POST("/move", controller.MoveMail)                // 移动邮件
-				mailAuth.POST("/delete", controller.DeleteMail)            // 删除邮件
-				mailAuth.POST("/save-draft", controller.SaveDraft)         // 保存草稿
-				mailAuth.POST("/send", controller.SendEmail)               // 发送邮件
-				mailAuth.POST("/un-schedule", controller.UnScheduleEmail)  // 取消定时发送
-			}
-		}
+	mail := public.Group("/mail")
+	{
+		mail.POST("/list", auth, h.MailList)
+		mail.POST("/star-list", auth, h.StarMailList)
+		mail.POST("/unread-total", auth, h.UnreadMailTotal)
+		mail.POST("/detail", auth, h.MailDetail)
+		mail.POST("/status", auth, h.MarkFlag)
+		mail.POST("/download", auth, h.DownloadAttachment)
+		mail.POST("/move", auth, h.MoveMail)
+		mail.POST("/delete", auth, h.DeleteMail)
+		mail.POST("/save-draft", auth, h.SaveDraft)
+		mail.POST("/send", auth, h.SendEmail)
+		mail.POST("/un-schedule", auth, h.UnScheduleEmail)
 	}
 }

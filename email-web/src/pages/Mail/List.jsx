@@ -3,11 +3,10 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Button, Checkbox, Divider, Dropdown, Menu, Space, Spin } from '@arco-design/web-react'
 import { IconAttachment, IconCheck, IconClose, IconDelete, IconDown, IconSort, IconStar } from '@arco-design/web-react/icon'
 
-import dayjs from 'dayjs'
-
 import { useMailContext } from './MailContext'
 
 import { flatTree, formatMailTime, isSvg } from 'src/utils/index'
+import { groupMailByTime } from 'src/utils/mail'
 
 import IconMoveFolder from 'src/assets/mail_move_folder.svg'
 import IconMailNormal from 'src/assets/mail_normal.svg'
@@ -26,58 +25,6 @@ const showMailIcon = (flags) => {
   if (flagArr.includes('Answered')) return <IconMailReply />
   if (flagArr.includes('Seen')) return <IconMailOpen />
   return <IconMailNormal />
-}
-
-// 邮件分组
-const groupMailByTime = (list, keys) => {
-  if (list?.length === 0) return []
-  const today = dayjs()
-  // 定义分组容器，顺序决定最终展示顺序
-  const groups = {
-    today: [],
-    yesterday: [],
-    thisWeek: [],
-    lastWeek: [],
-    older: [],
-  }
-
-  list.forEach((item) => {
-    const time = dayjs(item.send_time)
-    if (time.isSame(today, 'day')) {
-      groups.today.push(item)
-    } else if (time.isSame(today.subtract(1, 'day'), 'day')) {
-      groups.yesterday.push(item)
-    } else if (time.isSame(today, 'week')) {
-      groups.thisWeek.push(item)
-    } else if (time.isSame(today.subtract(1, 'week'), 'week')) {
-      groups.lastWeek.push(item)
-    } else {
-      groups.older.push(item)
-    }
-  })
-
-  // 映射标题（和你需求对应）
-  let groupMap = [
-    { key: 'today', title: '今天' },
-    { key: 'yesterday', title: '昨日' },
-    { key: 'thisWeek', title: '周一' },
-    { key: 'lastWeek', title: '上周' },
-    { key: 'older', title: '更早' },
-  ]
-
-  // 由旧到新
-  if (keys.includes('date_asc')) {
-    groupMap.reverse()
-  }
-
-  const list2 = []
-  groupMap.forEach(({ key, title }) => {
-    const arr = groups[key]
-    if (arr.length === 0) return
-    list2.push({ key, title, total: arr.length })
-    list2.push(...arr)
-  })
-  return list2
 }
 
 const ListLayout = () => {

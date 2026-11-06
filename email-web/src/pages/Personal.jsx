@@ -6,7 +6,7 @@ import { IconEdit } from '@arco-design/web-react/icon'
 
 import dayjs from 'dayjs'
 
-import request from 'src/api/request'
+import { changePassword, updateUser } from 'src/api/user'
 
 const Personal = () => {
   const { currentAccountId, baseUrl, userInfo, userToken, setUserInfo, onLogout } = useOutletContext()
@@ -23,7 +23,7 @@ const Personal = () => {
       person_first_name: e.slice(0, 1),
       person_last_name: e.slice(1),
     }
-    const { code, msg } = await request.post('/api/user/update', params)
+    const { code, msg } = await updateUser(params)
     if (code === 200) {
       Message.success(msg)
       setEdit(false)
@@ -45,13 +45,13 @@ const Personal = () => {
         old_password: values.oldpwd,
         new_password: values.newpwd,
       }
-      const { code, message } = await request.post('/api/user/chgpwd', params)
+      const { code, msg } = await changePassword(params)
       if (code === 200) {
         Message.success('密码修改成功，请重新登录')
         localStorage.removeItem('mail_remember')
         onLogout()
       } else {
-        Message.error(message)
+        Message.error(msg)
       }
     })
   }

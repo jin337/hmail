@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router'
 import { Button, Card, Checkbox, Form, Input, Message } from '@arco-design/web-react'
 import dayjs from 'dayjs'
 
-import request from 'src/api/request'
+import { login } from 'src/api/auth'
 
 import loginImg from '../assets/img_login.gif'
 
@@ -27,7 +27,7 @@ const Login = () => {
       password: values.password,
       email: values.email + suffix,
     }
-    const { code, data, msg } = await request.post('/api/login', params)
+    const { code, data, msg } = await login(params)
     if (code === 200) {
       if (values.remember) {
         localStorage.setItem('mail_remember', JSON.stringify(values))
