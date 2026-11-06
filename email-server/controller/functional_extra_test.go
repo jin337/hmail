@@ -110,7 +110,15 @@ func TestUserAndContactAPI(t *testing.T) {
 	f := newAPI(t)
 	token := f.login(t)
 
-	rec := f.do(t, "POST", "/api/user/create", map[string]any{
+	// 修改密码：旧密码正确时成功（内存目录只校验账号存在）。
+	rec := f.do(t, "POST", "/api/user/chgpwd", map[string]string{
+		"old_password": "pwd", "new_password": "new-pwd",
+	}, token)
+	if body := decode(t, rec); body["code"].(float64) != 200 {
+		t.Fatalf("修改密码失败: %s", rec.Body.String())
+	}
+
+	rec = f.do(t, "POST", "/api/user/create", map[string]any{
 		"email": "qa@example.com", "password": "qa-pass",
 		"person_first_name": "Q", "person_last_name": "A", "is_admin": 0,
 	}, token)

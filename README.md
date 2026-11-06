@@ -260,10 +260,22 @@ go test ./...
 - `utils`：邮件名/大小/时间格式化、HTML 摘要、排序、地址解析。
 - `service`：列表分页与筛选、星标聚合、详情渲染与内联图片 URL、详情分段抓取（分段规划、正文选择、base64 尺寸推断）、标记/移动/删除校验、MIME 组装、草稿与发送（含定时、重试）、用户与联系人、真实 `.eml` 解析回归。
 - `mailbox`：`BODYSTRUCTURE` 转换、分段抓取语法与响应键、附件判断、定时检索条件。
-- `controller`：登录、鉴权失败、参数校验、列表/详情、viewfile 路径穿越。
+- `controller`：登录、鉴权失败、参数校验、列表/详情、viewfile 路径穿越；本轮补齐星标列表、未读数、标记、移动、删除、取消定时、用户增删改、改密、联系人删除/清空、头像上传及对应错误分支。
 - `middleware`：JWT 签发/校验/Bearer 解析/算法校验。
 
-当前结果：`go build`、`go vet`、`go test ./...` 全部通过。
+当前结果：`go build`、`go vet`、`gofmt -l .`、`go test ./...` 全部通过。覆盖率（语句）：
+
+| 包 | 覆盖率 |
+|---|---|
+| `config` | 77.7% |
+| `controller` | 64.2% |
+| `mailbox` | 18.6% |
+| `middleware` | 76.7% |
+| `service` | 68.5% |
+| `utils` | 57.5% |
+| 总体 | 46.8% |
+
+`apperr`、`contacts`、`directory`、`router`、`main` 仍无独立单测；`contacts`/`directory` 在下面的真实环境测试中通过真实实现走通，`mailbox` 的真实 IMAP 会话方法由真实环境测试覆盖但默认套件不计入覆盖率。
 
 ### 7.2 前端
 
@@ -284,6 +296,8 @@ corepack pnpm@10 build
 
 样式回归通过组件测试中的 className 断言保底（如 `mail-item`、`selelct-mail`、`font-bold`、`py-2`），其余样式以源码字符串为准不做改动。
 
+当前结果：`test` 7 文件 / 44 用例全部通过；`lint` 0 error、1 warning（`src/hooks/useMailbox.jsx:681` 首次加载 effect 内同步 `setCurrentFolder`，属既有逻辑写法，未改动）；`build` 成功（1114 模块），有两条体积告警：`chunk-preview` 11,075 kB（gzip 2,972 kB）与 `chunk-vendor` 947 kB 超过 800 kB 阈值，`jit-viewer` 的 `fs` 被外部化。
+
 ### 7.3 真实环境联调（已验证）
 
 在具备 hMailServer（IMAP 993 / SMTP 587）与有效域账号的机器上，已按以下顺序做过一次真实链路验证，全部返回 `code=200`：
@@ -299,6 +313,16 @@ corepack pnpm@10 build
 9. 重启恢复：先用一个进程设置定时邮件后**立即退出**（模拟重启、内存任务丢失），再用全新进程启动并发出一次带 JWT 的请求；草稿被自动识别并重新挂上任务，未到点的按原定时间投递，已过点的立刻补发，两种情况均真实投递成功并归档到已发送。测试邮件已全部清理。
 
 登录会真实建立 IMAP 会话并补齐标准文件夹，同时更新 hMailServer 的最后登录时间，属于预期副作用。
+
+本轮（2026-11-06）补充了 HTTP 层的真实全接口回归，可用以下命令复跑（默认跳过，需显式开启）：
+
+```powershell
+cd email-server
+$env:MAIL_REAL_TEST="1"
+go test ./controller -run TestRealFullHTTPFlow -count=1 -v
+```
+
+该用例通过进程内 `httptest` 启动真实路由，连接真实 hMailServer，覆盖登录/鉴权、全部邮件列表、详情、附件下载、`viewfile`、发信、标记、移动、删除、定时发送与撤销、联系人增删清空、头像上传和错误分支；测试邮件与定时草稿在用例结束时自动清理，管理员账号的密码、姓名和头像不做修改。
 
 ---
 
