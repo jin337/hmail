@@ -258,7 +258,8 @@ go test ./...
 
 - `config`：默认值、文件覆盖、环境变量优先级、非法值校验。
 - `utils`：邮件名/大小/时间格式化、HTML 摘要、排序、地址解析。
-- `service`：列表分页与筛选、星标聚合、详情渲染与内联图片 URL、标记/移动/删除校验、MIME 组装、草稿与发送（含定时、重试）、用户与联系人、真实 `.eml` 解析回归。
+- `service`：列表分页与筛选、星标聚合、详情渲染与内联图片 URL、详情分段抓取（分段规划、正文选择、base64 尺寸推断）、标记/移动/删除校验、MIME 组装、草稿与发送（含定时、重试）、用户与联系人、真实 `.eml` 解析回归。
+- `mailbox`：`BODYSTRUCTURE` 转换、分段抓取语法与响应键、附件判断、定时检索条件。
 - `controller`：登录、鉴权失败、参数校验、列表/详情、viewfile 路径穿越。
 - `middleware`：JWT 签发/校验/Bearer 解析/算法校验。
 
@@ -273,10 +274,11 @@ corepack pnpm@10 lint
 corepack pnpm@10 build
 ```
 
-覆盖情况（6 个测试文件 / 41 个用例）：
+覆盖情况（7 个测试文件 / 44 个用例）：
 
 - `utils`：文件类型、树展开、时间格式化、属性互换、SVG 判断、节流（含尾调用参数与 `cancel`）。
 - 邮件工具：内联图片 id、详情内容标准化、按时间分组、分页合并、引用块、FormData 组装。
+- `useAutoRefresh`：到点刷新、页面不可见时跳过、`clear` 后停止。
 - `useMailbox`：初始化、搜索序号、标记已读、星标目录取消星标、写信开关、发送成功、缺少收件人/主题。
 - 视图：Menu（目录与未读数、写信、切换目录清理搜索与选中）、List（列表渲染、未读加粗/选中样式 `selelct-mail`、空态）、Detail（正文/附件、定时提示、空态）。
 
@@ -341,6 +343,76 @@ corepack pnpm@10 build
 - **安全边界**：任务执行前仍会重新读取草稿并校验 `X-Schedule-Send` 是否存在，因此撤销过的草稿不会被恢复出来误发。
 - **已知限制**：用户完全不访问系统时不会触发恢复；注册表是进程内存（这一次重启后由草稿箱重建），因此不需要持久化任务表。
 
+### 8.5 列表性能优化（实测）
+
+排查方式：真实账号 + 进程内服务逐接口计时、IMAP 阶段拆解、同连接交替配对抓取，并用 4 个文件夹 54 封邮件做字段级快照比对。
+
+问题定位：
+
+- `MailList` / `StarMailList` 原来用 `BODY.PEEK[]` 抓**整封**报文，只为了取几行正文预览；INBOX 里一封 8.5MB 附件的邮件让列表接口稳定在 120–157ms。
+- 单封对比：`BODY.PEEK[HEADER]` 0.6ms，`BODY.PEEK[]`（同样一封）33ms——附件字节和 MIME 解码是主要成本。
+
+改动：
+
+- `mailbox.Client` 新增 `FetchPreview(seqNums, maxBytes)`，用 `BODY.PEEK[]<0.N>` 只取报文前 64KB，并在同一次 FETCH 里带 `BODYSTRUCTURE`。
+- 附件标记不再依赖下载附件内容：由 `BODYSTRUCTURE` 递归判断 `disposition=attachment`，`parseMailItem` 优先采用该结果；结构缺失时退回头部/分段扫描。
+- 列表解析遇到截断导致的 MIME 解析失败，退回只解析邮件头，保证不丢邮件、元信息完整，预览正文置空。
+- 详情、附件下载、定时任务恢复等需要完整报文的路径**仍然抓全量**，未受影响。
+- `parseFlags` 结果改为排序输出，同一封邮件多次返回的 `flags` 顺序稳定（此前来自 map 遍历，顺序随机）。
+
+实测结果（同连接交替配对）：
+
+| 场景 | 优化前传输量 | 优化后传输量 | 优化前耗时 | 优化后耗时 |
+| --- | --- | --- | --- | --- |
+| INBOX（2 封，含 8.5MB 附件） | 8.98MB | 0.13MB | 36–44ms | 20–26ms |
+| Deleted（50 封，22.9MB） | 22.9MB | 0.52MB | 98–112ms | 82–94ms |
+| `POST /api/mail/list`（INBOX，n=5 平均） | — | — | 147ms | 39ms |
+
+语义校验：优化前后对 `INBOX`/`Sent`/`Drafts`/`Deleted` 的 `uid/from/to/cc/subject/text/size/flags/has_attach/message_id` 逐行比对，除 `flags` 排序外完全一致；含附件的邮件 `has_attach` 保持为 true。
+
+边界与剩余候选：
+
+- 正文超过 64KB 的邮件，列表预览只覆盖前 64KB（列表本来就只展示摘要）。
+- 详情接口的整封解析成本已单独优化（见 8.6），列表与详情都不再为预览/正文下载附件字节。
+- 前端 `useAutoRefresh` 在页面不可见时跳过刷新，恢复可见后按原节奏继续，避免后台标签页每分钟请求列表与未读数（新增 3 个单测覆盖）。
+
+### 8.6 详情接口性能优化（大附件，实测）
+
+问题定位（真实账号，INBOX `uid=89`，报文 8,886,239 字节）：
+
+- 原 `MailDetail` 先用 `BODY.PEEK[]` 抓**整封**报文，再 `enmime.ReadEnvelope` 解码全部部件：IMAP 抓取约 58ms、`enmime.ReadEnvelope` 80–95ms，单次分配约 14.1MB。
+- 整封解析把 10 个附件（约 8.5MB）全部解码，只为算附件大小与列表；偶发的 878–1172ms 毛刺已定位到一次 GC（一次回收 40MB+ 堆，STW 约 1.0–1.2s），不是业务逻辑本身。
+- 对照实验：单独取 `BODYSTRUCTURE` 仅 14–21ms，就能拿到全部 12 个部件的类型、编码、尺寸、`disposition`、文件名、`Content-ID`；只抓 `1.1`（纯文本）+ `1.2`（HTML）+ `2`（内联图）三个分段仅 16–18ms。
+
+改动：
+
+- `mailbox.Client` 新增 `FetchStructure(uid)` 与 `FetchSections(uid, sections)`：一次 FETCH 可组合多个 `BODY.PEEK[path]<offset.length>`，按 `path@offset` 归键（`go-imap` 为带偏移的分段只填 `Partial[0]`，不能用长度做键）。
+- 新增 `service/mail_detail_parts.go`：`FetchStructure` → `buildDetailPlan` → 一次 `FetchSections` → 只解码正文与内联图 → 复用原有 `cid` 改写与落盘逻辑。
+- 附件尺寸：≤4KB 的 base64 附件整段抓取；更大的只取头部 200B + 尾部 120B，按 base64 折行规则推算解码后字节数（10 个真实附件与逐字节解码结果**完全一致**）；推断失败才补抓整段。
+- 结构不安全时自动回退原整封路径：目前只有**空 multipart**（服务端 `BODYSTRUCTURE` 本身解析失败）仍走整封解析；原先的 `message/rfc822` 内嵌邮件、未知传输编码、非 UTF-8/ASCII 正文、quoted-printable 附件、单段非文本根部件均已纳入分段路径。内存假实现返回 `ErrUnsupported`，因此原有单测仍覆盖回退路径。
+- 特殊部件的对齐方式：非 UTF-8 正文和 quoted-printable 附件把「分段原始字节 + BODYSTRUCTURE 头信息」重建成单部件报文交回 `enmime` 解码，复刻其字符集探测/转换与 QP 软换行规则；`message/rfc822` 与 enmime 一致地按叶子部件处理（不展开、按附件尺寸计）；未知传输编码按服务端报告的编码尺寸计，不做解码。
+- 单段邮件此前用空路径请求分段，会生成非法的 `BODY.PEEK[]<0.0>`；现已把单段根的 section 归一为 `1`（`BODY[1]`），并支持根即附件/内联内容（`PartID=0`，与 enmime 一致）。
+- 内联图片已存在且大小一致时跳过重复写盘，反复打开同一封邮件不再反复写文件。
+
+实测结果（同一封 8.89MB 邮件，连续 5 次）：
+
+| 指标 | 优化前 | 优化后 |
+| --- | --- | --- |
+| 详情耗时 | 129–150ms（偶发 878–1172ms） | 33–49ms |
+| IMAP 传输量 | 8.89MB | 约 0.10MB（正文 + 1 张内联图 + 附件首尾样本） |
+| 解析方式 | 整封 enmime（分配约 14.1MB/次） | BODYSTRUCTURE + 分段，仅解码约 93KB |
+
+分段内部耗时：`FetchStructure` 14–21ms、`FetchSections`（22 段）17–35ms，其余为解码、落盘与 URL 改写；复测未再出现 800ms 以上毛刺。
+
+语义校验：对 `INBOX`/`Sent`/`Drafts`/`Deleted` 共 **57 封**邮件，用分段路径与整封路径逐字段比对（正文、附件列表每个字段、附件总大小），**差异 0 处、回退 0 封**。另构造 7 类特殊邮件覆盖原回退清单：GBK 正文、QP 正文、QP 附件（4056B 编码 / 1.5KB 解码）、`message/rfc822` 附件、未知传输编码附件、空 multipart、单段 PNG 根附件；其中 6 类走分段且与整封输出**完全一致**，空 multipart 仍回退整封。
+
+边界与剩余候选：
+
+- 空 multipart 仍走整封解析：hMailServer 对这类邮件返回的 `BODYSTRUCTURE` 无法解析（`Non-multipart body part doesn't have 7 fields`），分段路径拿不到结构，只能保留整封兜底。
+- quoted-printable 附件必须整段下载才能精确算出解码后尺寸（QP 的软换行与 `=XX` 无法从首尾样本推断），因此这类邮件的传输量下降取决于同封是否还有其他大附件。
+- 分段路径每次都重新取 `BODYSTRUCTURE`（14–21ms）；如需进一步压缩，可按「邮箱 + uid」缓存结构，但会引入失效判断。
+- 附件尺寸依赖 base64 折行规则；极端非标准折行（如行宽 >512 或缺失换行）会判定失败并补抓整段，功能正确但退化到慢路径。
+
 ---
 
 ## 9. 常见问题
@@ -353,7 +425,7 @@ corepack pnpm@10 build
 | 用户管理接口返回“不支持” | 非 Windows 构建（`directory/hmail_other.go`），或 hMailServer COM 未注册/管理员密码错误 |
 | 头像/内联图片无法显示 | `static.dir` 目录不存在或不可写；确认 `/static` 路由可达 |
 | 生产环境接口 404 | `gin.mode=release` 时前缀默认 `/`，需显式设置 `api.prefix=/api` |
-| 定时邮件未发出 | 服务进程需持续运行；定时任务由内存调度器在发送后异步触发，重启会丢失待发任务 |
+| 定时邮件未发出 | 服务进程需持续运行；重启后需用户发起一次带 JWT 的请求才会触发草稿箱恢复（见 8.4） |
 
 ---
 

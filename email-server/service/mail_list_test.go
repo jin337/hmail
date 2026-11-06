@@ -7,6 +7,7 @@ import (
 	"email-server/config"
 	"email-server/contacts"
 	"email-server/internal/testutil"
+	"email-server/utils"
 )
 
 // newTestService 构造一个完全基于内存依赖的 Service。
@@ -209,5 +210,44 @@ func TestMailListBadCredentials(t *testing.T) {
 	svc, _, _, _ := newTestService(t)
 	if _, _, err := svc.MailList("user@example.com", "wrong", "INBOX", 1, 10, "", nil); err == nil {
 		t.Fatal("错误密码应返回错误")
+	}
+}
+
+// 列表只抓取报文前段后，元信息、预览正文与附件标记必须与整封解析一致。
+func TestMailListPreviewTruncatedKeepsMetadata(t *testing.T) {
+	svc, server, _, _ := newTestService(t)
+
+	raw := testutil.BuildMessage(testutil.MessageOptions{
+		Subject: "带大附件",
+		Text:    "预览正文",
+		Attachments: []testutil.Attachment{
+			{FileName: "big.bin", ContentType: "application/octet-stream", Content: make([]byte, 1<<20)},
+		},
+	})
+	server.AddMessage("INBOX", raw)
+
+	list, total, err := svc.MailList("user@example.com", "pwd", "INBOX", 1, 10, "", nil)
+	if err != nil {
+		t.Fatalf("MailList 失败: %v", err)
+	}
+	if total != 1 || len(list) != 1 {
+		t.Fatalf("应返回 1 封，实际 total=%d len=%d", total, len(list))
+	}
+
+	item := list[0]
+	if item.Subject != "带大附件" {
+		t.Errorf("subject 应为「带大附件」，实际 %q", item.Subject)
+	}
+	if item.Text != "预览正文" {
+		t.Errorf("预览正文应为「预览正文」，实际 %q", item.Text)
+	}
+	if !item.HasAttach {
+		t.Error("含附件的邮件 HasAttach 应为 true")
+	}
+	if item.Size != utils.FormatUnitSize(int64(len(raw))) {
+		t.Errorf("size 应为 %s，实际 %s", utils.FormatUnitSize(int64(len(raw))), item.Size)
+	}
+	if item.Uid != 1 {
+		t.Errorf("uid 应为 1，实际 %d", item.Uid)
 	}
 }

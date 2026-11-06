@@ -33,9 +33,13 @@ export function useAutoRefresh(refresh) {
     const delay = countRef.current >= FAST_COUNT ? SLOW_INTERVAL : FAST_INTERVAL
     timerRef.current = setTimeout(async () => {
       try {
+        // 后台标签页不刷新：避免页面不可见时仍每分钟请求列表与未读数
+        if (typeof document !== 'undefined' && document.hidden) {
+          return
+        }
         await refreshRef.current()
-      } finally {
         countRef.current += 1
+      } finally {
         schedule()
       }
     }, delay)

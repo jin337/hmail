@@ -76,7 +76,7 @@ pages/Mail/index.jsx ── useMailbox(searchSeq) ── mailContext
 
 - 搜索采用 `searchSeq` 单向通知，替代旧的 `registerMethod`（父组件反向调用子组件方法）。
 - 列表刷新统一走 `mergeMailPage`：`page === 1` 替换，否则追加，避免闭包中的旧列表覆盖新数据。
-- 自动刷新：每次成功加载后 `schedule()` 重新计时；前 20 次自动刷新间隔 1 分钟，之后退避到 5 分钟，累计 50 次后停止。
+- 自动刷新：每次成功加载后 `schedule()` 重新计时；前 20 次自动刷新间隔 1 分钟，之后退避到 5 分钟，累计 50 次后停止。页面不可见（`document.hidden`）时跳过本轮请求，恢复可见后按原节奏继续，避免后台标签页持续请求列表与未读数。
 - 写信页与目录互斥：打开写信时新增虚拟目录 `compose`，关闭后回到来源目录。
 
 ## 4. 环境变量（`.env`）
@@ -103,7 +103,7 @@ corepack pnpm@10 preview
 ## 6. 测试与静态检查
 
 ```bash
-corepack pnpm@10 test       # vitest run（6 文件 / 41 用例）
+corepack pnpm@10 test       # vitest run（7 文件 / 44 用例）
 corepack pnpm@10 test:watch
 corepack pnpm@10 lint       # eslint .
 ```

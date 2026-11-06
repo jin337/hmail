@@ -195,6 +195,41 @@ func (c *client) Fetch(seqNums []uint32) ([]mailbox.Message, error) {
 	return out, nil
 }
 
+func (c *client) FetchPreview(seqNums []uint32, maxBytes int64) ([]mailbox.Message, error) {
+	c.server.mu.Lock()
+	defer c.server.mu.Unlock()
+
+	msgs := c.server.folders[c.folder]
+	out := make([]mailbox.Message, 0, len(seqNums))
+	sorted := append([]uint32{}, seqNums...)
+	sort.Slice(sorted, func(i, j int) bool { return sorted[i] < sorted[j] })
+	limit := int(maxBytes)
+	if limit <= 0 {
+		limit = 65536
+	}
+
+	for _, seq := range sorted {
+		if seq == 0 || int(seq) > len(msgs) {
+			continue
+		}
+		m := msgs[seq-1]
+		raw := m.Raw
+		if len(raw) > limit {
+			raw = raw[:limit]
+		}
+		hasAttach := strings.Contains(strings.ToLower(string(m.Raw)), "content-disposition: attachment")
+		out = append(out, mailbox.Message{
+			SeqNum:     seq,
+			UID:        m.UID,
+			Flags:      append([]string{}, m.Flags...),
+			Size:       uint32(len(m.Raw)),
+			Raw:        raw,
+			Attachment: &hasAttach,
+		})
+	}
+	return out, nil
+}
+
 func (c *client) FetchUID(uid uint32) (*mailbox.Message, error) {
 	c.server.mu.Lock()
 	defer c.server.mu.Unlock()
@@ -211,6 +246,15 @@ func (c *client) FetchUID(uid uint32) (*mailbox.Message, error) {
 		}
 	}
 	return nil, mailbox.ErrNotFound
+}
+
+func (c *client) FetchStructure(uid uint32) (*mailbox.Part, error) {
+	// 内存实现不模拟 BODYSTRUCTURE；service 会回退到整封解析路径。
+	return nil, mailbox.ErrUnsupported
+}
+
+func (c *client) FetchSections(uid uint32, sections []mailbox.Section) (map[string][]byte, error) {
+	return nil, mailbox.ErrUnsupported
 }
 
 func (c *client) FetchAll() ([]mailbox.Message, error) {

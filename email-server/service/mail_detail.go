@@ -30,6 +30,15 @@ func (s *Service) MailDetail(email, pwd, folder string, uid int64, host string) 
 		return nil, fmt.Errorf("选择文件夹 %s 失败: %w", folder, err)
 	}
 
+	// 大附件邮件只抓正文、内联图片和附件尺寸线索，避免下载整封报文。
+	if detail, ok := s.mailDetailParts(email, uid, client, host); ok {
+		return detail, nil
+	}
+	return s.mailDetailFull(email, uid, client, host)
+}
+
+// mailDetailFull 是原有的整封解析路径，也是分段抓取不可用时的兜底。
+func (s *Service) mailDetailFull(email string, uid int64, client mailbox.Client, host string) (*model.MailDetail, error) {
 	msg, err := client.FetchUID(uint32(uid))
 	if err != nil {
 		if errors.Is(err, mailbox.ErrNotFound) {
@@ -133,6 +142,11 @@ func saveInline(dir, partID, ext string, content []byte, onSaved func(localPath,
 
 	fileName := fmt.Sprintf("image_%s%s", partID, ext)
 	localPath := filepath.Join(dir, fileName)
+	// 同一封邮件的部件内容不会变化，尺寸一致时跳过重复写盘。
+	if info, err := os.Stat(localPath); err == nil && info.Size() == int64(len(content)) {
+		onSaved(localPath, fileName)
+		return
+	}
 	if err := os.WriteFile(localPath, content, 0644); err != nil {
 		fmt.Printf("保存内联图片失败: %v\n", err)
 		return

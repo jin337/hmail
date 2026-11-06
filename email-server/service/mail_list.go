@@ -3,6 +3,9 @@ package service
 import (
 	"bytes"
 	"fmt"
+	"mime"
+	"net/mail"
+	"sort"
 	"strings"
 	"time"
 
@@ -22,6 +25,10 @@ type itemOptions struct {
 	forceSeen  bool // 非 INBOX 星标邮件强制视为已读（沿用旧行为）
 	keepDollar bool // 是否保留 $ 开头的自定义标记
 }
+
+// previewFetchBytes 是列表抓取单封邮件时保留的字节数。
+// 列表只需要头部与正文开头，抓取整封会为展示几行预览而传输数 MB 附件。
+const previewFetchBytes = 64 << 10
 
 // MailList 返回指定文件夹的分页邮件列表。
 //
@@ -72,7 +79,7 @@ func (s *Service) MailList(email, pwd, folder string, page, size int64, keyword 
 		return nil, total, nil
 	}
 
-	msgs, err := client.Fetch(ids[start:end])
+	msgs, err := client.FetchPreview(ids[start:end], previewFetchBytes)
 	if err != nil {
 		return nil, 0, fmt.Errorf("获取邮件失败: %v", err)
 	}
@@ -124,7 +131,7 @@ func (s *Service) StarMailList(email, pwd, keyword string, filter []string) ([]*
 		}
 		total += int64(len(ids))
 
-		msgs, err := client.Fetch(ids)
+		msgs, err := client.FetchPreview(ids, previewFetchBytes)
 		if err != nil {
 			fmt.Printf("获取文件夹 %s 的邮件失败: %v\n", folder, err)
 			continue
@@ -187,8 +194,10 @@ func parseMailItem(msg mailbox.Message, opts itemOptions) *model.MailItem {
 
 	env, err := enmime.ReadEnvelope(bytes.NewReader(msg.Raw))
 	if err != nil {
-		fmt.Printf("解析邮件失败: %v\n", err)
-		return nil
+		// 列表只抓取报文前段，极端 MIME 结构可能无法完整解析；
+		// 此时退回只解析头部，保证列表不丢邮件、元信息不缺失。
+		fmt.Printf("解析邮件失败，改用头部信息: %v\n", err)
+		return parseMailItemHeader(msg, opts)
 	}
 
 	fromMail, fromInfo, _ := utils.FormatMailName(env.GetHeader("From"))
@@ -212,6 +221,11 @@ func parseMailItem(msg mailbox.Message, opts itemOptions) *model.MailItem {
 		fromInfoItem = fromInfo[0]
 	}
 
+	hasAttach := hasAttachment(env) || hasAttachmentHeader(msg.Raw)
+	if msg.Attachment != nil {
+		hasAttach = *msg.Attachment
+	}
+
 	return &model.MailItem{
 		Uid:        int64(msg.UID),
 		MessageId:  env.GetHeader("Message-Id"),
@@ -227,11 +241,78 @@ func parseMailItem(msg mailbox.Message, opts itemOptions) *model.MailItem {
 		SendTime:   sendTime,
 		Schedule:   schedule,
 		Text:       utils.PreviewText(env.Text, opts.unescape),
-		HasAttach:  hasAttachment(env),
+		HasAttach:  hasAttach,
 		Folder:     opts.folder,
 		Size:       utils.FormatUnitSize(int64(msg.Size)),
 		Flags:      flags,
 	}
+}
+
+// parseMailItemHeader 只解析邮件头，用于报文被抓断时的兜底。
+// 正文预览置空，其余元信息（发件人、主题、时间、大小、标记）保持不变。
+func parseMailItemHeader(msg mailbox.Message, opts itemOptions) *model.MailItem {
+	r, err := mail.ReadMessage(bytes.NewReader(msg.Raw))
+	if err != nil {
+		return nil
+	}
+	dec := new(mime.WordDecoder)
+	subject, _ := dec.DecodeHeader(r.Header.Get("Subject"))
+
+	fromMail, fromInfo, _ := utils.FormatMailName(r.Header.Get("From"))
+	toMail, toInfo, _ := utils.FormatMailName(r.Header.Get("To"))
+	ccMail, ccInfo, _ := utils.FormatMailName(r.Header.Get("Cc"))
+
+	inReplyTo := r.Header.Get("In-Reply-To")
+	references := r.Header.Get("References")
+	sendTime, _ := utils.ParseMailDate(r.Header.Get("Date"))
+
+	schedule, _ := utils.ParseMailDate(r.Header.Get("X-Schedule-Send"))
+	if !schedule.IsZero() && schedule.Before(time.Now()) {
+		schedule = time.Time{}
+	}
+
+	flags := parseFlags(msg.Flags, opts)
+	var fromInfoItem *model.MailInfo
+	if len(fromInfo) > 0 {
+		fromInfoItem = fromInfo[0]
+	}
+	hasAttach := hasAttachmentHeader(msg.Raw)
+	if msg.Attachment != nil {
+		hasAttach = *msg.Attachment
+	}
+
+	return &model.MailItem{
+		Uid:        int64(msg.UID),
+		MessageId:  r.Header.Get("Message-Id"),
+		ReplyTo:    &inReplyTo,
+		References: &references,
+		From:       fromMail,
+		FromInfo:   fromInfoItem,
+		To:         toMail,
+		ToInfo:     toInfo,
+		Cc:         ccMail,
+		CcInfo:     ccInfo,
+		Subject:    subject,
+		SendTime:   sendTime,
+		Schedule:   schedule,
+		Text:       "",
+		HasAttach:  hasAttach,
+		Folder:     opts.folder,
+		Size:       utils.FormatUnitSize(int64(msg.Size)),
+		Flags:      flags,
+	}
+}
+
+// hasAttachmentHeader 用头部/分段内容兜底判断是否存在附件。
+// 报文被截断时 enmime 可能看不到完整的附件部件，用关键头部做补充判断。
+func hasAttachmentHeader(raw []byte) bool {
+	head := raw
+	if len(head) > previewFetchBytes {
+		head = head[:previewFetchBytes]
+	}
+	lower := strings.ToLower(string(head))
+	return strings.Contains(lower, "content-disposition: attachment") ||
+		strings.Contains(lower, "content-disposition:attachment")
 }
 
 // parseFlags 把 IMAP 标记转换为前端使用的短名称。
@@ -256,6 +337,8 @@ func parseFlags(raw []string, opts itemOptions) []string {
 	for f := range flagSet {
 		flags = append(flags, f)
 	}
+	// 标记来自 map，顺序随机；排序保证同一封邮件多次返回的 flags 稳定。
+	sort.Strings(flags)
 	return flags
 }
 

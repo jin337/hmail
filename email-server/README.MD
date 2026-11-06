@@ -29,7 +29,8 @@ email-server/
 ├── service/                 # 业务实现（按职责拆文件）
 │   ├── service.go           # 依赖、构造、可注入的异步/休眠
 │   ├── mail_list.go         # 列表、星标、未读数
-│   ├── mail_detail.go       # 详情、内联图片、附件
+│   ├── mail_detail.go       # 详情、内联图片、附件（整封兜底路径）
+│   ├── mail_detail_parts.go # 详情分段抓取（BODYSTRUCTURE + 分段解码）
 │   ├── mail_ops.go          # 标记、移动、删除、取消定时
 │   ├── mail_build.go        # 撰写模型与 MIME 组装
 │   ├── mail_send.go         # 草稿、发送、重试、已发送联系人
@@ -134,8 +135,11 @@ GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o email-server-linu
 ## 6. 关键实现说明
 
 - **列表分页**：沿用旧版语义，从文件夹末尾向前取第 `page` 页；`filter` 支持 `unread`、`date_asc`、`date_desc`、`size_asc`、`size_desc`，不传即全部（前端传入的 `all` 会被忽略）。
+- **列表摘要抓取**：`MailList` / `StarMailList` 走 `Client.FetchPreview`，用 `BODY.PEEK[]<0.65536>` 只取报文前 64KB，并在同一次 FETCH 中取 `BODYSTRUCTURE` 判断附件，避免为几行预览下载整封邮件（8.5MB 附件的邮件曾让列表接口达到 120–157ms）；报文被截断导致 MIME 解析失败时，退回只解析邮件头，列表不丢邮件。
 - **星标邮件**：遍历 `INBOX/Sent/Drafts/Deleted/Junk` 收集 `Flagged` 邮件，结果不分页；非 INBOX 文件夹为保证列表摘要可读，会以只读方式强制 `Seen`（不写回服务器）。
-- **详情与内联图片**：`cid:` 图片落地到 `static/images/{email}/{uid}/image_{partID}{ext}`，并把原 `cid` 保留在 `data-href` 供前端预览；URL 统一用 `filepath.ToSlash` 生成，避免 Windows 反斜杠进入链接。
+- **详情分段抓取**：`MailDetail` 先尝试 `mailDetailParts`：只取 `BODYSTRUCTURE`、正文两段、内联图和附件首尾样本（大附件 200B 头 + 120B 尾，小附件整段），不解码附件字节；附件解码尺寸按 base64 折行规则推断，推断失败才补抓整段。8.89MB 附件邮件详情从 129–150ms 降到 33–49ms，语义快照 57 封零差异。
+- **特殊邮件分段**：非 UTF-8 正文、quoted-printable 附件用「分段原始字节 + BODYSTRUCTURE 头」重建单部件报文交回 `enmime` 解码，复刻字符集探测与 QP 软换行规则；`message/rfc822` 按 enmime 的叶子语义处理（不展开、按附件计）；未知传输编码按服务端尺寸计。单段根部件的 section 归一为 `1`（`BODY[1]`），根即附件/内联时 `PartID` 为 `0`。仅空 multipart（`BODYSTRUCTURE` 无法解析）仍回退 `mailDetailFull`。
+- **详情与内联图片**：`cid:` 图片落地到 `static/images/{email}/{uid}/image_{partID}{ext}`，并把原 `cid` 保留在 `data-href` 供前端预览；URL 统一用 `filepath.ToSlash` 生成，避免 Windows 反斜杠进入链接；文件已存在且大小一致时跳过重复写盘。
 - **MIME 组装**：重写为 `multipart/mixed` 套 `multipart/alternative`；正文内 data-uri 图片转为 `cid`；Base64 按 76 字符换行；非 ASCII 头用 RFC 2047 编码；定时时间写入 `X-Schedule-Send`（UTC）。
 - **发送重试**：SMTP 失败重试两次（间隔 5s、15s）；成功后写入 Sent 并异步记录最近联系人。
 - **定时发送**：报文带 `X-Schedule-Send` 时先存草稿并打 `Draft` 标记，后台 goroutine 等到点后按 `Message-ID` 找回草稿、校验定时头仍在，再投递并移入 Sent；取消定时通过删除并重写草稿（去掉 `X-Schedule-Send`、移除 `Draft`）实现，到点任务发现头部缺失即跳过。
@@ -151,6 +155,9 @@ go test ./...
 
 # 单个用例
 go test ./service -run TestMailDetail -v
+
+# 列表解析微基准（轻量邮件 / 带 1MB 附件）
+go test ./service -run "^$" -bench BenchmarkParseMailItem -benchmem
 ```
 
 测试组织：
@@ -159,11 +166,12 @@ go test ./service -run TestMailDetail -v
 - `internal/testutil/mail.go`：生成 enmime 可解析的 multipart 邮件、构造附件与地址列表。
 - `config`：配置合并优先级、非法值。
 - `utils`：格式化、摘要、排序、地址解析。
-- `service`：列表/星标/未读、详情与内联图、标记/移动/删除、MIME 组装、草稿/发送/定时/重试、用户与联系人、真实 `test/test1.eml` 解析。
+- `service`：列表/星标/未读、详情与内联图、详情分段规划与尺寸推断、特殊部件（GBK 正文 / QP 正文与附件 / 单段根附件）、标记/移动/删除、MIME 组装、草稿/发送/定时/重试、用户与联系人、真实 `test/test1.eml` 解析。
+- `mailbox`：`BODYSTRUCTURE` 转换与单段根 `section=1` 归一、分段抓取语法/响应键、附件判断、定时检索条件。
 - `controller`：登录、鉴权、参数校验、viewfile 越界。
 - `middleware`：JWT 签发、解析、算法校验。
 
-当前状态：以上命令全部通过（`mailbox`/`directory`/`contacts`/`router`/`apperr`/`model` 暂无独立测试文件，其行为由 service/controller 层覆盖）。
+当前状态：以上命令全部通过（`directory`/`contacts`/`router`/`apperr`/`model` 暂无独立测试文件，其行为由 service/controller 层覆盖）。
 
 真实环境补充验证（hMailServer IMAP 993 / SMTP 587 在线、使用有效域账号）：HTTP 登录签发 JWT、收件箱列表、邮件详情、未读数、COM 用户列表、联系人列表、viewfile 正常读取与越界拦截均返回成功；登录会真实建立 IMAP 会话、补齐标准文件夹并更新最后登录时间。
 
@@ -178,4 +186,4 @@ go test ./service -run TestMailDetail -v
 | 用户列表返回“不支持” | 非 Windows 构建，或 hMailServer COM 未注册、管理员密码错误、服务账号权限不足 |
 | 内联图片 404 | `static.dir` 不存在/不可写，或 `viewfile` 收到越界 url |
 | 生产环境所有接口 404 | release 模式前缀默认 `/`，需设 `api.prefix=/api` |
-| 定时邮件未发送 | 进程需常驻；待发任务在内存中，重启丢失 |
+| 定时邮件未发送 | 进程需常驻；重启后要等该用户发出一次带 JWT 的请求，才会从草稿箱恢复定时任务（见「定时任务重启恢复」） |
